@@ -65,6 +65,16 @@ class WebViewHandler:
         if not self._shell_loaded:
             self.load_shell()
             await asyncio.sleep(0.3)
+
+        for _ in range(30):
+            try:
+                ready = await self.app.webview.evaluate_javascript("!!window.renderApp")
+            except Exception:
+                ready = False
+            if ready:
+                break
+            await asyncio.sleep(0.1)
+
         state = self._build_state()
         payload = json.dumps(state, ensure_ascii=False)
         b64 = base64.b64encode(payload.encode("utf-8")).decode("ascii")

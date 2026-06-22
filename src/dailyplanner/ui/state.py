@@ -64,7 +64,7 @@ def _finance_dict(entry: FinanceEntry) -> dict:
         "amount": entry.amount,
         "amount_fmt": format_money(entry.amount),
         "type": entry.entry_type,
-        "category": entry.category or "?????",
+        "category": entry.category or "عمومی",
     }
 
 
@@ -96,7 +96,9 @@ def _fmt_hm(minutes: Optional[int]) -> str:
 
 def build_calendar_month(year: int, month: int, db: Database) -> dict:
     jd = jdatetime.date(year, month, 1)
-    days_in_month = jd.days_in_month(year, month)
+    days_in_month = jdatetime.j_days_in_month[month - 1]
+    if month == 12 and jd.isleap():
+        days_in_month = 30
     cells = []
     for day in range(1, days_in_month + 1):
         g = jalali_to_gregorian(year, month, day)
@@ -120,8 +122,8 @@ def build_calendar_month(year: int, month: int, db: Database) -> dict:
 
 def _jalali_month_name(month: int) -> str:
     names = [
-        "", "???????", "????????", "?????", "???", "?????", "??????",
-        "???", "????", "???", "??", "????", "?????",
+        "", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+        "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
     ]
     return names[month]
 

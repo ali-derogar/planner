@@ -23,7 +23,7 @@ def build_web_bundle() -> dict[str, str]:
 <body>
 <div class="screen">
   <div class="content" id="app-root">
-    <div class="loading-state">Loading...</div>
+    <div class="loading-state">در حال بارگذاری...</div>
   </div>
   <div class="bottom-nav" id="bottom-nav"></div>
 </div>
@@ -34,8 +34,8 @@ def build_web_bundle() -> dict[str, str]:
     <div id="modal-fields"></div>
     <div class="modal-error" id="modal-error"></div>
     <div class="modal-btns">
-      <button class="modal-confirm" onclick="confirmModal()">OK</button>
-      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-confirm" onclick="confirmModal()">تأیید</button>
+      <button class="modal-cancel" onclick="closeModal()">انصراف</button>
     </div>
   </div>
 </div>
