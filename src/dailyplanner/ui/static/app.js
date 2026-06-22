@@ -11,6 +11,24 @@ function debounceSearch(q) {
     _searchTimer = setTimeout(function() { action('set_search', { q: q }); }, 350);
 }
 
+var _noteTimer = null;
+var _noteSavedTimer = null;
+function debounceNote(val) {
+    clearTimeout(_noteTimer);
+    _noteTimer = setTimeout(function() {
+        action('set_note', { value: val });
+        showNoteSaved();
+    }, 600);
+}
+
+function showNoteSaved() {
+    var el = document.getElementById('note-saved');
+    if (!el) return;
+    el.classList.add('show');
+    clearTimeout(_noteSavedTimer);
+    _noteSavedTimer = setTimeout(function() { el.classList.remove('show'); }, 1800);
+}
+
 function esc(s) {
     return String(s)
         .replace(/&/g, '&amp;')
@@ -595,7 +613,7 @@ function confirmModal() {
         }
     });
     if (!valid) {
-        errEl.textContent = 'لطفاً فرم را کامل کنید';
+        errEl.textContent = 'لطفاً فیلدهای مشخص‌شده را به‌درستی پر کنید';
         return;
     }
     action(_modal.cmd, params);
@@ -609,6 +627,13 @@ function closeModal() {
 
 document.addEventListener('click', function(e) {
     if (e.target.id === 'modal') closeModal();
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        var modal = document.getElementById('modal');
+        if (modal && modal.style.display !== 'none') closeModal();
+    }
 });
 
 /* Timer update from Python */
@@ -779,17 +804,17 @@ function taskCard(t) {
 
 /* Screens */
 function renderHome(h) {
-    var calBtn = '<button class="icon-btn" onclick="action(\'toggle_calendar\')">📅</button>';
-    var recurBtn = '<button class="icon-btn" style="width:auto;padding:0 8px;gap:3px" onclick="action(\'navigate\',{screen:\'recurring\'})" title="تکراری">★ ' + pd(h.recurring_count) + '</button>';
-    var settingsBtn = '<button class="icon-btn" onclick="action(\'navigate\',{screen:\'settings\'})">⚙</button>';
+    var calBtn = '<button type="button" class="icon-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">📅</button>';
+    var recurBtn = '<button type="button" class="icon-btn" style="width:auto;padding:0 8px;gap:3px" onclick="action(\'navigate\',{screen:\'recurring\'})" aria-label="وظایف تکراری">★ ' + pd(h.recurring_count) + '</button>';
+    var settingsBtn = '<button type="button" class="icon-btn" aria-label="تنظیمات" onclick="action(\'navigate\',{screen:\'settings\'})">⚙</button>';
 
     var html = '<div class="date-header">' +
-        '<a href="javascript:void(0)" onclick="action(\'next_day\')" class="date-nav-btn">‹</a>' +
+        '<button type="button" onclick="action(\'next_day\')" class="date-nav-btn" aria-label="روز بعد">‹</button>' +
         '<span class="date-title">' + esc(h.date_label) + '</span>' +
         '<div class="header-actions">' +
-        (h.is_today ? '' : '<a href="javascript:void(0)" onclick="action(\'today\')" class="today-btn">امروز</a>') +
+        (h.is_today ? '' : '<button type="button" onclick="action(\'today\')" class="today-btn">امروز</button>') +
         calBtn + recurBtn + settingsBtn +
-        '<a href="javascript:void(0)" onclick="action(\'prev_day\')" class="date-nav-btn">›</a></div></div>';
+        '<button type="button" onclick="action(\'prev_day\')" class="date-nav-btn" aria-label="روز قبل">›</button></div></div>';
 
     if (h.show_calendar && h.calendar) {
         html += renderCalendar(h.calendar);
@@ -800,12 +825,13 @@ function renderHome(h) {
         '<span class="sum-eff">بازده: ' + pd(h.efficiency) + '٪</span>' +
         '<span class="sum-not">نامفید: ' + esc(h.not_useful_fmt) + '</span></div>';
 
-    html += '<div class="search-row"><input class="search-input" placeholder="جستجو..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" /></div>';
+    html += '<div class="search-row"><input class="search-input" placeholder="جستجو در تسک‌ها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" aria-label="جستجو در تسک‌ها" /></div>';
 
     html += '<div class="task-list">';
     if (h.tasks.length === 0) {
-        html += '<div class="empty-state"><div class="empty-icon">📝</div><div>هیچ تسکی وجود ندارد</div>' +
-            '<button class="empty-btn" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">+ افزودن تسک</button></div>';
+        html += '<div class="empty-state"><div class="empty-icon">📝</div><div class="empty-title">هیچ تسکی وجود ندارد</div>' +
+            '<div class="empty-sub">اولین تسک امروز را اضافه کنید و زمان خود را مدیریت کنید</div>' +
+            '<button type="button" class="empty-btn" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">+ افزودن تسک</button></div>';
     } else {
         h.tasks.forEach(function(t) { html += taskCard(t); });
     }
@@ -814,8 +840,9 @@ function renderHome(h) {
     html += renderFinance(h.finance);
     html += renderWellness(h.wellness);
     html += '<div class="section note-section"><div class="sec-title">یادداشت روز من</div>' +
-        '<textarea class="note-input" placeholder="یادداشت بنویس..." onchange="action(\'set_note\',{value:this.value})">' + esc(h.daily_note) + '</textarea></div>';
-    html += '<a href="javascript:void(0)" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})" class="add-btn">+ افزودن تسک</a>';
+        '<textarea class="note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
+        '<div class="note-saved" id="note-saved" aria-live="polite">ذخیره شد ✓</div></div>';
+    html += '<button type="button" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})" class="add-btn">+ افزودن تسک</button>';
     return html;
 }
 
@@ -925,11 +952,13 @@ function showAddBudget(preselectedCategory, currentAmount) {
 }
 
 function renderWellness(w) {
+    var moodLabels = ['خیلی بد', 'بد', 'نه چندان خوب', 'معمولی', 'نسبتاً خوب', 'خوب', 'خیلی خوب', 'عالی', 'فوق‌العاده', 'عاشقانه'];
     var moods = '';
     window._moodEmojis.forEach(function(emoji, i) {
         var score = i + 1;
         var sel = w.mood === score ? ' sel' : '';
-        moods += '<button class="mood-btn' + sel + '" onclick="action(\'set_mood\',{score:' + score + '})">' + emoji + '</button>';
+        var lbl = moodLabels[i] || ('امتیاز ' + pd(score));
+        moods += '<button type="button" class="mood-btn' + sel + '" onclick="action(\'set_mood\',{score:' + score + '})" aria-label="' + lbl + '" aria-pressed="' + (w.mood === score ? 'true' : 'false') + '">' + emoji + '</button>';
     });
     return '<div class="section"><div class="sec-header"><span class="sec-title">سلامتی من</span></div>' +
         '<div class="well-row">' +
@@ -964,7 +993,8 @@ function renderAnalytics(a) {
         '</div><div class="sec-title" style="padding:8px 12px">روزهای گذشته</div>';
 
     if (!a.days.length) {
-        html += '<div class="empty-state">در این بازه زمانی داده‌ای ندارید</div>';
+        html += '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">داده‌ای برای نمایش نیست</div>' +
+            '<div class="empty-sub">چند روز تسک انجام دهید تا آمار بازدهی اینجا نمایش داده شود</div></div>';
     } else {
         a.days.forEach(function(d) {
             html += '<div class="day-card"><div class="day-date">' + esc(d.date_label) + '</div>' +
@@ -1022,6 +1052,8 @@ function renderSettings(s) {
           + ' onclick="toggleExportPreview()">نمایش محتوای JSON</button>'
           + '<textarea id="export-ta" class="backup-ta backup-preview" style="display:none"'
           + ' placeholder="JSON بکاپ اینجا نمایش داده می‌شود..." readonly></textarea>'
+          + '<button type="button" class="backup-copy-btn" id="export-copy-btn" style="display:none"'
+          + ' onclick="copyExportJson()">📋 کپی در کلیپ‌بورد</button>'
           + '</div>';
 
     html += '<div class="section settings-section import-section">'
@@ -1049,10 +1081,47 @@ function renderSettings(s) {
 function toggleExportPreview() {
     var ta = document.getElementById('export-ta');
     var btn = document.getElementById('export-toggle');
+    var copyBtn = document.getElementById('export-copy-btn');
     if (!ta) return;
     var show = ta.style.display === 'none';
     ta.style.display = show ? 'block' : 'none';
     if (btn) btn.textContent = show ? 'پنهان کردن JSON' : 'نمایش محتوای JSON';
+    if (copyBtn) copyBtn.style.display = show ? 'block' : 'none';
+}
+
+function copyExportJson() {
+    var ta = document.getElementById('export-ta');
+    var text = (ta && ta.value) ? ta.value : (window._exportData || '');
+    if (!text) {
+        showToast('محتوایی برای کپی وجود ندارد', 'error');
+        return;
+    }
+
+    function copied() {
+        showToast('در کلیپ‌بورد کپی شد', 'success');
+    }
+
+    function fallbackCopy() {
+        if (ta) {
+            ta.style.display = 'block';
+            ta.focus();
+            ta.select();
+            ta.setSelectionRange(0, text.length);
+            try {
+                if (document.execCommand('copy')) {
+                    copied();
+                    return;
+                }
+            } catch (e) {}
+        }
+        showToast('کپی نشد — متن را دستی انتخاب کنید', 'error');
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(copied).catch(fallbackCopy);
+    } else {
+        fallbackCopy();
+    }
 }
 
 function submitImport() {
@@ -1434,14 +1503,16 @@ function renderProjectDetail(p) {
 }
 
 function renderNav(screen) {
-    var home = screen === 'home' ? 'nav-btn active' : 'nav-btn';
-    var fin = screen === 'finance' ? 'nav-btn active' : 'nav-btn';
-    var proj = screen === 'projects' ? 'nav-btn active' : 'nav-btn';
-    var anal = screen === 'analytics' ? 'nav-btn active' : 'nav-btn';
-    return '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'home\'})" class="' + home + '"><span class="nav-icon">🏠</span>امروز</a>' +
-        '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'finance\'})" class="' + fin + '"><span class="nav-icon">💰</span>مالی</a>' +
-        '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'projects\'})" class="' + proj + '"><span class="nav-icon">📋</span>پروژه‌ها</a>' +
-        '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'analytics\'})" class="' + anal + '"><span class="nav-icon">📊</span>آمار</a>';
+    function item(id, label, icon) {
+        var cls = screen === id ? 'nav-btn active' : 'nav-btn';
+        var current = screen === id ? ' aria-current="page"' : '';
+        return '<button type="button" onclick="action(\'navigate\',{screen:\'' + id + '\'})" class="' + cls + '"' + current +
+            ' aria-label="' + label + '"><span class="nav-icon" aria-hidden="true">' + icon + '</span>' + label + '</button>';
+    }
+    return item('home', 'امروز', '🏠') +
+        item('finance', 'مالی', '💰') +
+        item('projects', 'پروژه‌ها', '📋') +
+        item('analytics', 'آمار', '📊');
 }
 
 /* Main render */
@@ -1451,6 +1522,8 @@ function renderApp(state) {
     window._investCategories = state.investment_categories || [];
     window._moodEmojis = state.mood_emojis || [];
     document.documentElement.setAttribute('data-theme', state.theme || 'dark');
+    var themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute('content', (state.theme === 'light') ? '#F2F2F7' : '#121212');
 
     var root = document.getElementById('app-root');
     if (!root) return;

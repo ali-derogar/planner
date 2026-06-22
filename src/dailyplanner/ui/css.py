@@ -56,6 +56,15 @@ html, body {{
 
 a {{ text-decoration: none; color: inherit; }}
 
+button, input, select, textarea {{ font-family: inherit; }}
+button {{ cursor: pointer; }}
+
+button:focus-visible, a:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible {{
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}}
+
 /* ── Layout ── */
 .screen {{ display: flex; flex-direction: column; min-height: 100vh; }}
 .content {{ flex: 1; padding-bottom: calc(68px + var(--safe-bottom)); }}
@@ -64,11 +73,12 @@ a {{ text-decoration: none; color: inherit; }}
 .bottom-nav {{
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    background: #0D0D0D;
+    background: var(--nav-bar);
     display: flex;
     padding: 6px 0 calc(8px + var(--safe-bottom));
-    border-top: 1px solid #2C2C2E;
+    border-top: 1px solid var(--divider);
     z-index: 200;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
 }}
 
 /* Android gesture / 3-button nav bar — env() is often 0 in WebView */
@@ -78,8 +88,8 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .nav-btn {{
     flex: 1;
-    color: #8E8E93;
-    font-size: 13px;
+    color: var(--text-muted);
+    font-size: 12px;
     padding: 6px 4px;
     text-align: center;
     display: flex;
@@ -90,10 +100,14 @@ a {{ text-decoration: none; color: inherit; }}
     cursor: pointer;
     border-radius: 8px;
     margin: 0 4px;
-    transition: background 0.15s;
+    transition: background 0.15s, color 0.15s;
+    border: none;
+    background: none;
+    min-height: 48px;
 }}
+.nav-btn:active {{ background: var(--surface-muted); }}
 .nav-btn.active {{
-    color: #5E5CE6;
+    color: var(--primary);
     background: rgba(94,92,230,0.15);
 }}
 
@@ -152,26 +166,27 @@ a {{ text-decoration: none; color: inherit; }}
 
 /* ── Summary Bar ── */
 .summary-bar {{
-    background: #1C1C1E;
+    background: var(--surface);
     padding: 8px 16px;
     display: flex;
     justify-content: space-between;
     font-size: 12px;
-    border-bottom: 1px solid #2C2C2E;
+    border-bottom: 1px solid var(--divider);
 }}
-.sum-useful {{ color: #4DD980; }}
-.sum-not {{ color: #FF7359; }}
-.sum-eff {{ color: #5E5CE6; }}
+.sum-useful {{ color: var(--success); }}
+.sum-not {{ color: var(--warning); }}
+.sum-eff {{ color: var(--primary); }}
 
 /* ── Task Card ── */
 .task-list {{ padding: 8px 8px 4px; }}
 
 .task-card {{
-    background: #1C1C1E;
-    border-radius: 14px;
+    background: var(--surface);
+    border-radius: var(--radius);
     margin-bottom: 8px;
     overflow: hidden;
-    border: 1px solid #2C2C2E;
+    border: 1px solid var(--divider);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }}
 .task-header {{
     display: flex;
@@ -181,8 +196,8 @@ a {{ text-decoration: none; color: inherit; }}
     direction: rtl;
     gap: 8px;
 }}
-.task-star {{ font-size: 18px; color: #FFC208; flex-shrink: 0; }}
-.task-star.empty {{ color: #38383B; }}
+.task-star {{ font-size: 18px; color: var(--star); flex-shrink: 0; }}
+.task-star.empty {{ color: var(--divider); }}
 .task-title-wrap {{
     flex: 1;
     font-size: 14px;
@@ -191,7 +206,7 @@ a {{ text-decoration: none; color: inherit; }}
     white-space: nowrap;
 }}
 .task-dur {{
-    color: #8E8E93;
+    color: var(--text-muted);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -199,21 +214,21 @@ a {{ text-decoration: none; color: inherit; }}
     text-align: center;
 }}
 .task-dur.running {{
-    color: #00D9C7;
+    color: var(--running);
 }}
-.task-chevron {{ color: #555; font-size: 11px; flex-shrink: 0; }}
+.task-chevron {{ color: var(--text-muted); font-size: 11px; flex-shrink: 0; opacity: 0.6; }}
 
 /* useful indicator strip on left */
-.task-card.is-useful {{ border-right: 3px solid #4DD980; }}
-.task-card.is-not-useful {{ border-right: 3px solid #FF5959; }}
-.task-card.is-running {{ border-right: 3px solid #00D9C7; }}
+.task-card.is-useful {{ border-right: 3px solid var(--success); }}
+.task-card.is-not-useful {{ border-right: 3px solid var(--error); }}
+.task-card.is-running {{ border-right: 3px solid var(--running); }}
 
 /* ── Task Detail ── */
 .task-detail {{
     padding: 12px 14px 14px;
-    border-top: 1px solid #2C2C2E;
+    border-top: 1px solid var(--divider);
     direction: rtl;
-    background: #161616;
+    background: var(--surface-deep);
 }}
 .timer-row {{
     display: flex;
@@ -224,13 +239,13 @@ a {{ text-decoration: none; color: inherit; }}
 .timer-big {{
     font-size: 22px;
     font-variant-numeric: tabular-nums;
-    color: #00D9C7;
+    color: var(--running);
     letter-spacing: 2px;
 }}
 .btn-start {{
-    background: #143838;
-    color: #00D9C7;
-    border: 1px solid #00D9C7;
+    background: var(--running-bg);
+    color: var(--running);
+    border: 1px solid var(--running);
     padding: 7px 16px;
     border-radius: 20px;
     cursor: pointer;
@@ -238,9 +253,9 @@ a {{ text-decoration: none; color: inherit; }}
     font-size: 13px;
 }}
 .btn-stop {{
-    background: #471F1F;
-    color: #FF5959;
-    border: 1px solid #FF5959;
+    background: var(--error-bg);
+    color: var(--error);
+    border: 1px solid var(--error);
     padding: 7px 16px;
     border-radius: 20px;
     cursor: pointer;
@@ -276,21 +291,23 @@ a {{ text-decoration: none; color: inherit; }}
     display: inline-block;
     white-space: nowrap;
 }}
-.chip-useful-on   {{ background: #1A4028; color: #4DD980; border: 1px solid #4DD98055; }}
-.chip-useful-off  {{ background: #1C1C1E; color: #8E8E93; border: 1px solid #38383B; }}
-.chip-notuseful-on{{ background: #471F1F; color: #FF7359; border: 1px solid #FF595955; }}
-.chip-neutral     {{ background: #2C2C2E; color: #8E8E93; border: 1px solid #38383B; }}
-.chip-edit        {{ background: #1A1A40; color: #7B8CDE; border: 1px solid #5E5CE633; }}
-.chip-delete      {{ background: #3D1818; color: #FF5959; border: 1px solid #FF595933; }}
+.chip-useful-on   {{ background: var(--success-bg); color: var(--success); border: none; }}
+.chip-useful-off  {{ background: var(--surface); color: var(--text-muted); border: 1px solid var(--divider); }}
+.chip-notuseful-on{{ background: var(--error-bg); color: var(--warning); border: none; }}
+.chip-neutral     {{ background: var(--surface-muted); color: var(--text-muted); border: 1px solid var(--divider); }}
+.chip-edit        {{ background: var(--chip-edit-bg); color: var(--chip-edit); border: none; }}
+.chip-delete      {{ background: var(--error-bg); color: var(--error); border: none; }}
+.chip:active {{ opacity: 0.85; }}
 
 /* ── Section (Finance / Wellness) ── */
 .section {{
-    background: #1C1C1E;
-    border-radius: 14px;
+    background: var(--surface);
+    border-radius: var(--radius);
     margin: 6px 8px;
     padding: 14px;
-    border: 1px solid #2C2C2E;
+    border: 1px solid var(--divider);
     direction: rtl;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }}
 .sec-header {{
     display: flex;
@@ -301,21 +318,21 @@ a {{ text-decoration: none; color: inherit; }}
 .sec-title {{
     font-size: 14px;
     font-weight: bold;
-    color: #FFFFFF;
+    color: var(--text);
 }}
-.sec-actions {{ display: flex; gap: 6px; }}
+.sec-actions {{ display: flex; gap: 6px; flex-wrap: wrap; }}
 .btn-sm-green {{
-    background: #1A4028; color: #4DD980;
+    background: var(--success-bg); color: var(--success);
     padding: 4px 10px; border-radius: 14px;
     font-size: 12px; cursor: pointer;
-    border: 1px solid #4DD98044;
+    border: none;
     font-family: 'Vazirmatn', sans-serif;
 }}
 .btn-sm-red {{
-    background: #3D1818; color: #FF5959;
+    background: var(--error-bg); color: var(--error);
     padding: 4px 10px; border-radius: 14px;
     font-size: 12px; cursor: pointer;
-    border: 1px solid #FF595944;
+    border: none;
     font-family: 'Vazirmatn', sans-serif;
 }}
 
@@ -326,38 +343,47 @@ a {{ text-decoration: none; color: inherit; }}
     font-size: 12px;
     padding-bottom: 8px;
     margin-bottom: 8px;
-    border-bottom: 1px solid #2C2C2E;
+    border-bottom: 1px solid var(--divider);
+    flex-wrap: wrap;
+    gap: 4px;
 }}
-.fin-income {{ color: #4DD980; }}
-.fin-expense {{ color: #FF7359; }}
-.fin-investment {{ color: #FFB020; }}
-.fin-balance {{ color: #5E5CE6; }}
+.fin-income {{ color: var(--success); }}
+.fin-expense {{ color: var(--warning); }}
+.fin-investment {{ color: var(--investment); }}
+.fin-balance {{ color: var(--primary); }}
 
 .fin-entry {{
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 5px 0;
+    padding: 8px 0;
     font-size: 13px;
     direction: rtl;
-    border-bottom: 1px solid #1C1C1E;
+    border-bottom: 1px solid var(--surface-muted);
+    gap: 6px;
 }}
 .fin-entry:last-child {{ border-bottom: none; }}
-.fin-type-income {{ color: #4DD980; }}
-.fin-type-expense {{ color: #FF7359; }}
-.fin-type-investment {{ color: #FFB020; }}
+.fin-type-income {{ color: var(--success); }}
+.fin-type-expense {{ color: var(--warning); }}
+.fin-type-investment {{ color: var(--investment); }}
 .btn-sm-invest {{
-    background: #3D3018; color: #FFB020;
+    background: var(--surface-muted);
+    color: var(--investment);
     padding: 4px 10px; border-radius: 14px;
     font-size: 12px; cursor: pointer;
-    border: 1px solid #FFB02044;
+    border: 1px solid var(--divider);
     font-family: 'Vazirmatn', sans-serif;
 }}
 .fin-del {{
     background: none; border: none;
-    color: #FF595988; font-size: 16px;
-    cursor: pointer; padding: 0 6px;
+    color: var(--error);
+    opacity: 0.55;
+    font-size: 18px; line-height: 1;
+    cursor: pointer; padding: 4px 6px;
+    border-radius: 6px;
+    min-width: 32px; min-height: 32px;
 }}
+.fin-del:active {{ background: var(--surface-muted); }}
 
 /* wellness */
 .well-row {{
@@ -366,17 +392,19 @@ a {{ text-decoration: none; color: inherit; }}
     direction: rtl;
 }}
 .well-btn {{
-    flex: 1; background: #2C2C2E;
-    border: 1px solid #38383B;
-    border-radius: 10px;
+    flex: 1; background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-sm);
     padding: 10px 8px;
     text-align: center;
     cursor: pointer;
     font-family: 'Vazirmatn', sans-serif;
-    color: #fff;
+    color: var(--text);
+    transition: border-color 0.15s, background 0.15s;
 }}
-.well-lbl {{ font-size: 11px; color: #8E8E93; display: block; margin-bottom: 3px; }}
-.well-val {{ font-size: 14px; }}
+.well-btn:active {{ border-color: var(--primary); }}
+.well-lbl {{ font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 3px; }}
+.well-val {{ font-size: 14px; font-weight: 500; }}
 
 /* mood */
 .mood-row {{
@@ -425,7 +453,7 @@ a {{ text-decoration: none; color: inherit; }}
 /* ── Modal ── */
 .modal-overlay {{
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.72);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -434,19 +462,21 @@ a {{ text-decoration: none; color: inherit; }}
     direction: rtl;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    backdrop-filter: blur(2px);
 }}
 .modal-box {{
-    background: #1C1C1E;
+    background: var(--surface);
     border-radius: 18px;
     padding: 20px 16px 16px;
     width: 100%;
     max-width: 360px;
     max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    border: 1px solid #3C3C3E;
+    border: 1px solid var(--divider);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     margin: auto;
+    box-shadow: var(--shadow);
 }}
 #modal-fields {{
     overflow-y: auto;
@@ -465,23 +495,23 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .modal-label {{
     font-size: 12px;
-    color: #8E8E93;
+    color: var(--text-muted);
     margin-bottom: 5px;
 }}
 .modal-input {{
     width: 100%;
-    background: #2C2C2E;
-    border: 1px solid #38383B;
-    border-radius: 10px;
+    background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-sm);
     padding: 10px 12px;
-    color: #fff;
+    color: var(--text);
     font-size: 14px;
     font-family: 'Vazirmatn', sans-serif;
     direction: rtl;
     margin-bottom: 12px;
     outline: none;
 }}
-.modal-input:focus {{ border-color: #5E5CE6; }}
+.modal-input:focus {{ border-color: var(--primary); }}
 
 .color-picker {{ margin-bottom: 12px; }}
 .color-picker-grid {{
@@ -529,10 +559,10 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .modal-cancel {{
     flex: 1;
-    background: #2C2C2E;
-    color: #8E8E93;
-    border: 1px solid #38383B;
-    border-radius: 10px;
+    background: var(--surface-muted);
+    color: var(--text-muted);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-sm);
     padding: 10px;
     font-size: 14px;
     cursor: pointer;
@@ -633,19 +663,19 @@ a {{ text-decoration: none; color: inherit; }}
 .period-btn {{
     flex: 1;
     padding: 8px;
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     text-align: center;
-    background: #2C2C2E;
-    color: #8E8E93;
-    border: 1px solid #38383B;
+    background: var(--surface-muted);
+    color: var(--text-muted);
+    border: 1px solid var(--divider);
     cursor: pointer;
     font-family: 'Vazirmatn', sans-serif;
     font-size: 13px;
 }}
 .period-btn.active {{
     background: rgba(94,92,230,0.2);
-    color: #5E5CE6;
-    border-color: #5E5CE655;
+    color: var(--primary);
+    border-color: rgba(94,92,230,0.33);
 }}
 
 .stat-cards {{
@@ -658,45 +688,64 @@ a {{ text-decoration: none; color: inherit; }}
 .stat-card {{
     flex: 1;
     min-width: calc(50% - 4px);
-    background: #1C1C1E;
+    background: var(--surface);
     border-radius: 12px;
     padding: 12px;
-    border: 1px solid #2C2C2E;
+    border: 1px solid var(--divider);
     text-align: center;
 }}
-.stat-key {{ font-size: 11px; color: #8E8E93; margin-bottom: 4px; }}
-.stat-val {{ font-size: 16px; font-weight: bold; }}
+.stat-key {{ font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }}
+.stat-val {{ font-size: 16px; font-weight: bold; color: var(--text); }}
 
 .day-card {{
-    background: #1C1C1E;
+    background: var(--surface);
     border-radius: 12px;
     margin: 4px 8px;
     padding: 10px 12px;
-    border: 1px solid #2C2C2E;
+    border: 1px solid var(--divider);
     direction: rtl;
 }}
-.day-date {{ font-size: 13px; color: #8E8E93; margin-bottom: 6px; }}
+.day-date {{ font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }}
 .day-bar {{
     height: 6px;
     border-radius: 3px;
-    background: #2C2C2E;
+    background: var(--surface-muted);
     overflow: hidden;
     margin-bottom: 6px;
 }}
 .day-bar-fill {{
     height: 100%;
     border-radius: 3px;
-    background: linear-gradient(90deg, #5E5CE6, #4DD980);
+    background: linear-gradient(90deg, var(--primary), var(--success));
 }}
 .day-stats {{
     display: flex;
     justify-content: space-between;
     font-size: 12px;
-    color: #8E8E93;
+    color: var(--text-muted);
 }}
 
 /* ── SPA extras ── */
-.loading-state {{ text-align: center; padding: 48px; color: var(--text-muted); }}
+.loading-state {{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 50vh;
+    padding: 48px 24px;
+    color: var(--text-muted);
+    gap: 12px;
+}}
+.loading-spinner {{
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--surface-muted);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+}}
+.loading-text {{ font-size: 14px; }}
+@keyframes spin {{ to {{ transform: rotate(360deg); }} }}
 .search-row {{ padding: 8px 8px 4px; }}
 .search-input {{
     width: 100%; background: var(--surface); border: 1px solid var(--divider);
@@ -722,14 +771,18 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .task-remaining {{ font-size: 11px; color: var(--text-muted); padding: 0 12px 8px; }}
 .empty-state {{
-    text-align: center; padding: 32px 16px; color: var(--text-muted);
+    text-align: center; padding: 36px 20px; color: var(--text-muted);
 }}
-.empty-icon {{ font-size: 40px; margin-bottom: 8px; }}
-.empty-btn, .empty-mini {{ margin-top: 12px; }}
-.empty-mini {{ text-align: center; font-size: 12px; color: var(--text-muted); padding: 8px; }}
+.empty-icon {{ font-size: 44px; margin-bottom: 10px; line-height: 1; }}
+.empty-title {{ font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }}
+.empty-sub {{ font-size: 12px; color: var(--text-muted); line-height: 1.6; max-width: 280px; margin: 0 auto 4px; }}
+.empty-btn, .empty-mini {{ margin-top: 14px; }}
+.empty-mini {{ text-align: center; font-size: 12px; color: var(--text-muted); padding: 12px 8px; }}
 .empty-btn {{
-    background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm);
-    padding: 8px 16px; cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+    background: linear-gradient(135deg, var(--primary-light), #8B00E0);
+    color: #fff; border: none; border-radius: var(--radius-sm);
+    padding: 10px 20px; cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+    font-size: 13px; box-shadow: var(--shadow);
 }}
 .note-section {{ margin-top: 0; }}
 .note-input {{
@@ -737,7 +790,14 @@ a {{ text-decoration: none; color: inherit; }}
     border: 1px solid var(--divider); border-radius: var(--radius-sm);
     padding: 10px; color: var(--text); font-family: 'Vazirmatn', sans-serif;
     font-size: 14px; resize: vertical; outline: none; margin-top: 8px;
+    line-height: 1.6;
 }}
+.note-input:focus {{ border-color: var(--primary); }}
+.note-saved {{
+    font-size: 11px; color: var(--success); margin-top: 6px; opacity: 0;
+    transition: opacity 0.3s;
+}}
+.note-saved.show {{ opacity: 1; }}
 .fin-donut-row {{ display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }}
 .fin-donut {{
     width: 48px; height: 48px; border-radius: 50%;
@@ -907,6 +967,25 @@ a {{ text-decoration: none; color: inherit; }}
     cursor: pointer;
     text-align: center;
 }}
+.backup-copy-btn {{
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 11px 16px;
+    background: var(--surface-muted);
+    color: var(--text);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: 'Vazirmatn', sans-serif;
+    cursor: pointer;
+    text-align: center;
+}}
+.backup-copy-btn:active {{
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}}
 .import-section {{
     border-color: rgba(255,115,89,0.25);
 }}
@@ -952,12 +1031,15 @@ a {{ text-decoration: none; color: inherit; }}
 .backup-preview {{ font-size: 10px; max-height: 200px; }}
 .toast {{
     position: fixed; top: calc(12px + var(--safe-top)); left: 50%; transform: translateX(-50%);
-    background: var(--surface); color: var(--text); padding: 10px 20px;
-    border-radius: 20px; border: 1px solid var(--divider); z-index: 600;
-    opacity: 0; pointer-events: none; transition: opacity 0.2s; font-size: 13px;
+    background: var(--surface); color: var(--text); padding: 11px 22px;
+    border-radius: 20px; border: 1px solid var(--divider); z-index: 700;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s;
+    font-size: 13px; box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    max-width: calc(100vw - 32px); text-align: center; white-space: pre-wrap;
 }}
-.toast.show {{ opacity: 1; }}
-.toast.error {{ border-color: var(--error); color: var(--error); }}
+.toast.show {{ opacity: 1; transform: translateX(-50%) translateY(0); }}
+.toast.error {{ border-color: var(--error); color: var(--error); background: var(--error-bg); }}
+.toast.success {{ border-color: var(--success); color: var(--success); background: var(--success-bg); }}
 .nav-icon {{
     display: block;
     font-size: 20px;
@@ -1293,7 +1375,7 @@ a {{ text-decoration: none; color: inherit; }}
 .proj-detail-page {{ padding-bottom: 16px; --project-color: var(--primary); }}
 .proj-detail-hero {{
     position: relative; padding: calc(12px + var(--safe-top)) 16px 18px;
-    background: #1C1C1E; overflow: hidden;
+    background: var(--surface); overflow: hidden;
 }}
 @media (hover: none) and (pointer: coarse) {{
     .proj-detail-hero {{ padding-top: calc(12px + max(36px, var(--safe-top))); }}
@@ -1450,5 +1532,28 @@ a {{ text-decoration: none; color: inherit; }}
     .nav-icon {{ font-size: 18px; }}
     .color-picker-grid {{ gap: 6px; }}
     .color-swatch {{ width: 40px; height: 40px; }}
+}}
+
+/* ── Light theme component overrides ── */
+[data-theme="light"] .fin-hero {{
+    background: linear-gradient(145deg, #EEF0FF 0%, var(--surface) 60%, #E6F9ED 100%);
+    border-color: var(--divider);
+    box-shadow: 0 2px 16px rgba(61,90,254,0.08);
+}}
+[data-theme="light"] .fin-hero-stat {{
+    background: rgba(0,0,0,0.03);
+    border-color: var(--divider);
+}}
+[data-theme="light"] .task-card,
+[data-theme="light"] .section,
+[data-theme="light"] .stat-card,
+[data-theme="light"] .day-card {{
+    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+}}
+[data-theme="light"] .bottom-nav {{
+    box-shadow: 0 -1px 8px rgba(0,0,0,0.06);
+}}
+[data-theme="light"] .toast {{
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }}
 """

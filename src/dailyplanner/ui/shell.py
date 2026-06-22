@@ -15,7 +15,7 @@ def build_web_bundle() -> dict[str, str]:
 <html dir="rtl" lang="fa" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#121212">
 <title>Daily Planner</title>
 <link rel="stylesheet" href="app.css">
@@ -23,9 +23,9 @@ def build_web_bundle() -> dict[str, str]:
 <body>
 <div class="screen">
   <div class="content" id="app-root">
-    <div class="loading-state">در حال بارگذاری...</div>
+    <div class="loading-state"><div class="loading-spinner" aria-hidden="true"></div><div class="loading-text">در حال بارگذاری...</div></div>
   </div>
-  <div class="bottom-nav" id="bottom-nav"></div>
+  <div class="bottom-nav" id="bottom-nav" role="navigation" aria-label="ناوبری اصلی"></div>
 </div>
 <div id="toast" class="toast"></div>
 <div id="modal" class="modal-overlay" style="display:none">

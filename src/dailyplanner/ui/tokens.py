@@ -5,6 +5,7 @@ TOKENS_CSS = """
     --bg: #121212;
     --surface: #1C1C1E;
     --surface-muted: #2C2C2E;
+    --surface-deep: #161616;
     --nav-bar: #0D0D0D;
     --primary: #5E5CE6;
     --primary-light: #3D5AFE;
@@ -15,9 +16,14 @@ TOKENS_CSS = """
     --warning: #FF7359;
     --running: #00D9C7;
     --running-bg: #143838;
+    --investment: #FFB020;
+    --star: #FFC208;
+    --chip-edit: #7B8CDE;
+    --chip-edit-bg: #1A1A40;
     --text: #FFFFFF;
     --text-muted: #8E8E93;
     --divider: #38383B;
+    --overlay: rgba(0,0,0,0.72);
     --radius: 14px;
     --radius-sm: 10px;
     --shadow: 0 2px 12px rgba(61,90,254,0.25);
@@ -29,10 +35,25 @@ TOKENS_CSS = """
     --bg: #F2F2F7;
     --surface: #FFFFFF;
     --surface-muted: #E5E5EA;
+    --surface-deep: #F5F5F8;
     --nav-bar: #FFFFFF;
+    --primary: #5E5CE6;
+    --primary-light: #3D5AFE;
+    --success: #28A745;
+    --success-bg: #E6F9ED;
+    --error: #DC3545;
+    --error-bg: #FFECEC;
+    --warning: #E8590C;
+    --running: #0D9488;
+    --running-bg: #E0F9F6;
+    --investment: #D97706;
+    --chip-edit: #5E5CE6;
+    --chip-edit-bg: #EEF0FF;
     --text: #1C1C1E;
     --text-muted: #636366;
     --divider: #C6C6C8;
+    --overlay: rgba(0,0,0,0.45);
+    --shadow: 0 2px 12px rgba(61,90,254,0.12);
 }
 """
 
