@@ -10,6 +10,7 @@ from dailyplanner.models import (
     DailyTask,
     DailyWellness,
     FinanceEntry,
+    ImportantDate,
     Installment,
     Project,
     ProjectTask,
@@ -23,6 +24,7 @@ from dailyplanner.services.timer import TimerService
 from dailyplanner.ui.tokens import (
     BUDGET_EXCLUDED_CATEGORIES,
     FINANCE_CATEGORIES,
+    IMPORTANT_DATE_CATEGORIES,
     INVESTMENT_CATEGORIES,
     MOOD_EMOJIS,
     PROJECT_COLORS,
@@ -243,6 +245,43 @@ def _installment_dict(inst: Installment, db: Database, year: int, month: int) ->
     }
 
 
+def _important_date_dict(item: ImportantDate, today: datetime.date) -> dict:
+    days = item.days_until(today)
+    if days < 0:
+        urgency = "overdue"
+        countdown = to_persian_digits(f"{abs(days)} روز گذشته")
+    elif days == 0:
+        urgency = "urgent"
+        countdown = "امروز"
+    elif days <= 7:
+        urgency = "urgent"
+        countdown = to_persian_digits(f"{days} روز مانده")
+    elif days <= 30:
+        urgency = "soon"
+        countdown = to_persian_digits(f"{days} روز مانده")
+    else:
+        months = days // 30
+        if months >= 2:
+            countdown = to_persian_digits(f"{months} ماه مانده")
+        else:
+            countdown = to_persian_digits(f"{days} روز مانده")
+        urgency = "ok"
+    return {
+        "id": item.id,
+        "title": item.title,
+        "date": item.date,
+        "date_fmt": format_jalali(datetime.date.fromisoformat(item.date)),
+        "category": item.category,
+        "notes": item.notes,
+        "repeat_type": item.repeat_type,
+        "repeat_months": item.repeat_months,
+        "days": days,
+        "countdown": countdown,
+        "urgency": urgency,
+        "is_repeating": item.is_repeating,
+    }
+
+
 def build_state(
     db: Database,
     timer: TimerService,
@@ -321,6 +360,7 @@ def build_state(
             "wellness": _wellness_dict(wellness),
             "daily_note": note or "",
             "recurring_count": len(db.get_all_recurring()),
+            "urgent_dates_count": db.count_urgent_dates(today, threshold_days=7),
         }
 
     elif screen == "analytics":
@@ -578,5 +618,18 @@ def build_state(
                 "tasks": [_project_task_dict(t, db, today) for t in tasks],
                 "colors": PROJECT_COLORS,
             }
+
+    elif screen == "important_dates":
+        items = db.get_all_important_dates()
+        dicts = [_important_date_dict(i, today) for i in items]
+        dicts.sort(key=lambda x: x["days"])
+
+        state["important_dates"] = {
+            "items": dicts,
+            "categories": IMPORTANT_DATE_CATEGORIES,
+            "urgent_count": sum(
+                1 for d in dicts if d["urgency"] in ("overdue", "urgent")
+            ),
+        }
 
     return state

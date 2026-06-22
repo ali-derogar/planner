@@ -766,6 +766,86 @@ class WebViewHandler:
             self.toast(f"پرداخت ثبت شد — {result.remaining_count} قسط مانده")
         await self.push_state()
 
+    # ── important dates ─────────────────────────────────────────────────────
+
+    async def _on_open_important_dates(self, p):
+        self.current_screen = "important_dates"
+        await self.push_state()
+
+    async def _on_add_important_date(self, p):
+        title = p.get("title", "").strip()
+        date_str = p.get("date", "").strip()
+        category = p.get("category", "سایر")
+        notes = p.get("notes", "").strip()
+        repeat = p.get("repeat_type", "none")
+        try:
+            datetime.date.fromisoformat(date_str)
+            repeat_months = int(p.get("repeat_months", 0))
+        except (ValueError, TypeError):
+            self.toast("تاریخ نامعتبر است", "error")
+            await self.push_state()
+            return
+        if repeat not in ("none", "yearly", "custom"):
+            repeat = "none"
+        if title and date_str:
+            self.db.add_important_date(
+                title, date_str, category, notes, repeat, repeat_months
+            )
+            self.toast("تاریخ مهم افزوده شد")
+        await self.push_state()
+
+    async def _on_edit_important_date(self, p):
+        date_id = int(p.get("id", 0))
+        title = p.get("title", "").strip()
+        date_str = p.get("date", "").strip()
+        category = p.get("category", "سایر")
+        notes = p.get("notes", "").strip()
+        repeat = p.get("repeat_type", "none")
+        try:
+            datetime.date.fromisoformat(date_str)
+            repeat_months = int(p.get("repeat_months", 0))
+        except (ValueError, TypeError):
+            self.toast("تاریخ نامعتبر است", "error")
+            await self.push_state()
+            return
+        if repeat not in ("none", "yearly", "custom"):
+            repeat = "none"
+        if title and date_str:
+            self.db.edit_important_date(
+                date_id, title, date_str, category, notes, repeat, repeat_months
+            )
+            self.toast("ویرایش شد")
+        await self.push_state()
+
+    async def _on_delete_important_date(self, p):
+        date_id = int(p.get("id", 0))
+        confirmed = await self.app.main_window.dialog(
+            toga.ConfirmDialog("حذف تاریخ مهم", "آیا مطمئن هستید؟")
+        )
+        if confirmed:
+            self.db.delete_important_date(date_id)
+            self.toast("حذف شد")
+        await self.push_state()
+
+    async def _on_renew_important_date(self, p):
+        date_id = int(p.get("id", 0))
+        item = self.db.get_important_date_by_id(date_id)
+        if item is None:
+            await self.push_state()
+            return
+        if item.repeat_type == "none":
+            confirmed = await self.app.main_window.dialog(
+                toga.ConfirmDialog("تمام شد", "این رویداد تکرار ندارد. حذف شود؟")
+            )
+            if confirmed:
+                self.db.delete_important_date(date_id)
+                self.toast("حذف شد")
+        else:
+            updated = self.db.renew_important_date(date_id)
+            if updated:
+                self.toast(f"تمدید شد — سررسید بعدی: {updated.date}")
+        await self.push_state()
+
 
 def _parse_hms(text: str) -> Optional[int]:
     try:

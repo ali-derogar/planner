@@ -237,6 +237,40 @@ class Installment:
 
 
 @dataclass
+class ImportantDate:
+    id: int
+    title: str
+    date: str
+    category: str
+    notes: str
+    repeat_type: str
+    repeat_months: int
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row) -> "ImportantDate":
+        return cls(
+            id=row["id"],
+            title=row["title"],
+            date=row["date"],
+            category=row["category"],
+            notes=row["notes"],
+            repeat_type=row["repeat_type"],
+            repeat_months=row["repeat_months"],
+            created_at=row["created_at"],
+        )
+
+    def days_until(self, today: date = None) -> int:
+        if today is None:
+            today = date.today()
+        return (date.fromisoformat(self.date) - today).days
+
+    @property
+    def is_repeating(self) -> bool:
+        return self.repeat_type != "none"
+
+
+@dataclass
 class ProjectTask:
     id: int
     project_id: int

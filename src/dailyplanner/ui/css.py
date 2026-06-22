@@ -1609,4 +1609,60 @@ textarea:focus-visible, select:focus-visible {{
     font-size: 13px;
     padding: 4px 0;
 }}
+
+/* ── Important dates ── */
+.dates-btn {{ position: relative; }}
+.urgent-badge {{
+    position: absolute;
+    top: -4px; right: -4px;
+    background: var(--error);
+    color: #fff;
+    font-size: 10px;
+    min-width: 16px; height: 16px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 3px;
+}}
+
+.dates-group-label {{
+    font-size: 11px; font-weight: 600;
+    padding: 12px 16px 4px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}}
+.urgent-label {{ color: var(--error); }}
+.soon-label   {{ color: var(--warning); }}
+.ok-label     {{ color: var(--text-muted); }}
+
+.date-item {{
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin: 6px 12px;
+}}
+.date-item-top {{
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+}}
+.date-dot {{
+    width: 8px; height: 8px;
+    border-radius: 50%; flex-shrink: 0;
+}}
+.date-dot.overdue, .date-dot.urgent {{ background: var(--error); }}
+.date-dot.soon                      {{ background: var(--warning); }}
+.date-dot.ok                        {{ background: var(--success); }}
+
+.date-item-title    {{ flex: 1; font-size: 15px; font-weight: 500; }}
+.date-item-countdown {{
+    font-size: 12px; white-space: nowrap;
+}}
+.date-item-countdown.overdue,
+.date-item-countdown.urgent {{ color: var(--error); }}
+.date-item-countdown.soon   {{ color: var(--warning); }}
+.date-item-countdown.ok     {{ color: var(--success); }}
+
+.date-item-meta {{
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 8px;
+}}
+.date-item-actions {{ display: flex; gap: 6px; flex-wrap: wrap; }}
 """

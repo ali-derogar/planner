@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
-from dailyplanner.models import DailyTask, DailyWellness, FinanceEntry, Installment, Project, ProjectTask, RecurringTask, date_to_str, str_to_date
+from dailyplanner.models import DailyTask, DailyWellness, FinanceEntry, ImportantDate, Installment, Project, ProjectTask, RecurringTask, date_to_str, str_to_date
 
 
 DEFAULT_SETTINGS = {"theme": "dark"}
@@ -111,6 +111,17 @@ class Database:
                                 REFERENCES installments(id) ON DELETE CASCADE,
                 payment_date    TEXT NOT NULL,
                 created_at      TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS important_dates (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                title        TEXT    NOT NULL,
+                date         TEXT    NOT NULL,
+                category     TEXT    NOT NULL DEFAULT 'سایر',
+                notes        TEXT    NOT NULL DEFAULT '',
+                repeat_type  TEXT    NOT NULL DEFAULT 'none',
+                repeat_months INTEGER NOT NULL DEFAULT 0,
+                created_at   TEXT    NOT NULL
             );
             """
         )
@@ -730,6 +741,9 @@ class Database:
             "SELECT * FROM project_tasks ORDER BY project_id, sort_order"
         ).fetchall()
         budgets = self.conn.execute("SELECT * FROM budget_limits").fetchall()
+        important_dates = self.conn.execute(
+            "SELECT * FROM important_dates ORDER BY date"
+        ).fetchall()
         return {
             "version": 2,
             "tasks": [dict(r) for r in tasks],
@@ -741,6 +755,7 @@ class Database:
             "projects": [dict(r) for r in projects],
             "project_tasks": [dict(r) for r in proj_tasks],
             "budget_limits": [dict(r) for r in budgets],
+            "important_dates": [dict(r) for r in important_dates],
         }
 
     def validate_backup(self, data) -> tuple[bool, str]:
@@ -828,6 +843,7 @@ class Database:
             self.conn.execute("DELETE FROM projects")
             self.conn.execute("DELETE FROM project_tasks")
             self.conn.execute("DELETE FROM budget_limits")
+            self.conn.execute("DELETE FROM important_dates")
             self.conn.execute("DELETE FROM settings")
 
             try:
@@ -837,6 +853,7 @@ class Database:
                     "recurring_tasks",
                     "projects",
                     "project_tasks",
+                    "important_dates",
                 ):
                     self.conn.execute(
                         "DELETE FROM sqlite_sequence WHERE name = ?", (tbl,)
@@ -936,6 +953,23 @@ class Database:
                         "INSERT INTO budget_limits (category, monthly_limit) VALUES (?,?)",
                         (b["category"], int(b.get("monthly_limit", 0))),
                     )
+
+            for d in data.get("important_dates", []):
+                self.conn.execute(
+                    "INSERT INTO important_dates"
+                    " (id, title, date, category, notes, repeat_type, repeat_months, created_at)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        d["id"],
+                        d["title"],
+                        d["date"],
+                        d.get("category", "سایر"),
+                        d.get("notes", ""),
+                        d.get("repeat_type", "none"),
+                        int(d.get("repeat_months", 0)),
+                        d.get("created_at", ""),
+                    ),
+                )
 
             for key, value in data.get("settings", {}).items():
                 self.conn.execute(
@@ -1190,3 +1224,82 @@ class Database:
             "total_due": total_due,
             "total_unpaid": total_unpaid,
         }
+
+    # ── important dates ─────────────────────────────────────────────────────
+
+    def get_all_important_dates(self) -> List[ImportantDate]:
+        rows = self.conn.execute(
+            "SELECT * FROM important_dates ORDER BY date ASC"
+        ).fetchall()
+        return [ImportantDate.from_row(r) for r in rows]
+
+    def get_important_date_by_id(self, date_id: int) -> Optional[ImportantDate]:
+        row = self.conn.execute(
+            "SELECT * FROM important_dates WHERE id = ?", (date_id,)
+        ).fetchone()
+        return ImportantDate.from_row(row) if row else None
+
+    def add_important_date(
+        self, title: str, date_str: str, category: str,
+        notes: str, repeat_type: str, repeat_months: int
+    ) -> ImportantDate:
+        now = datetime.now().isoformat()
+        cursor = self.conn.execute(
+            "INSERT INTO important_dates"
+            " (title, date, category, notes, repeat_type, repeat_months, created_at)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (title.strip(), date_str, category, notes.strip(),
+             repeat_type, repeat_months, now)
+        )
+        self.conn.commit()
+        return self.get_important_date_by_id(cursor.lastrowid)
+
+    def edit_important_date(
+        self, date_id: int, title: str, date_str: str, category: str,
+        notes: str, repeat_type: str, repeat_months: int
+    ):
+        self.conn.execute(
+            "UPDATE important_dates"
+            " SET title=?, date=?, category=?, notes=?,"
+            "     repeat_type=?, repeat_months=?"
+            " WHERE id=?",
+            (title.strip(), date_str, category, notes.strip(),
+             repeat_type, repeat_months, date_id)
+        )
+        self.conn.commit()
+
+    def delete_important_date(self, date_id: int):
+        self.conn.execute("DELETE FROM important_dates WHERE id=?", (date_id,))
+        self.conn.commit()
+
+    def renew_important_date(self, date_id: int) -> Optional[ImportantDate]:
+        """Advance date by repeat period. For 'none', do nothing."""
+        import calendar
+        item = self.get_important_date_by_id(date_id)
+        if item is None or item.repeat_type == "none":
+            return item
+        months = 12 if item.repeat_type == "yearly" else item.repeat_months
+        if months <= 0:
+            return item
+        d = date.fromisoformat(item.date)
+        total_months = d.month - 1 + months
+        new_year = d.year + total_months // 12
+        new_month = total_months % 12 + 1
+        last_day = calendar.monthrange(new_year, new_month)[1]
+        new_day = min(d.day, last_day)
+        new_date = date(new_year, new_month, new_day).isoformat()
+        self.conn.execute(
+            "UPDATE important_dates SET date=? WHERE id=?",
+            (new_date, date_id)
+        )
+        self.conn.commit()
+        return self.get_important_date_by_id(date_id)
+
+    def count_urgent_dates(self, today: date, threshold_days: int = 7) -> int:
+        """Count dates that are overdue or within threshold_days."""
+        cutoff = (today + timedelta(days=threshold_days)).isoformat()
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM important_dates WHERE date <= ?",
+            (cutoff,)
+        ).fetchone()
+        return int(row["c"])

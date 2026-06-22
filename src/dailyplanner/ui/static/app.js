@@ -811,13 +811,20 @@ function renderHome(h) {
     var calBtn = '<button type="button" class="icon-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">📅</button>';
     var recurBtn = '<button type="button" class="icon-btn" style="width:auto;padding:0 8px;gap:3px" onclick="action(\'navigate\',{screen:\'recurring\'})" aria-label="وظایف تکراری">★ ' + pd(h.recurring_count) + '</button>';
     var settingsBtn = '<button type="button" class="icon-btn" aria-label="تنظیمات" onclick="action(\'navigate\',{screen:\'settings\'})">⚙</button>';
+    var urgentCount = h.urgent_dates_count || 0;
+    var badge = urgentCount > 0
+        ? ' <span class="urgent-badge">' + pd(urgentCount) + '</span>'
+        : '';
+    var datesBtn = '<button type="button" class="icon-btn dates-btn"'
+        + ' onclick="action(\'navigate\',{screen:\'important_dates\'})"'
+        + ' aria-label="تاریخ\u200cهای مهم">🔔' + badge + '</button>';
 
     var html = '<div class="date-header">' +
         '<button type="button" onclick="action(\'next_day\')" class="date-nav-btn" aria-label="روز بعد">‹</button>' +
         '<span class="date-title">' + esc(h.date_label) + '</span>' +
         '<div class="header-actions">' +
         (h.is_today ? '' : '<button type="button" onclick="action(\'today\')" class="today-btn">امروز</button>') +
-        calBtn + recurBtn + settingsBtn +
+        calBtn + recurBtn + datesBtn + settingsBtn +
         '<button type="button" onclick="action(\'prev_day\')" class="date-nav-btn" aria-label="روز قبل">›</button></div></div>';
 
     if (h.show_calendar && h.calendar) {
@@ -1347,6 +1354,120 @@ function renderInstallments(data) {
     return html;
 }
 
+function renderImportantDates(data) {
+    var html = '<div class="page-header">🔔 تاریخ\u200cهای مهم</div>';
+
+    html += '<a href="javascript:void(0)" class="add-btn"'
+        + ' onclick="showAddImportantDate(window._dateCategories)">+ افزودن تاریخ مهم</a>';
+
+    if (!data.items.length) {
+        html += '<div class="empty-state">'
+            + '<div class="empty-icon">📅</div>'
+            + '<div>هیچ تاریخ مهمی ثبت نشده</div></div>';
+    } else {
+        var overdue = data.items.filter(function(i) { return i.urgency === 'overdue'; });
+        var urgent  = data.items.filter(function(i) { return i.urgency === 'urgent'; });
+        var soon    = data.items.filter(function(i) { return i.urgency === 'soon'; });
+        var ok      = data.items.filter(function(i) { return i.urgency === 'ok'; });
+
+        if (overdue.length || urgent.length) {
+            html += '<div class="dates-group-label urgent-label">فوری</div>';
+            overdue.concat(urgent).forEach(function(i) {
+                html += renderDateItem(i);
+            });
+        }
+        if (soon.length) {
+            html += '<div class="dates-group-label soon-label">این ماه</div>';
+            soon.forEach(function(i) { html += renderDateItem(i); });
+        }
+        if (ok.length) {
+            html += '<div class="dates-group-label ok-label">بعداً</div>';
+            ok.forEach(function(i) { html += renderDateItem(i); });
+        }
+    }
+
+    html += '<button class="back-btn"'
+        + ' onclick="action(\'navigate\',{screen:\'home\'})">← برگشت</button>';
+    return html;
+}
+
+function renderDateItem(i) {
+    var urgencyCls = {
+        overdue: 'date-dot overdue',
+        urgent:  'date-dot urgent',
+        soon:    'date-dot soon',
+        ok:      'date-dot ok',
+    }[i.urgency] || 'date-dot ok';
+
+    var renewBtn = '<button class="chip chip-edit"'
+        + ' onclick="action(\'renew_important_date\',{id:' + i.id + '})">'
+        + (i.is_repeating ? 'تمدید کردم' : 'تموم شد') + '</button>';
+
+    var editBtn = '<button class="chip chip-neutral"'
+        + ' onclick="showEditImportantDate(' + JSON.stringify(i) + ')">✎</button>';
+
+    var delBtn = '<button class="chip chip-delete"'
+        + ' onclick="action(\'delete_important_date\',{id:' + i.id + '})">حذف</button>';
+
+    var repeatLabel = '';
+    if (i.repeat_type === 'yearly') repeatLabel = ' · سالانه';
+    else if (i.repeat_type === 'custom')
+        repeatLabel = ' · هر ' + pd(i.repeat_months) + ' ماه';
+
+    return '<div class="date-item">'
+        + '<div class="date-item-top">'
+        + '<span class="' + urgencyCls + '"></span>'
+        + '<span class="date-item-title">' + esc(i.title) + '</span>'
+        + '<span class="date-item-countdown ' + i.urgency + '">'
+        + esc(i.countdown) + '</span></div>'
+        + '<div class="date-item-meta">'
+        + esc(i.category) + ' · ' + esc(i.date_fmt) + repeatLabel
+        + (i.notes ? ' · ' + esc(i.notes) : '') + '</div>'
+        + '<div class="date-item-actions">'
+        + renewBtn + editBtn + delBtn + '</div></div>';
+}
+
+function showAddImportantDate(categories) {
+    var now = new Date();
+    var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    showModal({
+        title: 'تاریخ مهم جدید',
+        cmd: 'add_important_date',
+        fields: [
+            { label: 'عنوان', key: 'title', validate: 'required' },
+            { label: 'تاریخ', key: 'date',
+              type: 'jalali-date', value: todayIso, validate: 'required', clearable: false },
+            { label: 'دسته', key: 'category', type: 'select',
+              value: 'سایر', options: categories },
+            { label: 'تکرار', key: 'repeat_type', type: 'select',
+              value: 'none',
+              options: ['none', 'yearly', 'custom'] },
+            { label: 'یادداشت (اختیاری)', key: 'notes',
+              placeholder: '' },
+        ],
+    });
+}
+
+function showEditImportantDate(i) {
+    showModal({
+        title: 'ویرایش تاریخ مهم',
+        cmd: 'edit_important_date',
+        params: { id: i.id },
+        fields: [
+            { label: 'عنوان', key: 'title',
+              value: i.title, validate: 'required' },
+            { label: 'تاریخ', key: 'date',
+              type: 'jalali-date', value: i.date, validate: 'required', clearable: false },
+            { label: 'دسته', key: 'category', type: 'select',
+              value: i.category, options: window._dateCategories },
+            { label: 'تکرار', key: 'repeat_type', type: 'select',
+              value: i.repeat_type,
+              options: ['none', 'yearly', 'custom'] },
+            { label: 'یادداشت', key: 'notes', value: i.notes },
+        ],
+    });
+}
+
 function renderInstallmentItem(i) {
     var settledBadge = i.is_settled
         ? '<span class="inst-settled">✓ تسویه شد</span>' : '';
@@ -1676,6 +1797,8 @@ function renderApp(state) {
     window._categories = state.finance_categories || [];
     window._investCategories = state.investment_categories || [];
     window._moodEmojis = state.mood_emojis || [];
+    window._dateCategories = state.important_dates
+        ? (state.important_dates.categories || []) : window._dateCategories || [];
     document.documentElement.setAttribute('data-theme', state.theme || 'dark');
     var themeMeta = document.querySelector('meta[name="theme-color"]');
     if (themeMeta) themeMeta.setAttribute('content', (state.theme === 'light') ? '#F2F2F7' : '#121212');
@@ -1692,6 +1815,7 @@ function renderApp(state) {
     else if (state.screen === 'recurring' && state.recurring) html = renderRecurring(state.recurring);
     else if (state.screen === 'projects' && state.projects) html = renderProjects(state.projects);
     else if (state.screen === 'project_detail' && state.project_detail) html = renderProjectDetail(state.project_detail);
+    else if (state.screen === 'important_dates' && state.important_dates) html = renderImportantDates(state.important_dates);
 
     window._lastState = state;
     root.innerHTML = html;
