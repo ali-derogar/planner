@@ -2,58 +2,125 @@
 
 TOKENS_CSS = """
 :root {
-    --bg: #121212;
-    --surface: #1C1C1E;
-    --surface-muted: #2C2C2E;
-    --surface-deep: #161616;
-    --nav-bar: #0D0D0D;
-    --primary: #5E5CE6;
-    --primary-light: #3D5AFE;
-    --success: #4DD980;
-    --success-bg: #1A4028;
-    --error: #FF5959;
-    --error-bg: #471F1F;
-    --warning: #FF7359;
-    --running: #00D9C7;
-    --running-bg: #143838;
-    --investment: #FFB020;
-    --star: #FFC208;
-    --chip-edit: #7B8CDE;
-    --chip-edit-bg: #1A1A40;
-    --text: #FFFFFF;
-    --text-muted: #8E8E93;
-    --divider: #38383B;
-    --overlay: rgba(0,0,0,0.72);
-    --radius: 14px;
-    --radius-sm: 10px;
-    --shadow: 0 2px 12px rgba(61,90,254,0.25);
+    /* ── Aurora Dark palette ── */
+    --bg: #0A0A0F;
+    --bg-elevated: #12121A;
+    --surface: #1A1A24;
+    --surface-muted: #252532;
+    --surface-deep: #14141C;
+    --surface-glass: rgba(26, 26, 36, 0.72);
+    --nav-bar: rgba(18, 18, 26, 0.85);
+    --border-subtle: rgba(255, 255, 255, 0.06);
+
+    --primary: #6366F1;
+    --primary-glow: #818CF8;
+    --primary-light: #4338CA;
+    --success: #34D399;
+    --success-bg: #0F2E22;
+    --error: #FB7185;
+    --error-bg: #3D1520;
+    --warning: #FB923C;
+    --running: #2DD4BF;
+    --running-bg: #0F2E28;
+    --running-glow: rgba(45, 212, 191, 0.35);
+    --investment: #FBBF24;
+    --star: #FBBF24;
+    --chip-edit: #A5B4FC;
+    --chip-edit-bg: #1E1B4B;
+    --text: #F4F4F5;
+    --text-muted: #71717A;
+    --divider: rgba(255, 255, 255, 0.08);
+    --overlay: rgba(0, 0, 0, 0.65);
+
+    /* ── Gradients ── */
+    --gradient-hero: linear-gradient(135deg, #4338CA 0%, #6366F1 45%, #A855F7 100%);
+    --gradient-accent: linear-gradient(135deg, var(--primary-light), #A855F7);
+    --gradient-progress: linear-gradient(90deg, var(--primary), var(--success));
+    --gradient-mesh:
+        radial-gradient(ellipse 80% 50% at 15% -10%, rgba(99, 102, 241, 0.12), transparent),
+        radial-gradient(ellipse 60% 40% at 90% 100%, rgba(168, 85, 247, 0.08), transparent);
+
+    /* ── Spacing ── */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+
+    /* ── Typography ── */
+    --text-xs: 11px;
+    --text-sm: 12px;
+    --text-base: 14px;
+    --text-md: 15px;
+    --text-lg: 18px;
+    --text-xl: 24px;
+    --font-medium: 500;
+    --font-bold: 700;
+
+    /* ── Radius & elevation ── */
+    --radius: 16px;
+    --radius-sm: 12px;
+    --radius-lg: 20px;
+    --radius-full: 999px;
+    --shadow: 0 4px 24px rgba(99, 102, 241, 0.18);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-nav: 0 8px 32px rgba(0, 0, 0, 0.45);
+    --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.2);
+    --elevation-2: 0 4px 16px rgba(0, 0, 0, 0.28);
+
+    /* ── Motion ── */
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --duration-fast: 150ms;
+    --duration-normal: 250ms;
+    --glass-blur: 16px;
+
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 [data-theme="light"] {
-    --bg: #F2F2F7;
+    --bg: #FAFAFC;
+    --bg-elevated: #FFFFFF;
     --surface: #FFFFFF;
-    --surface-muted: #E5E5EA;
-    --surface-deep: #F5F5F8;
-    --nav-bar: #FFFFFF;
-    --primary: #5E5CE6;
-    --primary-light: #3D5AFE;
-    --success: #28A745;
-    --success-bg: #E6F9ED;
-    --error: #DC3545;
-    --error-bg: #FFECEC;
-    --warning: #E8590C;
+    --surface-muted: #F4F4F5;
+    --surface-deep: #F9FAFB;
+    --surface-glass: rgba(255, 255, 255, 0.82);
+    --nav-bar: rgba(255, 255, 255, 0.92);
+    --border-subtle: rgba(0, 0, 0, 0.06);
+
+    --primary: #6366F1;
+    --primary-glow: #818CF8;
+    --primary-light: #4338CA;
+    --success: #059669;
+    --success-bg: #ECFDF5;
+    --error: #E11D48;
+    --error-bg: #FFF1F2;
+    --warning: #EA580C;
     --running: #0D9488;
-    --running-bg: #E0F9F6;
+    --running-bg: #F0FDFA;
+    --running-glow: rgba(13, 148, 136, 0.2);
     --investment: #D97706;
-    --chip-edit: #5E5CE6;
-    --chip-edit-bg: #EEF0FF;
-    --text: #1C1C1E;
-    --text-muted: #636366;
-    --divider: #C6C6C8;
-    --overlay: rgba(0,0,0,0.45);
-    --shadow: 0 2px 12px rgba(61,90,254,0.12);
+    --star: #F59E0B;
+    --chip-edit: #6366F1;
+    --chip-edit-bg: #EEF2FF;
+    --text: #18181B;
+    --text-muted: #71717A;
+    --divider: rgba(0, 0, 0, 0.08);
+    --overlay: rgba(0, 0, 0, 0.4);
+
+    --gradient-hero: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 50%, #F5F3FF 100%);
+    --gradient-accent: linear-gradient(135deg, #6366F1, #A855F7);
+    --gradient-mesh:
+        radial-gradient(ellipse 80% 50% at 15% -10%, rgba(99, 102, 241, 0.08), transparent),
+        radial-gradient(ellipse 60% 40% at 90% 100%, rgba(168, 85, 247, 0.05), transparent);
+
+    --shadow: 0 4px 20px rgba(99, 102, 241, 0.1);
+    --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
+    --shadow-nav: 0 4px 24px rgba(0, 0, 0, 0.08);
+    --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --elevation-2: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 """
 
@@ -79,7 +146,7 @@ INVESTMENT_CATEGORIES = [
     "\u0631\u0645\u0632\u0627\u0631\u0632",
     "\u0633\u067e\u0631\u062f\u0647 \u0628\u0627\u0646\u06a9\u06cc",
     "\u0635\u0646\u062f\u0648\u0642",
-    "\u0627\u0645\u0644\u0627\u0643",
+    "\u0627\u0645\u0644\u0627\u06a9",
     "\u0633\u0627\u06cc\u0631",
 ]
 
@@ -93,12 +160,12 @@ IMPORTANT_DATE_CATEGORIES = [
 ]
 
 PROJECT_COLORS = [
-    "#5E5CE6",  # بنفش
-    "#4DD980",  # سبز
-    "#FF7359",  # قرمز
-    "#FFB340",  # نارنجی
-    "#5AC8FA",  # آبی
-    "#FF6B9D",  # صورتی
-    "#A8E063",  # سبز روشن
-    "#8E8E93",  # خاکستری
+    "#6366F1",
+    "#34D399",
+    "#FB7185",
+    "#FBBF24",
+    "#38BDF8",
+    "#F472B6",
+    "#A3E635",
+    "#71717A",
 ]

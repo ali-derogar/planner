@@ -16,7 +16,7 @@ def build_web_bundle() -> dict[str, str]:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#121212">
+<meta name="theme-color" content="#0A0A0F">
 <title>Daily Planner</title>
 <link rel="stylesheet" href="app.css">
 </head>
@@ -30,6 +30,7 @@ def build_web_bundle() -> dict[str, str]:
 <div id="toast" class="toast"></div>
 <div id="modal" class="modal-overlay" style="display:none">
   <div class="modal-box" id="modal-box">
+    <div class="modal-handle" aria-hidden="true"></div>
     <div class="modal-title" id="modal-title"></div>
     <div id="modal-fields"></div>
     <div class="modal-error" id="modal-error"></div>

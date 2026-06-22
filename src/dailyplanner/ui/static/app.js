@@ -52,6 +52,70 @@ function pd(n) {
     return String(n).replace(/\d/g, function(c) { return d[+c]; });
 }
 
+/* SVG icons */
+var ICON = {
+    home: '<svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.5z"/></svg>',
+    wallet: '<svg viewBox="0 0 24 24"><path d="M3 7h18a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z"/><path d="M17 12.5h4"/><path d="M3 10h18"/></svg>',
+    folder: '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>',
+    chart: '<svg viewBox="0 0 24 24"><path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24"><path d="M7 3v2"/><path d="M17 3v2"/><path d="M4 8h16"/><path d="M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
+    settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m4.93 19.07 1.41-1.41"/><path d="m17.66 6.34 1.41-1.41"/></svg>',
+    bell: '<svg viewBox="0 0 24 24"><path d="M8 17h8"/><path d="M12 3a5 5 0 0 1 5 5v3l1 2H6l1-2V8a5 5 0 0 1 5-5z"/><path d="M10 17a2 2 0 0 0 4 0"/></svg>',
+    star: '<svg viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18.5 5.5 22 7 14.5 2 9.5 9 9"/></svg>',
+    starOutline: '<svg viewBox="0 0 24 24"><polygon fill="none" points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18.5 5.5 22 7 14.5 2 9.5 9 9"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>',
+    chevDown: '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+    chevUp: '<svg viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg>',
+    chevLeft: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
+    chevRight: '<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>',
+    play: '<svg viewBox="0 0 24 24"><polygon points="8 5 19 12 8 19"/></svg>',
+    stop: '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
+    list: '<svg viewBox="0 0 24 24"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg>',
+};
+
+function ico(name, cls) {
+    cls = cls || 'ico';
+    var fillCls = (name === 'star' || name === 'play') ? ' ico-fill' : '';
+    return '<span class="' + cls + fillCls + '" aria-hidden="true">' + (ICON[name] || '') + '</span>';
+}
+
+function emptyListIcon() {
+    return '<div class="empty-icon">' + ico('list', 'ico') + '</div>';
+}
+
+/** RTL nav: prev (earlier) on the right, next (later) on the left. */
+function navArrowBtn(kind, onclick, label, btnClass) {
+    var icon = kind === 'prev' ? 'chevRight' : 'chevLeft';
+    var cls = btnClass || 'date-nav-btn';
+    return '<button type="button" class="' + cls + '" aria-label="' + esc(label) + '" onclick="' + onclick + '">' +
+        ico(icon, 'ico') + '</button>';
+}
+
+function calNavBtn(kind, extraCls) {
+    var icon = kind === 'prev' ? 'chevRight' : 'chevLeft';
+    var label = kind === 'prev' ? 'ماه قبل' : 'ماه بعد';
+    var cls = 'cal-nav date-cal-' + kind + (extraCls ? ' ' + extraCls : '');
+    return '<button type="button" class="' + cls + '" aria-label="' + label + '">' + ico(icon, 'ico') + '</button>';
+}
+
+function backBtn(screen, label) {
+    label = label || 'برگشت';
+    return '<button type="button" class="back-btn" onclick="action(\'navigate\',{screen:\'' + screen + '\'})">' +
+        ico('chevRight', 'ico') + '<span>' + label + '</span></button>';
+}
+
+function collapseChevron(open) {
+    return ico(open ? 'chevUp' : 'chevDown', 'ico collapse-chevron');
+}
+
+function themeColorForScreen(screen, theme) {
+    if (theme === 'light') return '#FAFAFC';
+    var map = { home: '#4338CA', finance: '#0F2E28', projects: '#6366F1', analytics: '#1A1A24' };
+    return map[screen] || '#0A0A0F';
+}
+
 /* Toast */
 var _toastTimer = null;
 function showToast(msg, type) {
@@ -221,9 +285,10 @@ function buildDatePickerEl(field) {
         var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
 
         var html = '<div class="cal-header">' +
-            '<button type="button" class="cal-nav date-cal-next">‹</button>' +
-            '<span>' + esc(JALALI_MONTH_NAMES[jm]) + ' ' + pd(jy) + '</span>' +
-            '<button type="button" class="cal-nav date-cal-prev">›</button></div>' +
+            calNavBtn('prev') +
+            '<span class="cal-title">' + esc(JALALI_MONTH_NAMES[jm]) + ' ' + pd(jy) + '</span>' +
+            calNavBtn('next') +
+            '</div>' +
             '<div class="cal-weekdays">' +
             JALALI_WEEKDAYS.map(function(w) { return '<span>' + w + '</span>'; }).join('') +
             '</div><div class="cal-grid">';
@@ -586,7 +651,9 @@ function showModal(config) {
         }
     });
     document.getElementById('modal-error').textContent = '';
-    document.getElementById('modal').style.display = 'flex';
+    var modalEl = document.getElementById('modal');
+    modalEl.style.display = 'flex';
+    modalEl.classList.remove('modal-center');
     fc.scrollTop = 0;
     var first = fc.querySelector('input,select,textarea,button.color-swatch');
     if (first) setTimeout(function() { first.focus(); }, 80);
@@ -640,6 +707,21 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
+(function initModalBox() {
+    function bind() {
+        var box = document.getElementById('modal-box');
+        if (box && !box.dataset.bound) {
+            box.dataset.bound = '1';
+            box.addEventListener('click', function(e) { e.stopPropagation(); });
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bind);
+    } else {
+        bind();
+    }
+})();
+
 /* Timer update from Python */
 function updateTimer(taskId, display) {
     var el1 = document.getElementById('tdur-' + taskId);
@@ -659,7 +741,7 @@ function sparklineSvg(points, w, h) {
         return x.toFixed(1) + ',' + y.toFixed(1);
     }).join(' ');
     return '<svg class="sparkline" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
-        '<polyline fill="none" stroke="#5E5CE6" stroke-width="2" points="' + pts + '"/>' +
+        '<polyline fill="none" stroke="currentColor" stroke-width="2" points="' + pts + '"/>' +
         '</svg>';
 }
 
@@ -762,10 +844,9 @@ function taskCard(t) {
     else if (t.is_useful === true) cardCls += ' is-useful';
     else if (t.is_useful === false) cardCls += ' is-not-useful';
 
-    var star = t.is_starred ? '★' : '☆';
-    var starCls = t.is_starred ? 'task-star' : 'task-star empty';
+    var starIcon = t.is_starred ? ico('star', 'task-star') : ico('starOutline', 'task-star empty');
     var durCls = t.is_running ? 'task-dur running' : 'task-dur';
-    var chev = t.is_expanded ? '▲' : '▼';
+    var chev = t.is_expanded ? ico('chevUp', 'ico task-chevron') : ico('chevDown', 'ico task-chevron');
 
     var progress = '';
     if (t.estimated > 0) {
@@ -775,17 +856,18 @@ function taskCard(t) {
         }
     }
 
-    var header = '<a href="javascript:void(0)" onclick="action(\'toggle_task\',{id:' + t.id + '})" class="task-header">' +
-        '<span class="' + starCls + '" onclick="event.preventDefault();event.stopPropagation();action(\'toggle_star\',{id:' + t.id + '})">' + star + '</span>' +
-        '<span class="task-title-wrap">' + esc(t.title) + '</span>' +
+    var header = '<div class="task-header" role="button" tabindex="0" onclick="action(\'toggle_task\',{id:' + t.id + '})">' +
+        '<button type="button" class="task-star-wrap" aria-label="' + (t.is_starred ? 'حذف ستاره' : 'ستاره‌دار کردن') + '" onclick="event.stopPropagation();action(\'toggle_star\',{id:' + t.id + '})">' + starIcon + '</button>' +
+        '<span class="task-title-wrap" title="' + esc(t.title) + '">' + esc(t.title) + '</span>' +
+        '<span class="task-header-end">' +
         '<span class="' + durCls + '" id="tdur-' + t.id + '">' + esc(t.display_fmt) + '</span>' +
-        '<span class="task-chevron">' + chev + '</span></a>' + progress;
+        chev + '</span></div>' + progress;
 
     var detail = '';
     if (t.is_expanded) {
         var timerBtn = t.is_running
-            ? '<button class="btn-stop" onclick="action(\'stop_timer\',{id:' + t.id + '})">⏹ توقف</button>'
-            : '<button class="btn-start" onclick="action(\'start_timer\',{id:' + t.id + '})">▶ شروع</button>';
+            ? '<button class="btn-stop" onclick="action(\'stop_timer\',{id:' + t.id + '})">' + ico('stop', 'ico') + ' توقف</button>'
+            : '<button class="btn-start" onclick="action(\'start_timer\',{id:' + t.id + '})">' + ico('play', 'ico') + ' شروع</button>';
         var uCls = t.is_useful === true ? 'chip-useful-on' : 'chip-useful-off';
         var nuCls = t.is_useful === false ? 'chip-notuseful-on' : 'chip-neutral';
         detail = '<div class="task-detail">' +
@@ -808,41 +890,48 @@ function taskCard(t) {
 
 /* Screens */
 function renderHome(h) {
-    var calBtn = '<button type="button" class="icon-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">📅</button>';
-    var recurBtn = '<button type="button" class="icon-btn" style="width:auto;padding:0 8px;gap:3px" onclick="action(\'navigate\',{screen:\'recurring\'})" aria-label="وظایف تکراری">★ ' + pd(h.recurring_count) + '</button>';
-    var settingsBtn = '<button type="button" class="icon-btn" aria-label="تنظیمات" onclick="action(\'navigate\',{screen:\'settings\'})">⚙</button>';
+    var taskCount = h.tasks ? h.tasks.length : 0;
+    var calBtn = '<button type="button" class="icon-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">' + ico('calendar', 'ico') + '</button>';
+    var recurBtn = '<button type="button" class="icon-btn wide" onclick="action(\'navigate\',{screen:\'recurring\'})" aria-label="وظایف تکراری">' +
+        ico('star', 'ico') + ' ' + pd(h.recurring_count) + '</button>';
+    var settingsBtn = '<button type="button" class="icon-btn" aria-label="تنظیمات" onclick="action(\'navigate\',{screen:\'settings\'})">' + ico('settings', 'ico') + '</button>';
     var urgentCount = h.urgent_dates_count || 0;
     var badge = urgentCount > 0
         ? ' <span class="urgent-badge">' + pd(urgentCount) + '</span>'
         : '';
     var datesBtn = '<button type="button" class="icon-btn dates-btn"'
         + ' onclick="action(\'navigate\',{screen:\'important_dates\'})"'
-        + ' aria-label="تاریخ\u200cهای مهم">🔔' + badge + '</button>';
+        + ' aria-label="تاریخ\u200cهای مهم">' + ico('bell', 'ico') + badge + '</button>';
 
     var html = '<div class="date-header">' +
-        '<button type="button" onclick="action(\'next_day\')" class="date-nav-btn" aria-label="روز بعد">‹</button>' +
+        '<div class="date-header-row">' +
+        navArrowBtn('prev', 'action(\'prev_day\')', 'روز قبل') +
         '<span class="date-title">' + esc(h.date_label) + '</span>' +
-        '<div class="header-actions">' +
+        navArrowBtn('next', 'action(\'next_day\')', 'روز بعد') +
+        '</div>' +
+        '<div class="date-header-tools">' +
         (h.is_today ? '' : '<button type="button" onclick="action(\'today\')" class="today-btn">امروز</button>') +
         calBtn + recurBtn + datesBtn + settingsBtn +
-        '<button type="button" onclick="action(\'prev_day\')" class="date-nav-btn" aria-label="روز قبل">›</button></div></div>';
+        '</div>' +
+        '<div class="hero-stats">' +
+        '<div class="hero-stat eff"><span class="hero-stat-val">' + pd(h.efficiency) + '٪</span><span class="hero-stat-lbl">بازده</span></div>' +
+        '<div class="hero-stat useful"><span class="hero-stat-val">' + esc(h.useful_fmt) + '</span><span class="hero-stat-lbl">مفید</span></div>' +
+        '<div class="hero-stat not"><span class="hero-stat-val">' + esc(h.not_useful_fmt) + '</span><span class="hero-stat-lbl">نامفید</span></div>' +
+        '<div class="hero-stat"><span class="hero-stat-val">' + pd(taskCount) + '</span><span class="hero-stat-lbl">تسک</span></div>' +
+        '</div></div>';
 
     if (h.show_calendar && h.calendar) {
         html += renderCalendar(h.calendar);
     }
 
-    html += '<div class="summary-bar">' +
-        '<span class="sum-useful">مفید: ' + esc(h.useful_fmt) + '</span>' +
-        '<span class="sum-eff">بازده: ' + pd(h.efficiency) + '٪</span>' +
-        '<span class="sum-not">نامفید: ' + esc(h.not_useful_fmt) + '</span></div>';
-
-    html += '<div class="search-row"><input class="search-input" placeholder="جستجو در تسک‌ها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" aria-label="جستجو در تسک‌ها" /></div>';
+    html += '<div class="search-row"><div class="search-wrap">' + ico('search', 'ico-search') +
+        '<input class="search-input" placeholder="جستجو در تسک\u200cها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" aria-label="جستجو در تسک\u200cها" /></div></div>';
 
     html += '<div class="task-list">';
     if (h.tasks.length === 0) {
-        html += '<div class="empty-state"><div class="empty-icon">📝</div><div class="empty-title">هیچ تسکی وجود ندارد</div>' +
+        html += '<div class="empty-state">' + emptyListIcon() + '<div class="empty-title">هیچ تسکی وجود ندارد</div>' +
             '<div class="empty-sub">اولین تسک امروز را اضافه کنید و زمان خود را مدیریت کنید</div>' +
-            '<button type="button" class="empty-btn" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">+ افزودن تسک</button></div>';
+            '<button type="button" class="empty-btn" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">' + ico('plus', 'ico') + ' افزودن تسک</button></div>';
     } else {
         h.tasks.forEach(function(t) { html += taskCard(t); });
     }
@@ -853,15 +942,18 @@ function renderHome(h) {
     html += '<div class="section note-section"><div class="sec-title">یادداشت روز من</div>' +
         '<textarea class="note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
         '<div class="note-saved" id="note-saved" aria-live="polite">ذخیره شد ✓</div></div>';
-    html += '<button type="button" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})" class="add-btn">+ افزودن تسک</button>';
+    if (h.tasks.length > 0) {
+        html += '<button type="button" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})" class="add-btn">' + ico('plus', 'ico') + ' افزودن تسک</button>';
+    }
     return html;
 }
 
 function renderCalendar(cal) {
     var html = '<div class="calendar-panel"><div class="cal-header">' +
-        '<button class="cal-nav" onclick="action(\'cal_next_month\')">‹</button>' +
-        '<span>' + esc(cal.month_name) + ' ' + pd(cal.year) + '</span>' +
-        '<button class="cal-nav" onclick="action(\'cal_prev_month\')">›</button></div><div class="cal-grid">';
+        navArrowBtn('prev', 'action(\'cal_prev_month\')', 'ماه قبل', 'cal-nav') +
+        '<span class="cal-title">' + esc(cal.month_name) + ' ' + pd(cal.year) + '</span>' +
+        navArrowBtn('next', 'action(\'cal_next_month\')', 'ماه بعد', 'cal-nav') +
+        '</div><div class="cal-grid">';
     cal.cells.forEach(function(c) {
         var cls = 'cal-day';
         if (c.has_data) cls += ' has-data';
@@ -1083,8 +1175,7 @@ function renderSettings(s) {
           + '<span class="section-btn-icon">📥</span>بازگردانی داده‌ها</button>'
           + '</div>';
 
-    html += '<button class="back-btn"'
-          + ' onclick="action(\'navigate\',{screen:\'home\'})">← برگشت</button>';
+    html += backBtn('home');
     html += '</div>';
     return html;
 }
@@ -1152,7 +1243,7 @@ function renderRecurring(list) {
     }).join('');
     if (!rows) rows = '<div class="empty-mini">هیچ وظیفه تکراری ندارید</div>';
     return '<div class="page-header">★ وظایف تکراری</div><div class="section">' + rows + '</div>' +
-        '<button class="back-btn" onclick="action(\'navigate\',{screen:\'home\'})">← برگشت</button>';
+        backBtn('home');
 }
 
 function renderInstallmentCard(inst) {
@@ -1196,11 +1287,14 @@ function renderFinanceScreen(f) {
 
     var html = '<div class="fin-page">' +
         '<div class="date-header fin-header">' +
-        '<a href="javascript:void(0)" onclick="action(\'finance_next_month\')" class="date-nav-btn">‹</a>' +
+        '<div class="date-header-row">' +
+        navArrowBtn('prev', 'action(\'finance_prev_month\')', 'ماه قبل') +
         '<span class="date-title">' + esc(f.month_label) + '</span>' +
-        '<div class="header-actions">' +
-        (f.is_current_month ? '' : '<a href="javascript:void(0)" onclick="action(\'finance_current_month\')" class="today-btn">ماه جاری</a>') +
-        '<a href="javascript:void(0)" onclick="action(\'finance_prev_month\')" class="date-nav-btn">›</a></div></div>';
+        navArrowBtn('next', 'action(\'finance_next_month\')', 'ماه بعد') +
+        '</div>' +
+        (f.is_current_month ? '' : '<div class="date-header-tools">' +
+        '<button type="button" onclick="action(\'finance_current_month\')" class="today-btn">ماه جاری</button></div>') +
+        '</div>';
 
     html += '<div class="fin-hero">' +
         '<div class="fin-hero-label">موجودی این ماه</div>' +
@@ -1236,7 +1330,7 @@ function renderFinanceScreen(f) {
         + '<span class="fin-card-title">🧾 تراکنش‌ها</span>'
         + '<span class="fin-card-head-end">'
         + '<span class="fin-card-badge">' + pd(f.entries.length) + '</span>'
-        + '<span class="fin-card-chevron">' + (_showFinanceTransactions ? '▾' : '▸') + '</span>'
+        + '<span class="fin-card-chevron">' + collapseChevron(_showFinanceTransactions) + '</span>'
         + '</span></button>';
     if (_showFinanceTransactions) {
         if (!f.entries.length) {
@@ -1349,8 +1443,7 @@ function renderInstallments(data) {
         });
     }
 
-    html += '<button class="back-btn"'
-        + ' onclick="action(\'navigate\',{screen:\'finance\'})">← برگشت</button>';
+    html += backBtn('finance');
     return html;
 }
 
@@ -1386,8 +1479,7 @@ function renderImportantDates(data) {
         }
     }
 
-    html += '<button class="back-btn"'
-        + ' onclick="action(\'navigate\',{screen:\'home\'})">← برگشت</button>';
+    html += backBtn('home');
     return html;
 }
 
@@ -1702,7 +1794,7 @@ function renderProjects(data) {
         html += '<button type="button" class="proj-done-toggle' + (_showCompletedProjects ? ' open' : '') +
             '" onclick="_showCompletedProjects=!_showCompletedProjects;renderApp(window._lastState)">' +
             '<span>✓ پروژه‌های تموم‌شده</span><span class="proj-section-badge">' + pd(done.length) + '</span>' +
-            '<span class="proj-done-chevron">' + (_showCompletedProjects ? '▾' : '▸') + '</span></button>';
+            '<span class="proj-done-chevron">' + collapseChevron(_showCompletedProjects) + '</span></button>';
         if (_showCompletedProjects) {
             done.forEach(function(p) { html += renderProjectCard(p, true); });
         }
@@ -1721,7 +1813,7 @@ function renderProjectDetail(p) {
 
     html += '<div class="proj-detail-hero">' +
         '<div class="proj-detail-nav">' +
-        '<button type="button" class="proj-back-btn" onclick="action(\'navigate\',{screen:\'projects\'})">→</button>' +
+        '<button type="button" class="proj-back-btn" aria-label="برگشت به پروژه\u200cها" onclick="action(\'navigate\',{screen:\'projects\'})">' + ico('chevRight', 'ico') + '</button>' +
         '<div class="proj-detail-actions-top">' +
         '<button type="button" class="proj-icon-btn" onclick="showEditProject(' + p.id + ',window._projectColors)" title="ویرایش">✎</button>' +
         '<button type="button" class="proj-icon-btn danger" onclick="action(\'delete_project\',{id:' + p.id + '})" title="حذف">🗑</button>' +
@@ -1779,16 +1871,16 @@ function renderProjectDetail(p) {
 }
 
 function renderNav(screen) {
-    function item(id, label, icon) {
+    function item(id, label, iconName) {
         var cls = screen === id ? 'nav-btn active' : 'nav-btn';
         var current = screen === id ? ' aria-current="page"' : '';
         return '<button type="button" onclick="action(\'navigate\',{screen:\'' + id + '\'})" class="' + cls + '"' + current +
-            ' aria-label="' + label + '"><span class="nav-icon" aria-hidden="true">' + icon + '</span>' + label + '</button>';
+            ' aria-label="' + label + '"><span class="nav-icon" aria-hidden="true">' + (ICON[iconName] || '') + '</span>' + label + '</button>';
     }
-    return item('home', 'امروز', '🏠') +
-        item('finance', 'مالی', '💰') +
-        item('projects', 'پروژه‌ها', '📋') +
-        item('analytics', 'آمار', '📊');
+    return item('home', 'امروز', 'home') +
+        item('finance', 'مالی', 'wallet') +
+        item('projects', 'پروژه\u200cها', 'folder') +
+        item('analytics', 'آمار', 'chart');
 }
 
 /* Main render */
@@ -1801,7 +1893,9 @@ function renderApp(state) {
         ? (state.important_dates.categories || []) : window._dateCategories || [];
     document.documentElement.setAttribute('data-theme', state.theme || 'dark');
     var themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.setAttribute('content', (state.theme === 'light') ? '#F2F2F7' : '#121212');
+    if (themeMeta) {
+        themeMeta.setAttribute('content', themeColorForScreen(state.screen, state.theme));
+    }
 
     var root = document.getElementById('app-root');
     if (!root) return;
@@ -1818,7 +1912,40 @@ function renderApp(state) {
     else if (state.screen === 'important_dates' && state.important_dates) html = renderImportantDates(state.important_dates);
 
     window._lastState = state;
+
+    var focused = document.activeElement;
+    var restoreSearch = focused && focused.classList && focused.classList.contains('search-input');
+    var searchCaret = restoreSearch ? focused.selectionStart : null;
+    var restoreNote = focused && focused.id === 'daily-note';
+    var noteCaret = restoreNote ? focused.selectionStart : null;
+
+    var screenChanged = window._renderedScreen !== state.screen;
+    window._renderedScreen = state.screen;
+
     root.innerHTML = html;
+
+    if (screenChanged) {
+        root.classList.add('screen-enter');
+        requestAnimationFrame(function() { root.classList.remove('screen-enter'); });
+    }
+
+    if (restoreSearch) {
+        var searchInput = document.querySelector('.search-input');
+        if (searchInput) {
+            searchInput.focus();
+            if (searchCaret != null) {
+                try { searchInput.setSelectionRange(searchCaret, searchCaret); } catch (e) {}
+            }
+        }
+    } else if (restoreNote) {
+        var noteInput = document.getElementById('daily-note');
+        if (noteInput) {
+            noteInput.focus();
+            if (noteCaret != null) {
+                try { noteInput.setSelectionRange(noteCaret, noteCaret); } catch (e) {}
+            }
+        }
+    }
 
     if (state.screen === 'settings' && window._exportData) {
         var exportTa = document.getElementById('export-ta');

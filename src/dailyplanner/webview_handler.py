@@ -256,8 +256,7 @@ class WebViewHandler:
     async def _on_add_task(self, p):
         title = p.get("title", "").strip()
         if title:
-            task = self.db.add_task(self.current_date, title)
-            self.expanded_tasks.add(task.id)
+            self.db.add_task(self.current_date, title)
             self.toast("تسک افزوده شد")
         await self.push_state()
 

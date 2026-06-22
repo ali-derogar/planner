@@ -7,32 +7,42 @@ from dailyplanner.ui.tokens import TOKENS_CSS
 from dailyplanner.utils.platform import is_android
 
 
-@lru_cache(maxsize=2)
-def _load_font_b64() -> str:
+def _font_candidates(name: str) -> list[Path]:
+    roots = [Path(__file__).parents[i] for i in (4, 3, 2)]
+    return [root / "resources" / "fonts" / name for root in roots]
+
+
+@lru_cache(maxsize=8)
+def _load_font_b64(filename: str) -> str:
     if is_android():
         return ""
-    candidates = [
-        Path(__file__).parents[4] / "resources" / "fonts" / "Vazirmatn-Regular.ttf",
-        Path(__file__).parents[3] / "resources" / "fonts" / "Vazirmatn-Regular.ttf",
-        Path(__file__).parents[2] / "resources" / "fonts" / "Vazirmatn-Regular.ttf",
-    ]
-    for p in candidates:
+    for p in _font_candidates(filename):
         if p.exists():
             return base64.b64encode(p.read_bytes()).decode()
     return ""
 
 
-def get_css() -> str:
-    font_b64 = _load_font_b64()
-    font_face = ""
-    if font_b64:
-        font_face = f"""
+def _font_face(weight: int, filename: str, fallback: str = "") -> str:
+    b64 = _load_font_b64(filename)
+    if b64:
+        return f"""
 @font-face {{
     font-family: 'Vazirmatn';
-    src: url('data:font/truetype;base64,{font_b64}') format('truetype');
-    font-weight: normal;
+    src: url('data:font/truetype;base64,{b64}') format('truetype');
+    font-weight: {weight};
     font-style: normal;
 }}"""
+    return fallback
+
+
+def get_css() -> str:
+    font_face = ""
+    if not is_android():
+        font_face = (
+            _font_face(400, "Vazirmatn-Regular.ttf")
+            + _font_face(500, "Vazirmatn-Medium.ttf")
+            + _font_face(700, "Vazirmatn-Bold.ttf", _font_face(700, "Vazirmatn-Regular.ttf"))
+        )
 
     return f"""
 {font_face}
@@ -42,7 +52,8 @@ def get_css() -> str:
 *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
 html, body {{
-    background-color: var(--bg);
+    background: var(--gradient-mesh), var(--bg);
+    background-attachment: fixed;
     color: var(--text);
     font-family: 'Vazirmatn', -apple-system, Tahoma, sans-serif;
     direction: rtl;
@@ -50,8 +61,9 @@ html, body {{
     overflow-x: hidden;
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
-    font-size: 14px;
+    font-size: var(--text-base);
     line-height: 1.5;
+    font-variant-numeric: tabular-nums;
 }}
 
 a {{ text-decoration: none; color: inherit; }}
@@ -67,29 +79,48 @@ textarea:focus-visible, select:focus-visible {{
 
 /* ── Layout ── */
 .screen {{ display: flex; flex-direction: column; min-height: 100vh; }}
-.content {{ flex: 1; padding-bottom: calc(68px + var(--safe-bottom)); }}
+.content {{
+    flex: 1;
+    padding-bottom: calc(88px + var(--safe-bottom));
+    max-width: 520px;
+    margin: 0 auto;
+    width: 100%;
+}}
+.screen-enter {{
+    animation: screenIn var(--duration-normal) var(--ease-out);
+}}
 
-/* ── Bottom Nav ── */
+/* ── Bottom Nav — floating dock ── */
 .bottom-nav {{
     position: fixed;
-    bottom: 0; left: 0; right: 0;
+    bottom: calc(12px + var(--safe-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: 520px;
     background: var(--nav-bar);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
     display: flex;
-    padding: 6px 0 calc(8px + var(--safe-bottom));
-    border-top: 1px solid var(--divider);
+    padding: 6px 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
     z-index: 200;
-    box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    box-shadow: var(--shadow-nav);
+}}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {{
+    .bottom-nav {{ background: var(--surface-deep); }}
 }}
 
 /* Android gesture / 3-button nav bar — env() is often 0 in WebView */
 @media (hover: none) and (pointer: coarse) {{
-    .content {{ padding-bottom: calc(68px + max(48px, var(--safe-bottom))); }}
-    .bottom-nav {{ padding-bottom: calc(8px + max(48px, var(--safe-bottom))); }}
+    .content {{ padding-bottom: calc(88px + max(48px, var(--safe-bottom))); }}
+    .bottom-nav {{ bottom: calc(12px + max(48px, var(--safe-bottom))); }}
 }}
 .nav-btn {{
     flex: 1;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: var(--text-sm);
     padding: 6px 4px;
     text-align: center;
     display: flex;
@@ -98,31 +129,66 @@ textarea:focus-visible, select:focus-visible {{
     justify-content: center;
     font-family: 'Vazirmatn', sans-serif;
     cursor: pointer;
-    border-radius: 8px;
-    margin: 0 4px;
-    transition: background 0.15s, color 0.15s;
+    border-radius: var(--radius-sm);
+    margin: 0 2px;
+    transition: background var(--duration-fast), color var(--duration-fast), transform var(--duration-fast);
     border: none;
     background: none;
     min-height: 48px;
+    position: relative;
 }}
-.nav-btn:active {{ background: var(--surface-muted); }}
+.nav-btn:active {{ transform: scale(0.95); background: var(--surface-muted); }}
 .nav-btn.active {{
     color: var(--primary);
-    background: rgba(94,92,230,0.15);
+    background: rgba(99, 102, 241, 0.14);
+}}
+.nav-btn.active::after {{
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--primary);
 }}
 
-/* ── Date Header ── */
+/* ── Date Header — hero zone ── */
 .date-header {{
-    background: linear-gradient(135deg, #3D5AFE 0%, #8B00E0 100%);
-    padding: calc(14px + var(--safe-top)) 16px 12px;
+    background: var(--gradient-hero);
+    padding: calc(14px + var(--safe-top)) var(--space-4) var(--space-3);
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: var(--space-3);
     direction: rtl;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 12px rgba(61,90,254,0.3);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}}
+.date-header::before {{
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 85% 15%, rgba(255,255,255,0.14), transparent 55%);
+    pointer-events: none;
+}}
+.date-header-row {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    position: relative;
+    z-index: 1;
+}}
+.date-header-tools {{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
 }}
 
 @media (hover: none) and (pointer: coarse) {{
@@ -135,58 +201,142 @@ textarea:focus-visible, select:focus-visible {{
 }}
 .date-title {{
     color: #fff;
-    font-size: 15px;
-    font-weight: bold;
+    font-size: var(--text-md);
+    font-weight: var(--font-bold);
     text-align: center;
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+    padding: 0 var(--space-2);
 }}
+[data-theme="light"] .date-title {{ color: var(--primary-light); }}
 .date-nav-btn {{
-    background: rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     color: #fff;
-    width: 34px; height: 34px;
+    width: 36px; height: 36px;
     border-radius: 50%;
     font-size: 20px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    border: none;
-    transition: background 0.15s;
+    border: 1px solid rgba(255,255,255,0.12);
+    transition: background var(--duration-fast), transform var(--duration-fast);
+    flex-shrink: 0;
+    padding: 0;
+    font-family: inherit;
 }}
-.date-nav-btn:hover {{ background: rgba(255,255,255,0.28); }}
+.date-nav-btn .ico {{ width: 18px; height: 18px; }}
+[data-theme="light"] .date-nav-btn {{
+    background: rgba(99,102,241,0.12);
+    color: var(--primary);
+    border-color: rgba(99,102,241,0.2);
+}}
+[data-theme="light"] .date-nav-btn .ico {{ color: var(--primary); }}
+.date-nav-btn:hover {{ background: rgba(255,255,255,0.24); }}
+.date-nav-btn:active {{ transform: scale(0.92); }}
 .today-btn {{
-    background: rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(8px);
     color: #fff;
-    padding: 4px 10px;
-    border-radius: 14px;
-    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
     cursor: pointer;
-    border: none;
+    border: 1px solid rgba(255,255,255,0.2);
     font-family: 'Vazirmatn', sans-serif;
     white-space: nowrap;
+    font-weight: var(--font-medium);
+    box-shadow: 0 0 16px rgba(255,255,255,0.12);
+}}
+[data-theme="light"] .today-btn {{
+    background: var(--primary);
+    color: #fff;
+    border-color: transparent;
 }}
 
-/* ── Summary Bar ── */
+/* ── Hero stats (inside header) ── */
+.hero-stats {{
+    display: flex;
+    gap: var(--space-2);
+    position: relative;
+    z-index: 1;
+}}
+.hero-stat {{
+    flex: 1;
+    text-align: center;
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: var(--radius-sm);
+    padding: 8px 6px;
+}}
+[data-theme="light"] .hero-stat {{
+    background: rgba(255,255,255,0.65);
+    border-color: rgba(99,102,241,0.15);
+}}
+.hero-stat-val {{
+    display: block;
+    font-size: var(--text-md);
+    font-weight: var(--font-bold);
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}}
+[data-theme="light"] .hero-stat-val {{ color: var(--text); }}
+.hero-stat-lbl {{
+    display: block;
+    font-size: 10px;
+    color: rgba(255,255,255,0.75);
+    margin-top: 2px;
+}}
+[data-theme="light"] .hero-stat-lbl {{ color: var(--text-muted); }}
+.hero-stat.useful .hero-stat-val {{ color: #86EFAC; }}
+.hero-stat.eff .hero-stat-val {{ color: #C4B5FD; }}
+.hero-stat.not .hero-stat-val {{ color: #FDBA74; }}
+[data-theme="light"] .hero-stat.useful .hero-stat-val {{ color: var(--success); }}
+[data-theme="light"] .hero-stat.eff .hero-stat-val {{ color: var(--primary); }}
+[data-theme="light"] .hero-stat.not .hero-stat-val {{ color: var(--warning); }}
+
+/* ── Summary Bar (legacy fallback) ── */
 .summary-bar {{
-    background: var(--surface);
-    padding: 8px 16px;
+    background: var(--surface-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    padding: var(--space-2) var(--space-4);
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
+    font-size: var(--text-sm);
     border-bottom: 1px solid var(--divider);
+    margin: 0 var(--space-2);
+    border-radius: var(--radius-sm);
 }}
 .sum-useful {{ color: var(--success); }}
 .sum-not {{ color: var(--warning); }}
 .sum-eff {{ color: var(--primary); }}
 
 /* ── Task Card ── */
-.task-list {{ padding: 8px 8px 4px; }}
+.task-list {{
+    padding: 8px 8px 4px;
+    width: 100%;
+    box-sizing: border-box;
+}}
 
 .task-card {{
     background: var(--surface);
     border-radius: var(--radius);
-    margin-bottom: 8px;
+    margin-bottom: var(--space-2);
     overflow: hidden;
-    border: 1px solid var(--divider);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--elevation-1);
+    transition: box-shadow var(--duration-fast);
+    width: 100%;
+    box-sizing: border-box;
+}}
+@media (hover: hover) {{
+    .task-card:hover {{ box-shadow: var(--elevation-2); }}
 }}
 .task-header {{
     display: flex;
@@ -195,33 +345,77 @@ textarea:focus-visible, select:focus-visible {{
     cursor: pointer;
     direction: rtl;
     gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 48px;
+    color: var(--text);
+    -webkit-user-select: none;
+    user-select: none;
 }}
-.task-star {{ font-size: 18px; color: var(--star); flex-shrink: 0; }}
-.task-star.empty {{ color: var(--divider); }}
+.task-star-wrap {{
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 4px;
+    margin: -4px;
+    cursor: pointer;
+    color: inherit;
+}}
+.task-star {{ color: var(--star); }}
+.task-star.empty {{ color: var(--divider); opacity: 0.55; }}
+.task-header-end {{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}}
+.ico.task-chevron {{
+    color: var(--text-muted);
+    flex-shrink: 0;
+    opacity: 0.7;
+    width: 14px;
+    height: 14px;
+}}
 .task-title-wrap {{
     flex: 1;
-    font-size: 14px;
+    min-width: 0;
+    font-size: var(--text-md);
+    font-weight: normal;
+    line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: start;
+    color: var(--text);
 }}
 .task-dur {{
     color: var(--text-muted);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
-    min-width: 68px;
-    text-align: center;
+    white-space: nowrap;
+    text-align: end;
 }}
 .task-dur.running {{
     color: var(--running);
+    animation: pulseGlow 2s ease-in-out infinite;
 }}
-.task-chevron {{ color: var(--text-muted); font-size: 11px; flex-shrink: 0; opacity: 0.6; }}
+.task-card.is-running .timer-big {{
+    animation: pulseGlow 2s ease-in-out infinite;
+}}
 
-/* useful indicator strip on left */
-.task-card.is-useful {{ border-right: 3px solid var(--success); }}
-.task-card.is-not-useful {{ border-right: 3px solid var(--error); }}
-.task-card.is-running {{ border-right: 3px solid var(--running); }}
+/* status strip — inset shadow avoids width jump when status changes */
+.task-card.is-useful {{ box-shadow: var(--elevation-1), inset -3px 0 0 0 var(--success); }}
+.task-card.is-not-useful {{ box-shadow: var(--elevation-1), inset -3px 0 0 0 var(--error); }}
+.task-card.is-running {{ box-shadow: var(--elevation-1), inset -3px 0 0 0 var(--running); }}
+@media (hover: hover) {{
+    .task-card.is-useful:hover {{ box-shadow: var(--elevation-2), inset -3px 0 0 0 var(--success); }}
+    .task-card.is-not-useful:hover {{ box-shadow: var(--elevation-2), inset -3px 0 0 0 var(--error); }}
+    .task-card.is-running:hover {{ box-shadow: var(--elevation-2), inset -3px 0 0 0 var(--running); }}
+}}
 
 /* ── Task Detail ── */
 .task-detail {{
@@ -229,18 +423,25 @@ textarea:focus-visible, select:focus-visible {{
     border-top: 1px solid var(--divider);
     direction: rtl;
     background: var(--surface-deep);
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }}
 .timer-row {{
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 12px;
+    gap: 8px;
+    min-width: 0;
 }}
 .timer-big {{
-    font-size: 22px;
+    font-size: 28px;
+    font-weight: var(--font-bold);
     font-variant-numeric: tabular-nums;
     color: var(--running);
     letter-spacing: 2px;
+    flex-shrink: 0;
 }}
 .btn-start {{
     background: var(--running-bg);
@@ -251,6 +452,9 @@ textarea:focus-visible, select:focus-visible {{
     cursor: pointer;
     font-family: 'Vazirmatn', sans-serif;
     font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }}
 .btn-stop {{
     background: var(--error-bg);
@@ -261,7 +465,20 @@ textarea:focus-visible, select:focus-visible {{
     cursor: pointer;
     font-family: 'Vazirmatn', sans-serif;
     font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }}
+.btn-start .ico, .btn-stop .ico {{ width: 14px; height: 14px; }}
+.add-btn .ico, .empty-btn .ico {{ width: 16px; height: 16px; flex-shrink: 0; }}
+.add-btn, .empty-btn {{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-sizing: border-box;
+}}
+.empty-btn {{ display: inline-flex; }}
 
 /* estimated */
 .est-row {{
@@ -280,6 +497,7 @@ textarea:focus-visible, select:focus-visible {{
     gap: 6px;
     flex-wrap: wrap;
     direction: rtl;
+    max-width: 100%;
 }}
 .chip {{
     padding: 5px 12px;
@@ -303,11 +521,11 @@ textarea:focus-visible, select:focus-visible {{
 .section {{
     background: var(--surface);
     border-radius: var(--radius);
-    margin: 6px 8px;
-    padding: 14px;
-    border: 1px solid var(--divider);
+    margin: 6px var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--border-subtle);
     direction: rtl;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    box-shadow: var(--elevation-1);
 }}
 .sec-header {{
     display: flex;
@@ -316,9 +534,20 @@ textarea:focus-visible, select:focus-visible {{
     margin-bottom: 10px;
 }}
 .sec-title {{
-    font-size: 14px;
-    font-weight: bold;
+    font-size: var(--text-base);
+    font-weight: var(--font-bold);
     color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}}
+.sec-title::before {{
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--gradient-accent);
+    flex-shrink: 0;
 }}
 .sec-actions {{ display: flex; gap: 6px; flex-wrap: wrap; }}
 .btn-sm-green {{
@@ -429,55 +658,80 @@ textarea:focus-visible, select:focus-visible {{
 }}
 .mood-btn.sel {{
     opacity: 1;
-    background: rgba(94,92,230,0.25);
-    transform: scale(1.25);
-    border: 1px solid #5E5CE644;
+    background: rgba(99, 102, 241, 0.22);
+    transform: scale(1.2);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.25);
 }}
 
 /* ── Add Task Button ── */
 .add-btn {{
-    display: block;
-    margin: 10px 8px 6px;
+    display: flex;
+    width: auto;
+    margin: var(--space-3) var(--space-2) var(--space-2);
     padding: 14px;
-    background: linear-gradient(135deg, #3D5AFE, #8B00E0);
+    background: var(--gradient-accent);
     color: #fff;
-    border-radius: 14px;
-    text-align: center;
-    font-size: 15px;
+    border-radius: var(--radius);
+    font-size: var(--text-md);
+    font-weight: var(--font-medium);
     cursor: pointer;
     font-family: 'Vazirmatn', sans-serif;
-    box-shadow: 0 4px 16px rgba(61,90,254,0.35);
+    box-shadow: var(--shadow);
     border: none;
+    transition: transform var(--duration-fast), box-shadow var(--duration-fast);
 }}
+.add-btn:active {{ transform: scale(0.98); }}
 
-/* ── Modal ── */
+/* ── Modal — bottom sheet ── */
 .modal-overlay {{
     position: fixed; inset: 0;
     background: var(--overlay);
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
     z-index: 600;
-    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+    padding: 0;
     direction: rtl;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    backdrop-filter: blur(2px);
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}}
+.modal-overlay.modal-center {{
+    align-items: center;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
 }}
 .modal-box {{
     background: var(--surface);
-    border-radius: 18px;
-    padding: 20px 16px 16px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 8px 16px calc(16px + var(--safe-bottom));
     width: 100%;
-    max-width: 360px;
-    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    border: 1px solid var(--divider);
+    max-width: 520px;
+    max-height: calc(92dvh - var(--safe-bottom));
+    border: 1px solid var(--border-subtle);
+    border-bottom: none;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    margin: auto;
-    box-shadow: var(--shadow);
+    margin: 0 auto;
+    box-shadow: var(--shadow-nav);
+    animation: sheetUp var(--duration-normal) var(--ease-out);
 }}
+.modal-center .modal-box {{
+    border-radius: var(--radius-lg);
+    border-bottom: 1px solid var(--border-subtle);
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    animation: fadeScaleIn var(--duration-normal) var(--ease-out);
+}}
+.modal-handle {{
+    width: 36px;
+    height: 4px;
+    background: var(--divider);
+    border-radius: 2px;
+    margin: 4px auto 12px;
+    flex-shrink: 0;
+}}
+.modal-center .modal-handle {{ display: none; }}
 #modal-fields {{
     overflow-y: auto;
     flex: 1;
@@ -548,14 +802,16 @@ textarea:focus-visible, select:focus-visible {{
 .modal-btns {{ display: flex; gap: 8px; direction: rtl; flex-shrink: 0; padding-top: 10px; }}
 .modal-confirm {{
     flex: 1;
-    background: linear-gradient(135deg, #3D5AFE, #8B00E0);
+    background: var(--gradient-accent);
     color: #fff;
     border: none;
-    border-radius: 10px;
-    padding: 10px;
-    font-size: 14px;
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-size: var(--text-base);
+    font-weight: var(--font-medium);
     cursor: pointer;
     font-family: 'Vazirmatn', sans-serif;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
 }}
 .modal-cancel {{
     flex: 1;
@@ -746,43 +1002,105 @@ textarea:focus-visible, select:focus-visible {{
 }}
 .loading-text {{ font-size: 14px; }}
 @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
-.search-row {{ padding: 8px 8px 4px; }}
+.search-row {{ padding: var(--space-2) var(--space-2) var(--space-1); }}
+.search-wrap {{
+    position: relative;
+    display: flex;
+    align-items: center;
+}}
+.search-wrap .ico-search {{
+    position: absolute;
+    inset-inline-start: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+    width: 18px;
+    height: 18px;
+}}
 .search-input {{
-    width: 100%; background: var(--surface); border: 1px solid var(--divider);
-    border-radius: var(--radius-sm); padding: 10px 12px; color: var(--text);
-    font-family: 'Vazirmatn', sans-serif; font-size: 14px; outline: none;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 11px 12px;
+    padding-inline-start: 40px;
+    color: var(--text);
+    font-family: 'Vazirmatn', sans-serif;
+    font-size: var(--text-base);
+    outline: none;
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
 }}
-.search-input:focus {{ border-color: var(--primary); }}
-.header-actions {{ display: flex; gap: 4px; align-items: center; }}
+.search-input:focus {{
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}}
+.header-actions {{ display: flex; gap: 4px; align-items: center; position: relative; z-index: 1; }}
 .icon-btn {{
-    background: rgba(255,255,255,0.18); color: #fff; border: none;
-    border-radius: 8px;
-    width: 34px; height: 34px;
+    background: rgba(255,255,255,0.14);
+    backdrop-filter: blur(8px);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius-sm);
+    width: 36px; height: 36px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 16px; cursor: pointer;
+    cursor: pointer;
     flex-shrink: 0;
+    transition: background var(--duration-fast), transform var(--duration-fast);
 }}
+[data-theme="light"] .icon-btn {{
+    background: rgba(99,102,241,0.1);
+    color: var(--primary);
+    border-color: rgba(99,102,241,0.18);
+}}
+.icon-btn.wide {{ width: auto; padding: 0 10px; gap: 4px; font-size: var(--text-sm); }}
+.icon-btn:active {{ transform: scale(0.92); }}
+.icon-btn .ico {{ width: 18px; height: 18px; }}
+.icon-btn.wide .ico {{ width: 14px; height: 14px; }}
 .task-progress {{
-    height: 4px; background: var(--surface-muted); margin: 0 12px 4px;
+    height: 4px;
+    background: var(--surface-muted);
+    margin: 0 12px 4px;
+    border-radius: 2px;
+    overflow: hidden;
 }}
 .task-progress-fill {{
-    height: 100%; background: linear-gradient(90deg, var(--primary), var(--success));
-    border-radius: 2px; transition: width 0.3s;
+    height: 100%;
+    background: var(--gradient-progress);
+    border-radius: 2px;
+    transition: width 0.3s var(--ease-out);
+}}
+.task-card.is-running .task-progress-fill {{
+    background: linear-gradient(90deg, var(--running), var(--primary), var(--running));
+    background-size: 200% 100%;
+    animation: shimmer 1.8s linear infinite;
 }}
 .task-remaining {{ font-size: 11px; color: var(--text-muted); padding: 0 12px 8px; }}
 .empty-state {{
-    text-align: center; padding: 36px 20px; color: var(--text-muted);
+    text-align: center;
+    padding: var(--space-8) var(--space-5);
+    color: var(--text-muted);
 }}
-.empty-icon {{ font-size: 44px; margin-bottom: 10px; line-height: 1; }}
-.empty-title {{ font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }}
-.empty-sub {{ font-size: 12px; color: var(--text-muted); line-height: 1.6; max-width: 280px; margin: 0 auto 4px; }}
-.empty-btn, .empty-mini {{ margin-top: 14px; }}
-.empty-mini {{ text-align: center; font-size: 12px; color: var(--text-muted); padding: 12px 8px; }}
+.empty-icon {{
+    margin: 0 auto var(--space-3);
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-muted);
+    border-radius: 50%;
+    color: var(--primary);
+}}
+.empty-title {{ font-size: var(--text-md); font-weight: var(--font-bold); color: var(--text); margin-bottom: 6px; }}
+.empty-sub {{ font-size: var(--text-sm); color: var(--text-muted); line-height: 1.6; max-width: 280px; margin: 0 auto 4px; }}
+.empty-btn, .empty-mini {{ margin-top: var(--space-4); }}
+.empty-mini {{ text-align: center; font-size: var(--text-sm); color: var(--text-muted); padding: var(--space-3) var(--space-2); }}
 .empty-btn {{
-    background: linear-gradient(135deg, var(--primary-light), #8B00E0);
+    background: var(--gradient-accent);
     color: #fff; border: none; border-radius: var(--radius-sm);
-    padding: 10px 20px; cursor: pointer; font-family: 'Vazirmatn', sans-serif;
-    font-size: 13px; box-shadow: var(--shadow);
+    padding: 11px 22px; cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+    font-size: var(--text-sm); font-weight: var(--font-medium); box-shadow: var(--shadow);
 }}
 .note-section {{ margin-top: 0; }}
 .note-input {{
@@ -812,8 +1130,38 @@ textarea:focus-visible, select:focus-visible {{
     background: var(--surface); margin: 4px 8px; border-radius: var(--radius);
     padding: 10px; border: 1px solid var(--divider);
 }}
-.cal-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
-.cal-nav {{ background: var(--surface-muted); border: none; color: var(--text); padding: 4px 12px; border-radius: 8px; cursor: pointer; }}
+.cal-header {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    direction: rtl;
+    margin-bottom: 8px;
+}}
+.cal-title {{
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    font-weight: var(--font-bold);
+    font-size: var(--text-sm);
+}}
+.cal-nav {{
+    background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    color: var(--text);
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: inherit;
+}}
+.cal-nav .ico {{ width: 18px; height: 18px; }}
+.cal-nav:active {{ background: rgba(99, 102, 241, 0.15); }}
 .cal-grid {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }}
 .cal-day {{
     background: var(--surface-muted); border: none; border-radius: 8px;
@@ -856,7 +1204,7 @@ textarea:focus-visible, select:focus-visible {{
     padding: 4px 8px; margin: 0 8px;
 }}
 .chart-box {{ padding: 8px 12px; }}
-.sparkline {{ width: 100%; height: 60px; display: block; }}
+.sparkline {{ width: 100%; height: 60px; display: block; color: var(--primary); }}
 .fin-chart-legend {{
     display: flex; justify-content: center; gap: 16px;
     font-size: 11px; color: var(--text-muted); margin-bottom: 6px; flex-wrap: wrap;
@@ -869,21 +1217,41 @@ textarea:focus-visible, select:focus-visible {{
 .hm-mid {{ background: var(--primary); }}
 .hm-low {{ background: var(--warning); }}
 .analytics-header, .page-header {{
-    padding: calc(12px + var(--safe-top)) 16px 10px;
-    font-size: 16px; font-weight: bold;
-    background: linear-gradient(135deg, #3D5AFE 0%, #8B00E0 100%);
-    color: #fff; position: sticky; top: 0; z-index: 90;
+    padding: calc(12px + var(--safe-top)) var(--space-4) 10px;
+    font-size: var(--text-lg);
+    font-weight: var(--font-bold);
+    background: var(--gradient-hero);
+    color: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    box-shadow: var(--shadow);
 }}
+[data-theme="light"] .analytics-header {{ color: var(--primary-light); }}
 .sticky-sub {{ margin-bottom: 0; }}
 .period-label {{ text-align: center; color: var(--text-muted); font-size: 12px; padding: 4px 8px; }}
 .day-extra {{ font-size: 11px; color: var(--text-muted); margin-top: 4px; }}
 .page-header {{ background: var(--surface); color: var(--text); border-bottom: 1px solid var(--divider); }}
 .back-btn {{
-    display: block; margin: 12px 8px; padding: 12px; text-align: center;
-    background: var(--surface); border: 1px solid var(--divider);
-    border-radius: var(--radius-sm); cursor: pointer; color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 12px 8px;
+    padding: 12px;
+    text-align: center;
+    background: var(--surface);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text);
     font-family: 'Vazirmatn', sans-serif;
+    font-size: var(--text-base);
 }}
+.back-btn .ico {{ width: 16px; height: 16px; color: var(--primary); }}
+.collapse-chevron {{ display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }}
+.fin-card-chevron {{ display: inline-flex; align-items: center; line-height: 0; }}
+.proj-done-chevron {{ display: inline-flex; align-items: center; margin-right: auto; }}
 .setting-row {{ display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }}
 .toggle-btn {{
     background: var(--surface-muted); border: 1px solid var(--divider);
@@ -925,9 +1293,9 @@ textarea:focus-visible, select:focus-visible {{
 }}
 .section-btn-icon {{ font-size: 16px; line-height: 1; }}
 .section-btn-primary {{
-    background: linear-gradient(135deg, #3D5AFE, #8B00E0);
+    background: var(--gradient-accent);
     color: #fff;
-    box-shadow: 0 4px 14px rgba(61,90,254,0.3);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
 }}
 .section-btn-danger {{
     background: var(--error-bg);
@@ -1030,25 +1398,53 @@ textarea:focus-visible, select:focus-visible {{
 .backup-ta::placeholder {{ color: var(--text-muted); opacity: 0.7; }}
 .backup-preview {{ font-size: 10px; max-height: 200px; }}
 .toast {{
-    position: fixed; top: calc(12px + var(--safe-top)); left: 50%; transform: translateX(-50%);
-    background: var(--surface); color: var(--text); padding: 11px 22px;
-    border-radius: 20px; border: 1px solid var(--divider); z-index: 700;
-    opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s;
-    font-size: 13px; box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-    max-width: calc(100vw - 32px); text-align: center; white-space: pre-wrap;
+    position: fixed;
+    top: calc(12px + var(--safe-top));
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: var(--surface-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    color: var(--text);
+    padding: 12px 24px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+    z-index: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-normal), transform var(--duration-normal);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    box-shadow: var(--elevation-2);
+    max-width: calc(100vw - 32px);
+    text-align: center;
+    white-space: pre-wrap;
 }}
 .toast.show {{ opacity: 1; transform: translateX(-50%) translateY(0); }}
-.toast.error {{ border-color: var(--error); color: var(--error); background: var(--error-bg); }}
-.toast.success {{ border-color: var(--success); color: var(--success); background: var(--success-bg); }}
-.nav-icon {{
-    display: block;
-    font-size: 20px;
-    line-height: 1;
-    width: 24px;
-    height: 24px;
-    text-align: center;
-    margin: 0 auto 2px;
+.toast.error {{ border-color: rgba(251, 113, 133, 0.4); color: var(--error); background: var(--error-bg); }}
+.toast.success {{ border-color: rgba(52, 211, 153, 0.4); color: var(--success); background: var(--success-bg); }}
+.nav-icon, .ico {{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
 }}
+.nav-icon {{
+    width: 22px;
+    height: 22px;
+    margin: 0 auto 3px;
+}}
+.nav-icon svg, .ico svg {{
+    width: 100%;
+    height: 100%;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}}
+.ico-fill svg {{ fill: currentColor; stroke: none; }}
+.task-star svg {{ width: 18px; height: 18px; }}
 .well-static {{ cursor: default; }}
 
 /* ── Finance screen ── */
@@ -1130,7 +1526,7 @@ textarea:focus-visible, select:focus-visible {{
 }}
 .fin-card-toggle:active {{ opacity: 0.75; }}
 .fin-card-head-end {{ display: flex; align-items: center; gap: 8px; }}
-.fin-card-chevron {{ font-size: 12px; color: var(--text-muted); line-height: 1; }}
+.fin-card-chevron {{ color: var(--text-muted); }}
 .fin-card-title {{ font-size: 14px; font-weight: bold; }}
 .fin-card-badge {{
     background: var(--surface-muted); color: var(--text-muted);
@@ -1286,9 +1682,18 @@ textarea:focus-visible, select:focus-visible {{
 .proj-page {{ padding-bottom: 12px; }}
 
 .proj-header {{
-    background: linear-gradient(135deg, #3D5AFE 0%, #5E5CE6 50%, #8B00E0 100%);
-    padding: calc(16px + var(--safe-top)) 16px 18px;
-    box-shadow: 0 4px 20px rgba(94,92,230,0.35);
+    background: var(--gradient-hero);
+    padding: calc(16px + var(--safe-top)) var(--space-4) 18px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+}}
+.proj-header::before {{
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 85% 15%, rgba(255,255,255,0.12), transparent 55%);
+    pointer-events: none;
 }}
 @media (hover: none) and (pointer: coarse) {{
     .proj-header {{ padding-top: calc(16px + max(36px, var(--safe-top))); }}
@@ -1380,7 +1785,6 @@ textarea:focus-visible, select:focus-visible {{
     font-size: 13px; color: var(--text-muted); margin-bottom: 10px;
 }}
 .proj-done-toggle.open {{ border-color: var(--primary); color: var(--text); }}
-.proj-done-chevron {{ margin-right: auto; font-size: 12px; }}
 
 /* detail page */
 .proj-detail-page {{ padding-bottom: 16px; --project-color: var(--primary); }}
@@ -1401,10 +1805,18 @@ textarea:focus-visible, select:focus-visible {{
     margin-bottom: 16px;
 }}
 .proj-back-btn {{
-    background: rgba(255,255,255,0.12); color: #fff; border: none;
-    width: 38px; height: 38px; border-radius: 50%; font-size: 18px;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: none;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
 }}
+.proj-back-btn .ico {{ width: 20px; height: 20px; }}
 .proj-detail-actions-top {{ display: flex; gap: 8px; }}
 .proj-icon-btn {{
     background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.15);
@@ -1545,28 +1957,6 @@ textarea:focus-visible, select:focus-visible {{
     .color-swatch {{ width: 40px; height: 40px; }}
 }}
 
-/* ── Light theme component overrides ── */
-[data-theme="light"] .fin-hero {{
-    background: linear-gradient(145deg, #EEF0FF 0%, var(--surface) 60%, #E6F9ED 100%);
-    border-color: var(--divider);
-    box-shadow: 0 2px 16px rgba(61,90,254,0.08);
-}}
-[data-theme="light"] .fin-hero-stat {{
-    background: rgba(0,0,0,0.03);
-    border-color: var(--divider);
-}}
-[data-theme="light"] .task-card,
-[data-theme="light"] .section,
-[data-theme="light"] .stat-card,
-[data-theme="light"] .day-card {{
-    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
-}}
-[data-theme="light"] .bottom-nav {{
-    box-shadow: 0 -1px 8px rgba(0,0,0,0.06);
-}}
-[data-theme="light"] .toast {{
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-}}
 
 /* ── Installments ── */
 .inst-row {{
@@ -1665,4 +2055,84 @@ textarea:focus-visible, select:focus-visible {{
     margin-bottom: 8px;
 }}
 .date-item-actions {{ display: flex; gap: 6px; flex-wrap: wrap; }}
+
+/* ── Animations ── */
+@keyframes screenIn {{
+    from {{ opacity: 0; transform: translateY(8px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
+@keyframes sheetUp {{
+    from {{ transform: translateY(100%); }}
+    to {{ transform: translateY(0); }}
+}}
+@keyframes fadeScaleIn {{
+    from {{ opacity: 0; transform: scale(0.96); }}
+    to {{ opacity: 1; transform: scale(1); }}
+}}
+@keyframes pulseGlow {{
+    0%, 100% {{ opacity: 1; text-shadow: 0 0 0 transparent; }}
+    50% {{ opacity: 0.85; text-shadow: 0 0 12px var(--running-glow); }}
+}}
+@keyframes shimmer {{
+    0% {{ background-position: 200% 0; }}
+    100% {{ background-position: -200% 0; }}
+}}
+
+@media (prefers-reduced-motion: reduce) {{
+    *, *::before, *::after {{
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }}
+    .screen-enter {{ animation: none; }}
+    .task-card.is-running .task-progress-fill {{ animation: none; }}
+    .task-dur.running, .task-card.is-running .timer-big {{ animation: none; }}
+}}
+
+/* ── Light theme extras ── */
+[data-theme="light"] .date-header,
+[data-theme="light"] .proj-header {{
+    box-shadow: 0 2px 16px rgba(99, 102, 241, 0.08);
+}}
+[data-theme="light"] .proj-header-title {{ color: var(--primary-light); }}
+[data-theme="light"] .proj-header-add {{
+    background: var(--primary);
+    color: #fff;
+    border-color: transparent;
+}}
+[data-theme="light"] .proj-summary-item {{
+    background: rgba(255,255,255,0.7);
+    border-color: rgba(99,102,241,0.12);
+}}
+[data-theme="light"] .proj-summary-val {{ color: var(--text); }}
+[data-theme="light"] .proj-summary-lbl {{ color: var(--text-muted); }}
+[data-theme="light"] .task-card,
+[data-theme="light"] .section,
+[data-theme="light"] .stat-card,
+[data-theme="light"] .day-card {{
+    box-shadow: var(--elevation-1);
+    border-color: var(--border-subtle);
+}}
+[data-theme="light"] .bottom-nav {{
+    box-shadow: var(--shadow-nav);
+    border-color: var(--border-subtle);
+}}
+[data-theme="light"] .toast {{
+    box-shadow: var(--elevation-2);
+}}
+[data-theme="light"] .fin-hero {{
+    background: linear-gradient(145deg, #EEF2FF 0%, var(--surface) 60%, #ECFDF5 100%);
+    border-color: var(--border-subtle);
+    box-shadow: var(--elevation-1);
+}}
+[data-theme="light"] .fin-hero-stat {{
+    background: rgba(0,0,0,0.03);
+    border-color: var(--border-subtle);
+}}
+[data-theme="light"] .fin-hero-balance.positive {{ color: var(--success); }}
+[data-theme="light"] .fin-hero-balance.negative {{ color: var(--error); }}
+[data-theme="light"] .period-btn.active {{
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.25);
+}}
 """
