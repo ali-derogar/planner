@@ -80,9 +80,12 @@ a {{ text-decoration: none; color: inherit; }}
     flex: 1;
     color: #8E8E93;
     font-size: 13px;
-    padding: 6px;
+    padding: 6px 4px;
     text-align: center;
-    display: block;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     font-family: 'Vazirmatn', sans-serif;
     cursor: pointer;
     border-radius: 8px;
@@ -561,7 +564,11 @@ a {{ text-decoration: none; color: inherit; }}
 .header-actions {{ display: flex; gap: 4px; align-items: center; }}
 .icon-btn {{
     background: rgba(255,255,255,0.18); color: #fff; border: none;
-    border-radius: 8px; padding: 4px 8px; font-size: 13px; cursor: pointer;
+    border-radius: 8px;
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; cursor: pointer;
+    flex-shrink: 0;
 }}
 .task-progress {{
     height: 4px; background: var(--surface-muted); margin: 0 12px 4px;
@@ -659,6 +666,14 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .toast.show {{ opacity: 1; }}
 .toast.error {{ border-color: var(--error); color: var(--error); }}
-.nav-icon {{ display: block; font-size: 18px; margin-bottom: 2px; }}
+.nav-icon {{
+    display: block;
+    font-size: 20px;
+    line-height: 1;
+    width: 24px;
+    height: 24px;
+    text-align: center;
+    margin: 0 auto 2px;
+}}
 .well-static {{ cursor: default; }}
 """

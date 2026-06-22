@@ -220,7 +220,7 @@ function taskCard(t) {
 /* Screens */
 function renderHome(h) {
     var calBtn = '<button class="icon-btn" onclick="action(\'toggle_calendar\')">📅</button>';
-    var recurBtn = '<button class="icon-btn" onclick="action(\'navigate\',{screen:\'recurring\'})" title="تکراری">★ ' + pd(h.recurring_count) + '</button>';
+    var recurBtn = '<button class="icon-btn" style="width:auto;padding:0 8px;gap:3px" onclick="action(\'navigate\',{screen:\'recurring\'})" title="تکراری">★ ' + pd(h.recurring_count) + '</button>';
     var settingsBtn = '<button class="icon-btn" onclick="action(\'navigate\',{screen:\'settings\'})">⚙</button>';
 
     var html = '<div class="date-header">' +
