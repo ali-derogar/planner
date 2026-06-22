@@ -34,6 +34,7 @@ class WebViewHandler:
         self.calendar_month: Optional[int] = None
         self.finance_month: int = datetime.date.today().month
         self.finance_year: int = datetime.date.today().year
+        self.managing_installments: bool = False
         self.current_project_id: Optional[int] = None
         self._shell_loaded: bool = False
         self._pending_toast: Optional[dict] = None
@@ -699,6 +700,70 @@ class WebViewHandler:
         else:
             self.db.create_daily_task_from_project(project_task_id, today)
             self.toast("به لیست امروز اضافه شد")
+        await self.push_state()
+
+    # ── installments ──────────────────────────────────────────────────────────
+
+    async def _on_open_installments(self, p):
+        self.current_screen = "installments"
+        await self.push_state()
+
+    async def _on_add_installment(self, p):
+        title = p.get("title", "").strip()
+        try:
+            amount = int(float(p.get("amount", "0")))
+            total = int(p.get("total_count", "1"))
+            due_day = int(p.get("due_day", "1"))
+            start_date = p.get("start_date", "").strip()
+            datetime.date.fromisoformat(start_date)
+        except (ValueError, TypeError):
+            self.toast("اطلاعات نامعتبر است", "error")
+            await self.push_state()
+            return
+        if title and amount > 0 and 1 <= total <= 360 and 1 <= due_day <= 31:
+            self.db.add_installment(title, amount, total, start_date, due_day)
+            self.toast("قسط افزوده شد")
+        else:
+            self.toast("اطلاعات نامعتبر است", "error")
+        await self.push_state()
+
+    async def _on_edit_installment(self, p):
+        inst_id = int(p.get("id", 0))
+        title = p.get("title", "").strip()
+        try:
+            amount = int(float(p.get("amount", "0")))
+            total = int(p.get("total_count", "1"))
+            due_day = int(p.get("due_day", "1"))
+            start_date = p.get("start_date", "").strip()
+            datetime.date.fromisoformat(start_date)
+        except (ValueError, TypeError):
+            self.toast("اطلاعات نامعتبر است", "error")
+            await self.push_state()
+            return
+        if title and amount > 0:
+            self.db.edit_installment(inst_id, title, amount, total, start_date, due_day)
+            self.toast("ویرایش شد")
+        await self.push_state()
+
+    async def _on_delete_installment(self, p):
+        inst_id = int(p.get("id", 0))
+        confirmed = await self.app.main_window.dialog(
+            toga.ConfirmDialog("حذف قسط", "این قسط و تاریخچه پرداختش حذف می‌شود. مطمئنید؟")
+        )
+        if confirmed:
+            self.db.delete_installment(inst_id)
+            self.toast("قسط حذف شد")
+        await self.push_state()
+
+    async def _on_pay_installment(self, p):
+        inst_id = int(p.get("id", 0))
+        result = self.db.pay_installment(inst_id)
+        if result is None:
+            self.toast("این قسط قبلاً تسویه شده", "error")
+        elif result.is_settled:
+            self.toast("تبریک! این قسط تسویه شد ✓")
+        else:
+            self.toast(f"پرداخت ثبت شد — {result.remaining_count} قسط مانده")
         await self.push_state()
 
 

@@ -200,12 +200,16 @@ function buildDatePickerEl(field) {
     var clearBtn = document.createElement('button');
     clearBtn.type = 'button';
     clearBtn.className = 'date-picker-clear';
-    clearBtn.textContent = 'بدون ددلاین';
+    clearBtn.textContent = field.clearLabel || 'بدون ددلاین';
     clearBtn.onclick = function() {
         hidden.value = '';
         refresh();
     };
-    wrap.appendChild(clearBtn);
+    if (field.clearable !== false) {
+        wrap.appendChild(clearBtn);
+    }
+
+    var emptyLabel = field.emptyLabel || (field.clearable === false ? 'تاریخ را انتخاب کنید' : 'بدون ددلاین');
 
     function renderMonth() {
         var jy = state.jy;
@@ -253,7 +257,7 @@ function buildDatePickerEl(field) {
     }
 
     function refresh() {
-        labelEl.textContent = hidden.value ? formatJalaliIso(hidden.value) : 'بدون ددلاین';
+        labelEl.textContent = hidden.value ? formatJalaliIso(hidden.value) : emptyLabel;
         renderMonth();
     }
 
@@ -1144,6 +1148,40 @@ function renderRecurring(list) {
         '<button class="back-btn" onclick="action(\'navigate\',{screen:\'home\'})">← برگشت</button>';
 }
 
+function renderInstallmentCard(inst) {
+    inst = inst || { count: 0, items: [], total_unpaid_fmt: pd(0) };
+    var rows;
+    if (inst.count === 0) {
+        rows = '<div class="empty-mini">هنوز قسطی ثبت نشده — '
+            + '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'installments\'})">'
+            + '+ افزودن قسط</a></div>';
+    } else {
+        rows = inst.items.map(function(i) {
+            var statusBtn = i.is_settled
+                ? '<span class="inst-settled">✓ تسویه</span>'
+                : i.paid_this_month
+                    ? '<span class="inst-paid-month">✓ این ماه پرداخت شد</span>'
+                    : '<button class="btn-sm-green" onclick="action(\'pay_installment\',{id:'
+                      + i.id + '})">پرداخت کردم</button>';
+            return '<div class="inst-row">'
+                + '<span class="inst-title">' + esc(i.title) + '</span>'
+                + '<span class="inst-amount">' + esc(i.amount_fmt) + '</span>'
+                + statusBtn + '</div>';
+        }).join('');
+    }
+    return '<div class="section fin-inst-card">'
+        + '<div class="sec-header">'
+        + '<span class="sec-title">اقساط این ماه</span>'
+        + '<a href="javascript:void(0)"'
+        + ' onclick="action(\'navigate\',{screen:\'installments\'})"'
+        + ' class="chip chip-edit">مدیریت</a></div>'
+        + rows
+        + (inst.count > 0
+            ? '<div class="inst-footer">جمع پرداخت نشده: ' + esc(inst.total_unpaid_fmt) + '</div>'
+            : '')
+        + '</div>';
+}
+
 function renderFinanceScreen(f) {
     window._finEntries = f.entries;
     var t = f.totals;
@@ -1172,7 +1210,10 @@ function renderFinanceScreen(f) {
         '<button class="fin-action-btn expense" onclick="showAddFinance(\'expense\')"><span class="fin-action-icon">+</span>هزینه</button>' +
         '<button class="fin-action-btn invest" onclick="showAddFinance(\'investment\')"><span class="fin-action-icon">◆</span>سرمایه</button>' +
         '<button class="fin-action-btn budget" onclick="showAddBudget()"><span class="fin-action-icon">◎</span>بودجه</button>' +
+        '<button class="fin-action-btn inst" onclick="action(\'navigate\',{screen:\'installments\'})"><span class="fin-action-icon">📋</span>اقساط</button>' +
         '</div>';
+
+    html += renderInstallmentCard(f.installments);
 
     html += '<div class="fin-card"><div class="fin-card-head"><span class="fin-card-title">📈 روند ماهانه</span></div>';
     if (f.chart && f.chart.has_data) {
@@ -1182,34 +1223,41 @@ function renderFinanceScreen(f) {
     }
     html += '</div>';
 
-    html += '<div class="fin-card"><div class="fin-card-head">' +
-        '<span class="fin-card-title">🧾 تراکنش‌ها</span>' +
-        '<span class="fin-card-badge">' + pd(f.entries.length) + '</span></div>';
-    if (!f.entries.length) {
-        html += finEmptyState('🧾', 'هنوز تراکنشی ثبت نشده', '+ ثبت درآمد', 'showAddFinance(\'income\')');
-    } else {
-        var lastDate = '';
-        f.entries.slice().reverse().forEach(function(e) {
-            if (e.date_label !== lastDate) {
-                lastDate = e.date_label;
-                html += '<div class="fin-date-chip">' + esc(e.date_label) + '</div>';
-            }
-            var info = finTypeInfo(e.type);
-            var rowCls = 'fin-txn ' + info.cls;
-            html += '<div class="' + rowCls + '">' +
-                '<div class="fin-txn-icon">' + info.arrow + '</div>' +
-                '<div class="fin-txn-body">' +
-                '<div class="fin-txn-title">' + esc(e.title) + '</div>' +
-                '<div class="fin-txn-meta"><span class="fin-txn-cat">' + finCatIcon(e.category) + ' ' + esc(e.category) + '</span>' +
-                (e.type === 'investment' ? ' <span class="fin-txn-tag">سرمایه\u200cگذاری</span>' : '') +
-                '</div></div>' +
-                '<div class="fin-txn-right">' +
-                '<div class="fin-txn-amount">' + esc(e.amount_fmt) + '</div>' +
-                '<div class="fin-txn-btns">' +
-                '<button class="fin-txn-btn" onclick="showEditFinanceById(' + e.id + ')">✎</button>' +
-                '<button class="fin-txn-btn del" onclick="action(\'delete_finance\',{id:' + e.id + '})">×</button>' +
-                '</div></div></div>';
-        });
+    html += '<div class="fin-card fin-card-collapsible' + (_showFinanceTransactions ? ' open' : '') + '">'
+        + '<button type="button" class="fin-card-head fin-card-toggle"'
+        + ' onclick="_showFinanceTransactions=!_showFinanceTransactions;renderApp(window._lastState)">'
+        + '<span class="fin-card-title">🧾 تراکنش‌ها</span>'
+        + '<span class="fin-card-head-end">'
+        + '<span class="fin-card-badge">' + pd(f.entries.length) + '</span>'
+        + '<span class="fin-card-chevron">' + (_showFinanceTransactions ? '▾' : '▸') + '</span>'
+        + '</span></button>';
+    if (_showFinanceTransactions) {
+        if (!f.entries.length) {
+            html += finEmptyState('🧾', 'هنوز تراکنشی ثبت نشده', '+ ثبت درآمد', 'showAddFinance(\'income\')');
+        } else {
+            var lastDate = '';
+            f.entries.slice().reverse().forEach(function(e) {
+                if (e.date_label !== lastDate) {
+                    lastDate = e.date_label;
+                    html += '<div class="fin-date-chip">' + esc(e.date_label) + '</div>';
+                }
+                var info = finTypeInfo(e.type);
+                var rowCls = 'fin-txn ' + info.cls;
+                html += '<div class="' + rowCls + '">' +
+                    '<div class="fin-txn-icon">' + info.arrow + '</div>' +
+                    '<div class="fin-txn-body">' +
+                    '<div class="fin-txn-title">' + esc(e.title) + '</div>' +
+                    '<div class="fin-txn-meta"><span class="fin-txn-cat">' + finCatIcon(e.category) + ' ' + esc(e.category) + '</span>' +
+                    (e.type === 'investment' ? ' <span class="fin-txn-tag">سرمایه\u200cگذاری</span>' : '') +
+                    '</div></div>' +
+                    '<div class="fin-txn-right">' +
+                    '<div class="fin-txn-amount">' + esc(e.amount_fmt) + '</div>' +
+                    '<div class="fin-txn-btns">' +
+                    '<button class="fin-txn-btn" onclick="showEditFinanceById(' + e.id + ')">✎</button>' +
+                    '<button class="fin-txn-btn del" onclick="action(\'delete_finance\',{id:' + e.id + '})">×</button>' +
+                    '</div></div></div>';
+            });
+        }
     }
     html += '</div>';
 
@@ -1268,7 +1316,114 @@ function renderFinanceScreen(f) {
     return html + '</div>';
 }
 
+function renderInstallments(data) {
+    var html = '<div class="page-header">📋 مدیریت اقساط</div>';
+
+    html += '<div class="section">'
+        + '<div class="sec-title">این ماه — ' + esc(data.month_label) + '</div>'
+        + '<div class="inst-month-row">'
+        + '<span>کل تعهدات: ' + esc(data.month_total_due_fmt) + '</span>'
+        + '<span style="color:var(--error)">پرداخت نشده: '
+        + esc(data.month_total_unpaid_fmt) + '</span></div>'
+        + '<div class="hint">مجموع باقیمانده همه اقساط: '
+        + esc(data.total_remaining_fmt) + '</div>'
+        + '</div>';
+
+    html += '<a href="javascript:void(0)" class="add-btn"'
+        + ' onclick="showAddInstallment()">+ افزودن قسط</a>';
+
+    if (!data.list.length) {
+        html += '<div class="empty-state">'
+            + '<div class="empty-icon">📋</div>'
+            + '<div>هیچ قسطی ندارید</div></div>';
+    } else {
+        data.list.forEach(function(i) {
+            html += renderInstallmentItem(i);
+        });
+    }
+
+    html += '<button class="back-btn"'
+        + ' onclick="action(\'navigate\',{screen:\'finance\'})">← برگشت</button>';
+    return html;
+}
+
+function renderInstallmentItem(i) {
+    var settledBadge = i.is_settled
+        ? '<span class="inst-settled">✓ تسویه شد</span>' : '';
+    var dueBadge = !i.is_settled
+        ? '<span class="' + (i.is_overdue ? 'inst-overdue' : 'inst-due') + '">'
+          + esc(i.due_label) + '</span>'
+        : '';
+    var payBtn = (!i.is_settled && !i.paid_this_month)
+        ? '<button class="btn-sm-green" onclick="action(\'pay_installment\',{id:'
+          + i.id + '})">پرداخت کردم</button>' : '';
+    var paidMonthBadge = (!i.is_settled && i.paid_this_month)
+        ? '<span class="inst-paid-month">✓ این ماه پرداخت شد</span>' : '';
+
+    return '<div class="section" style="margin-bottom:8px">'
+        + '<div class="sec-header">'
+        + '<span class="sec-title">' + esc(i.title) + '</span>'
+        + '<div style="display:flex;gap:6px;align-items:center">'
+        + settledBadge + dueBadge
+        + '<button class="chip chip-edit" onclick="showEditInstallment('
+        + JSON.stringify(i) + ')">✎</button>'
+        + '<button class="chip chip-delete" onclick="action(\'delete_installment\',{id:'
+        + i.id + '})">حذف</button>'
+        + '</div></div>'
+        + '<div class="inst-bar"><div class="inst-bar-fill" style="width:'
+        + i.progress + '%' + (i.is_settled ? ';background:var(--success)' : '') + '"></div></div>'
+        + '<div class="inst-stats">'
+        + '<span>' + pd(i.paid_count) + ' از ' + pd(i.total_count) + ' قسط</span>'
+        + '<span>' + esc(i.amount_fmt) + ' / ماه</span>'
+        + '<span style="color:var(--error)">باقیمانده: '
+        + esc(i.remaining_fmt) + '</span></div>'
+        + (payBtn || paidMonthBadge ? '<div style="margin-top:8px">' + payBtn + paidMonthBadge + '</div>' : '')
+        + '</div>';
+}
+
+function showAddInstallment() {
+    var now = new Date();
+    var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    showModal({
+        title: 'افزودن قسط',
+        cmd: 'add_installment',
+        fields: [
+            { label: 'عنوان (مثلاً: اقساط گوشی)', key: 'title',
+              validate: 'required' },
+            { label: 'مبلغ هر قسط (تومان)', key: 'amount',
+              type: 'number', validate: 'amount' },
+            { label: 'تعداد کل اقساط', key: 'total_count',
+              type: 'number', placeholder: '12', validate: 'required' },
+            { label: 'تاریخ اولین قسط', key: 'start_date',
+              type: 'jalali-date', value: todayIso, validate: 'required', clearable: false },
+            { label: 'سررسید (چندم هر ماه)', key: 'due_day',
+              type: 'number', placeholder: '15', validate: 'required' },
+        ],
+    });
+}
+
+function showEditInstallment(i) {
+    showModal({
+        title: 'ویرایش قسط',
+        cmd: 'edit_installment',
+        params: { id: i.id },
+        fields: [
+            { label: 'عنوان', key: 'title',
+              value: i.title, validate: 'required' },
+            { label: 'مبلغ هر قسط (تومان)', key: 'amount',
+              type: 'number', value: i.amount, validate: 'amount' },
+            { label: 'تعداد کل اقساط', key: 'total_count',
+              type: 'number', value: i.total_count, validate: 'required' },
+            { label: 'تاریخ اولین قسط', key: 'start_date',
+              type: 'jalali-date', value: i.start_date, validate: 'required', clearable: false },
+            { label: 'سررسید (چندم هر ماه)', key: 'due_day',
+              type: 'number', value: i.due_day, validate: 'required' },
+        ],
+    });
+}
+
 var _showCompletedProjects = false;
+var _showFinanceTransactions = false;
 
 function getProjectById(id) {
     return (window._projectsList || []).find(function(x) { return x.id === id; });
@@ -1531,6 +1686,7 @@ function renderApp(state) {
     var html = '';
     if (state.screen === 'home' && state.home) html = renderHome(state.home);
     else if (state.screen === 'finance' && state.finance_screen) html = renderFinanceScreen(state.finance_screen);
+    else if (state.screen === 'installments' && state.installments) html = renderInstallments(state.installments);
     else if (state.screen === 'analytics' && state.analytics) html = renderAnalytics(state.analytics);
     else if (state.screen === 'settings' && state.settings) html = renderSettings(state.settings);
     else if (state.screen === 'recurring' && state.recurring) html = renderRecurring(state.recurring);

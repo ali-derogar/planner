@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
-from dailyplanner.models import DailyTask, DailyWellness, FinanceEntry, Project, ProjectTask, RecurringTask, date_to_str, str_to_date
+from dailyplanner.models import DailyTask, DailyWellness, FinanceEntry, Installment, Project, ProjectTask, RecurringTask, date_to_str, str_to_date
 
 
 DEFAULT_SETTINGS = {"theme": "dark"}
@@ -92,6 +92,25 @@ class Database:
                 is_done INTEGER NOT NULL DEFAULT 0,
                 sort_order INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS installments (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                title      TEXT    NOT NULL,
+                amount     INTEGER NOT NULL,
+                total_count INTEGER NOT NULL,
+                paid_count  INTEGER NOT NULL DEFAULT 0,
+                start_date  TEXT    NOT NULL,
+                due_day     INTEGER NOT NULL DEFAULT 1,
+                created_at  TEXT    NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS installment_payments (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                installment_id  INTEGER NOT NULL
+                                REFERENCES installments(id) ON DELETE CASCADE,
+                payment_date    TEXT NOT NULL,
+                created_at      TEXT NOT NULL
             );
             """
         )
@@ -1079,3 +1098,95 @@ class Database:
         )
         self.conn.commit()
         return self.get_task_by_id(new_task.id)
+
+    # ── installments ──────────────────────────────────────────────────────────
+
+    def get_all_installments(self) -> List[Installment]:
+        rows = self.conn.execute(
+            "SELECT * FROM installments ORDER BY (paid_count >= total_count) ASC, id ASC"
+        ).fetchall()
+        return [Installment.from_row(r) for r in rows]
+
+    def get_installment_by_id(self, inst_id: int) -> Optional[Installment]:
+        row = self.conn.execute(
+            "SELECT * FROM installments WHERE id = ?", (inst_id,)
+        ).fetchone()
+        return Installment.from_row(row) if row else None
+
+    def add_installment(
+        self, title: str, amount: int, total_count: int,
+        start_date: str, due_day: int
+    ) -> Installment:
+        now = datetime.now().isoformat()
+        cursor = self.conn.execute(
+            "INSERT INTO installments (title, amount, total_count, start_date, due_day, created_at)"
+            " VALUES (?,?,?,?,?,?)",
+            (title.strip(), amount, total_count, start_date, due_day, now),
+        )
+        self.conn.commit()
+        return self.get_installment_by_id(cursor.lastrowid)
+
+    def edit_installment(
+        self, inst_id: int, title: str, amount: int,
+        total_count: int, start_date: str, due_day: int
+    ):
+        self.conn.execute(
+            "UPDATE installments SET title=?, amount=?, total_count=?,"
+            " start_date=?, due_day=? WHERE id=?",
+            (title.strip(), amount, total_count, start_date, due_day, inst_id),
+        )
+        self.conn.commit()
+
+    def delete_installment(self, inst_id: int):
+        self.conn.execute("DELETE FROM installments WHERE id=?", (inst_id,))
+        self.conn.commit()
+
+    def pay_installment(self, inst_id: int) -> Optional[Installment]:
+        """Record one payment. Returns updated installment or None if already settled."""
+        inst = self.get_installment_by_id(inst_id)
+        if inst is None or inst.is_settled:
+            return None
+        now_str = datetime.now().isoformat()
+        today = datetime.now().strftime("%Y-%m-%d")
+        self.conn.execute(
+            "UPDATE installments SET paid_count = paid_count + 1 WHERE id = ?",
+            (inst_id,),
+        )
+        self.conn.execute(
+            "INSERT INTO installment_payments (installment_id, payment_date, created_at)"
+            " VALUES (?,?,?)",
+            (inst_id, today, now_str),
+        )
+        self.conn.commit()
+        return self.get_installment_by_id(inst_id)
+
+    def is_paid_this_month(self, inst_id: int, year: int, month: int) -> bool:
+        """Check if this installment was paid in the given Gregorian year/month."""
+        prefix = f"{year:04d}-{month:02d}"
+        row = self.conn.execute(
+            "SELECT 1 FROM installment_payments"
+            " WHERE installment_id=? AND payment_date LIKE ?",
+            (inst_id, prefix + "%"),
+        ).fetchone()
+        return row is not None
+
+    def get_installments_summary_for_month(self, year: int, month: int) -> dict:
+        """Returns active installments with their payment status for the given month."""
+        installments = self.get_all_installments()
+        active = [i for i in installments if not i.is_settled]
+        result = []
+        for inst in active:
+            paid_month = self.is_paid_this_month(inst.id, year, month)
+            result.append({
+                "installment": inst,
+                "paid_this_month": paid_month,
+            })
+        total_due = sum(i.amount for i in active)
+        total_unpaid = sum(
+            i["installment"].amount for i in result if not i["paid_this_month"]
+        )
+        return {
+            "items": result,
+            "total_due": total_due,
+            "total_unpaid": total_unpaid,
+        }

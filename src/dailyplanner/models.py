@@ -1,3 +1,4 @@
+import calendar
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal, Optional
@@ -184,6 +185,55 @@ class Project:
             return None
         delta = date.fromisoformat(self.deadline) - date.today()
         return delta.days
+
+
+@dataclass
+class Installment:
+    id: int
+    title: str
+    amount: int
+    total_count: int
+    paid_count: int
+    start_date: str
+    due_day: int
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row) -> "Installment":
+        return cls(
+            id=row["id"],
+            title=row["title"],
+            amount=row["amount"],
+            total_count=row["total_count"],
+            paid_count=row["paid_count"],
+            start_date=row["start_date"],
+            due_day=row["due_day"],
+            created_at=row["created_at"],
+        )
+
+    @property
+    def is_settled(self) -> bool:
+        return self.paid_count >= self.total_count
+
+    @property
+    def remaining_count(self) -> int:
+        return max(0, self.total_count - self.paid_count)
+
+    @property
+    def remaining_amount(self) -> int:
+        return self.remaining_count * self.amount
+
+    def next_due_date(self) -> Optional[date]:
+        """Gregorian date of next unpaid installment's due date."""
+        if self.is_settled:
+            return None
+        base = date.fromisoformat(self.start_date)
+        month = base.month - 1 + self.paid_count
+        year = base.year + month // 12
+        month = month % 12 + 1
+        last_day = calendar.monthrange(year, month)[1]
+        day = min(self.due_day, last_day)
+        return date(year, month, day)
 
 
 @dataclass

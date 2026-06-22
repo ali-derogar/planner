@@ -1090,10 +1090,10 @@ textarea:focus-visible, select:focus-visible {{
 .fin-stat-val {{ display: block; font-size: 13px; font-weight: bold; font-variant-numeric: tabular-nums; }}
 
 .fin-actions {{
-    display: flex; gap: 8px; padding: 12px 12px 4px; direction: rtl;
+    display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 12px 4px; direction: rtl;
 }}
 .fin-action-btn {{
-    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    flex: 1 1 calc(33.333% - 6px); display: flex; align-items: center; justify-content: center; gap: 6px;
     padding: 11px 8px; border-radius: 12px; border: none; cursor: pointer;
     font-family: 'Vazirmatn', sans-serif; font-size: 13px; font-weight: bold;
     transition: opacity 0.15s;
@@ -1104,6 +1104,8 @@ textarea:focus-visible, select:focus-visible {{
 .fin-action-btn.expense {{ background: #3D1818; color: #FF7359; border: 1px solid #FF595933; }}
 .fin-action-btn.invest {{ background: #3D3018; color: #FFB020; border: 1px solid #FFB02033; }}
 .fin-action-btn.budget {{ background: #1A1A40; color: #7B8CDE; border: 1px solid #5E5CE633; }}
+.fin-action-btn.inst {{ background: #1A3028; color: #5ECFAB; border: 1px solid #5ECFAB33; }}
+.fin-inst-card {{ margin: 8px 12px 0; }}
 .fin-hero-invest {{
     margin-top: 12px; padding: 8px 12px; border-radius: 10px;
     background: rgba(255,176,32,0.1); border: 1px solid rgba(255,176,32,0.2);
@@ -1120,6 +1122,15 @@ textarea:focus-visible, select:focus-visible {{
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 12px; direction: rtl;
 }}
+.fin-card-collapsible:not(.open) .fin-card-head {{ margin-bottom: 0; }}
+.fin-card-toggle {{
+    width: 100%; background: none; border: none; cursor: pointer;
+    padding: 0; font-family: 'Vazirmatn', sans-serif; color: inherit;
+    text-align: inherit;
+}}
+.fin-card-toggle:active {{ opacity: 0.75; }}
+.fin-card-head-end {{ display: flex; align-items: center; gap: 8px; }}
+.fin-card-chevron {{ font-size: 12px; color: var(--text-muted); line-height: 1; }}
 .fin-card-title {{ font-size: 14px; font-weight: bold; }}
 .fin-card-badge {{
     background: var(--surface-muted); color: var(--text-muted);
@@ -1555,5 +1566,47 @@ textarea:focus-visible, select:focus-visible {{
 }}
 [data-theme="light"] .toast {{
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}}
+
+/* ── Installments ── */
+.inst-row {{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--divider);
+}}
+.inst-title  {{ flex: 1; font-size: 14px; }}
+.inst-amount {{ color: var(--text-muted); font-size: 13px; white-space: nowrap; }}
+.inst-footer {{ padding: 8px 0 0; font-size: 13px; color: var(--error); text-align: left; }}
+
+.inst-bar {{
+    height: 6px;
+    background: var(--surface-muted);
+    border-radius: 3px;
+    margin: 8px 0 4px;
+    overflow: hidden;
+}}
+.inst-bar-fill {{
+    height: 100%;
+    background: var(--primary);
+    border-radius: 3px;
+    transition: width 0.3s;
+}}
+.inst-stats {{
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+}}
+.inst-settled    {{ color: var(--success); font-size: 12px; }}
+.inst-paid-month {{ color: var(--success); font-size: 12px; }}
+.inst-due        {{ color: var(--text-muted); font-size: 12px; }}
+.inst-overdue    {{ color: var(--error); font-size: 12px; }}
+.inst-month-row  {{
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 4px 0;
 }}
 """

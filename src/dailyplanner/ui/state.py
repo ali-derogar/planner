@@ -10,6 +10,7 @@ from dailyplanner.models import (
     DailyTask,
     DailyWellness,
     FinanceEntry,
+    Installment,
     Project,
     ProjectTask,
     format_clock_time,
@@ -198,6 +199,47 @@ def _project_task_dict(task: ProjectTask, db: Database, today: datetime.date) ->
         "title": task.title,
         "is_done": task.is_done,
         "scheduled_today": scheduled_today,
+    }
+
+
+def _installment_dict(inst: Installment, db: Database, year: int, month: int) -> dict:
+    next_due = inst.next_due_date()
+    today = datetime.date.today()
+    if next_due is None:
+        due_label = ""
+        days_until = None
+        is_overdue = False
+    else:
+        delta = (next_due - today).days
+        days_until = delta
+        is_overdue = delta < 0
+        if delta < 0:
+            due_label = to_persian_digits(f"{abs(delta)} روز گذشته")
+        elif delta == 0:
+            due_label = "امروز"
+        else:
+            due_label = to_persian_digits(f"{delta} روز مانده")
+
+    progress = int(inst.paid_count / inst.total_count * 100) if inst.total_count else 0
+    paid_month = db.is_paid_this_month(inst.id, year, month)
+
+    return {
+        "id": inst.id,
+        "title": inst.title,
+        "amount": inst.amount,
+        "amount_fmt": format_money(inst.amount),
+        "total_count": inst.total_count,
+        "paid_count": inst.paid_count,
+        "remaining_count": inst.remaining_count,
+        "remaining_amount": inst.remaining_amount,
+        "remaining_fmt": format_money(inst.remaining_amount),
+        "progress": progress,
+        "is_settled": inst.is_settled,
+        "due_day": inst.due_day,
+        "start_date": inst.start_date,
+        "due_label": due_label,
+        "is_overdue": is_overdue,
+        "paid_this_month": paid_month,
     }
 
 
@@ -437,6 +479,8 @@ def build_state(
 
         entries = db.get_finance_entries_for_month(fy, fm)
 
+        inst_summary = db.get_installments_summary_for_month(fy, fm)
+
         state["finance_screen"] = {
             "year": fy,
             "month": fm,
@@ -466,6 +510,44 @@ def build_state(
             "finance_categories": categories,
             "investment_categories": INVESTMENT_CATEGORIES,
             "budgets": budget_limits,
+            "installments": {
+                "count": len(inst_summary["items"]),
+                "total_due_fmt": format_money(inst_summary["total_due"]),
+                "total_unpaid_fmt": format_money(inst_summary["total_unpaid"]),
+                "items": [
+                    {
+                        "id": x["installment"].id,
+                        "title": x["installment"].title,
+                        "amount_fmt": format_money(x["installment"].amount),
+                        "paid_this_month": x["paid_this_month"],
+                        "is_settled": x["installment"].is_settled,
+                    }
+                    for x in inst_summary["items"]
+                ],
+            },
+        }
+
+    elif screen == "installments":
+        fy = finance_year or today.year
+        fm = finance_month or today.month
+        first_day = datetime.date(fy, fm, 1)
+        jy, jm, _ = gregorian_to_jalali_parts(first_day)
+        month_label = f"{_jalali_month_name(jm)} {to_persian_digits(str(jy))}"
+
+        installments = db.get_all_installments()
+        summary = db.get_installments_summary_for_month(fy, fm)
+        total_remaining = sum(i.remaining_amount for i in installments if not i.is_settled)
+
+        state["installments"] = {
+            "list": [
+                _installment_dict(i, db, fy, fm) for i in installments
+            ],
+            "month_label": month_label,
+            "month_total_due": summary["total_due"],
+            "month_total_unpaid": summary["total_unpaid"],
+            "month_total_due_fmt": format_money(summary["total_due"]),
+            "month_total_unpaid_fmt": format_money(summary["total_unpaid"]),
+            "total_remaining_fmt": format_money(total_remaining),
         }
 
     elif screen == "settings":
