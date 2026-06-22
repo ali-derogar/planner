@@ -483,6 +483,28 @@ class Database:
         )
         self.conn.commit()
 
+    def delete_setting(self, key: str):
+        self.conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+        self.conn.commit()
+
+    def get_active_timer(self) -> Optional[tuple[int, float]]:
+        task_id_raw = self.get_setting("active_timer_task_id")
+        started_raw = self.get_setting("active_timer_started_at")
+        if not task_id_raw or not started_raw:
+            return None
+        try:
+            return int(task_id_raw), float(started_raw)
+        except (TypeError, ValueError):
+            return None
+
+    def set_active_timer(self, task_id: int, started_at: float):
+        self.set_setting("active_timer_task_id", str(task_id))
+        self.set_setting("active_timer_started_at", repr(started_at))
+
+    def clear_active_timer(self):
+        self.delete_setting("active_timer_task_id")
+        self.delete_setting("active_timer_started_at")
+
     def export_json(self) -> dict:
         tasks = self.conn.execute("SELECT * FROM daily_tasks ORDER BY date, sort_order").fetchall()
         finance = self.conn.execute("SELECT * FROM finance_entries ORDER BY date").fetchall()

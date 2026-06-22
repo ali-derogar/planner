@@ -86,6 +86,38 @@ def test_timer_service():
     assert elapsed >= 0
 
 
+def test_timer_service_restore():
+    import time
+
+    timer = TimerService()
+    started_at = time.time() - 120
+    timer.restore(5, started_at)
+    assert timer.active_task_id == 5
+    assert timer.get_elapsed() >= 120
+
+
+def test_active_timer_persistence(db):
+    db.set_active_timer(42, 1700000000.5)
+    active = db.get_active_timer()
+    assert active == (42, 1700000000.5)
+    db.clear_active_timer()
+    assert db.get_active_timer() is None
+
+
+def test_restore_active_timer_skips_missing_task(db):
+    from dailyplanner.webview_handler import WebViewHandler
+
+    class _App:
+        pass
+
+    db.set_active_timer(9999, 1700000000.0)
+    app = _App()
+    app.db = db
+    handler = WebViewHandler(app)
+    assert handler.timer_service.active_task_id is None
+    assert db.get_active_timer() is None
+
+
 def test_build_state_home(db):
     d = datetime.date.today()
     db.add_task(d, "???")

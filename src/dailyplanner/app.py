@@ -48,10 +48,6 @@ class DailyPlannerApp(toga.App):
         asyncio.create_task(self.handler.timer_update_loop(self))
 
     def on_exit(self, widget=None, **kwargs):
-        # Stop any running timer and save elapsed before exit
-        task_id, elapsed = self.handler.timer_service.stop()
-        if task_id and elapsed > 0:
-            self.db.add_duration(task_id, elapsed)
         self.db.close()
         return True
 

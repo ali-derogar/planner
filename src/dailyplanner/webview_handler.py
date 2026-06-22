@@ -34,6 +34,33 @@ class WebViewHandler:
         self.calendar_month: Optional[int] = None
         self._shell_loaded: bool = False
         self._pending_toast: Optional[dict] = None
+        self._restore_active_timer()
+
+    # ── timer persistence ─────────────────────────────────────────────────────
+
+    def _restore_active_timer(self):
+        active = self.db.get_active_timer()
+        if not active:
+            return
+        task_id, started_at = active
+        if not self.db.get_task_by_id(task_id):
+            self.db.clear_active_timer()
+            return
+        self.timer_service.restore(task_id, started_at)
+
+    def _persist_active_timer(self):
+        task_id = self.timer_service.active_task_id
+        started_at = self.timer_service.start_epoch
+        if task_id is None or started_at is None:
+            self.db.clear_active_timer()
+        else:
+            self.db.set_active_timer(task_id, started_at)
+
+    def _stop_timer_and_save(self) -> None:
+        task_id, elapsed = self.timer_service.stop()
+        if task_id and elapsed > 0:
+            self.db.add_duration(task_id, elapsed)
+        self.db.clear_active_timer()
 
     # ── SPA loading ───────────────────────────────────────────────────────────
 
@@ -232,7 +259,7 @@ class WebViewHandler:
         )
         if confirmed:
             if self.timer_service.is_running(task_id):
-                self.timer_service.stop()
+                self._stop_timer_and_save()
             self.db.delete_task(task_id)
             self.expanded_tasks.discard(task_id)
             self.toast("تسک حذف شد")
@@ -304,18 +331,17 @@ class WebViewHandler:
 
     async def _on_start_timer(self, p):
         task_id = int(p.get("id", 0))
-        prev_id = self.timer_service.start(task_id)
-        if prev_id is not None and prev_id != task_id:
-            stopped_id, elapsed = self.timer_service.stop()
-            if stopped_id:
-                self.db.add_duration(stopped_id, elapsed)
-            self.timer_service.start(task_id)
+        if self.timer_service.is_running(task_id):
+            await self.push_state()
+            return
+        if self.timer_service.active_task_id is not None:
+            self._stop_timer_and_save()
+        self.timer_service.start(task_id)
+        self._persist_active_timer()
         await self.push_state()
 
     async def _on_stop_timer(self, p):
-        task_id, elapsed = self.timer_service.stop()
-        if task_id:
-            self.db.add_duration(task_id, elapsed)
+        self._stop_timer_and_save()
         await self.push_state()
 
     # ── finance ───────────────────────────────────────────────────────────────
