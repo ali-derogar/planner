@@ -34,6 +34,7 @@ class WebViewHandler:
         self.calendar_month: Optional[int] = None
         self.finance_month: int = datetime.date.today().month
         self.finance_year: int = datetime.date.today().year
+        self.current_project_id: Optional[int] = None
         self._shell_loaded: bool = False
         self._pending_toast: Optional[dict] = None
         self._restore_active_timer()
@@ -90,6 +91,7 @@ class WebViewHandler:
             finance_year=self.finance_year,
             finance_month=self.finance_month,
             toast=toast,
+            current_project_id=self.current_project_id,
         )
 
     async def push_state(self):
@@ -429,6 +431,22 @@ class WebViewHandler:
             self.toast("بودجه ذخیره شد")
         await self.push_state()
 
+    async def _on_delete_budget(self, p):
+        category = p.get("category", "").strip()
+        if not category:
+            await self.push_state()
+            return
+        confirmed = await self.app.main_window.dialog(
+            toga.ConfirmDialog(
+                "حذف بودجه",
+                f"بودجه دسته «{category}» حذف شود؟",
+            )
+        )
+        if confirmed:
+            self.db.delete_budget_limit(category)
+            self.toast("بودجه حذف شد")
+        await self.push_state()
+
     async def _on_add_finance_category(self, p):
         from dailyplanner.ui.tokens import FINANCE_CATEGORIES
 
@@ -517,6 +535,100 @@ class WebViewHandler:
         if confirmed:
             self.db.delete_recurring(recurring_id)
             self.toast("حذف شد")
+        await self.push_state()
+
+    # ── projects ──────────────────────────────────────────────────────────────
+
+    async def _on_open_project(self, p):
+        self.current_project_id = int(p["id"])
+        self.current_screen = "project_detail"
+        await self.push_state()
+
+    async def _on_add_project(self, p):
+        title = p.get("title", "").strip()
+        color = p.get("color", "#5E5CE6")
+        deadline = p.get("deadline", "").strip() or None
+        if deadline:
+            try:
+                datetime.date.fromisoformat(deadline)
+            except ValueError:
+                deadline = None
+        if title:
+            self.db.create_project(title, color, deadline)
+            self.toast("پروژه ساخته شد")
+        await self.push_state()
+
+    async def _on_edit_project(self, p):
+        pid = int(p["id"])
+        title = p.get("title", "").strip()
+        color = p.get("color", "#5E5CE6")
+        deadline = p.get("deadline", "").strip() or None
+        if title:
+            self.db.update_project(pid, title, color, deadline)
+            self.toast("ویرایش شد")
+        await self.push_state()
+
+    async def _on_delete_project(self, p):
+        pid = int(p["id"])
+        confirmed = await self.app.main_window.dialog(
+            toga.ConfirmDialog(
+                "حذف پروژه", "پروژه و تمام تسک‌هایش حذف می‌شود. مطمئنید؟"
+            )
+        )
+        if confirmed:
+            self.db.delete_project(pid)
+            self.current_screen = "projects"
+            self.current_project_id = None
+            self.toast("پروژه حذف شد")
+        await self.push_state()
+
+    async def _on_toggle_project_done(self, p):
+        pid = int(p["id"])
+        project = self.db.get_project_by_id(pid)
+        if project:
+            self.db.mark_project_done(pid, not project.is_done)
+        await self.push_state()
+
+    async def _on_add_project_task(self, p):
+        pid = int(p["project_id"])
+        title = p.get("title", "").strip()
+        if title:
+            self.db.add_project_task(pid, title)
+            self.toast("تسک افزوده شد")
+        await self.push_state()
+
+    async def _on_toggle_project_task(self, p):
+        task_id = int(p["id"])
+        self.db.toggle_project_task(task_id)
+        await self.push_state()
+
+    async def _on_delete_project_task(self, p):
+        task_id = int(p["id"])
+        confirmed = await self.app.main_window.dialog(
+            toga.ConfirmDialog("حذف تسک", "آیا مطمئن هستید؟")
+        )
+        if confirmed:
+            self.db.delete_project_task(task_id)
+            self.toast("تسک حذف شد")
+        await self.push_state()
+
+    async def _on_edit_project_task_title(self, p):
+        task_id = int(p["id"])
+        title = p.get("value", "").strip()
+        if title:
+            self.db.edit_project_task_title(task_id, title)
+        await self.push_state()
+
+    async def _on_send_task_to_today(self, p):
+        project_task_id = int(p["id"])
+        today = datetime.date.today()
+        existing = self.db.get_daily_tasks_for_project_task(project_task_id)
+        already_today = any(t.date == today.isoformat() for t in existing)
+        if already_today:
+            self.toast("قبلاً به امروز اضافه شده", "error")
+        else:
+            self.db.create_daily_task_from_project(project_task_id, today)
+            self.toast("به لیست امروز اضافه شد")
         await self.push_state()
 
 

@@ -10,6 +10,8 @@ from dailyplanner.models import (
     DailyTask,
     DailyWellness,
     FinanceEntry,
+    Project,
+    ProjectTask,
     format_clock_time,
     format_duration,
     format_money,
@@ -17,7 +19,13 @@ from dailyplanner.models import (
     str_to_date,
 )
 from dailyplanner.services.timer import TimerService
-from dailyplanner.ui.tokens import FINANCE_CATEGORIES, INVESTMENT_CATEGORIES, MOOD_EMOJIS
+from dailyplanner.ui.tokens import (
+    BUDGET_EXCLUDED_CATEGORIES,
+    FINANCE_CATEGORIES,
+    INVESTMENT_CATEGORIES,
+    MOOD_EMOJIS,
+    PROJECT_COLORS,
+)
 from dailyplanner.utils.jalali import (
     format_jalali,
     gregorian_to_jalali_parts,
@@ -157,6 +165,42 @@ def compute_streak(db: Database, today: datetime.date) -> int:
     return streak
 
 
+def _project_dict(project: Project, db: Database) -> dict:
+    stats = db.get_project_stats(project.id)
+    dl = project.days_until_deadline()
+    if dl is None:
+        deadline_label = ""
+    elif dl < 0:
+        deadline_label = to_persian_digits(f"{abs(dl)} روز گذشته")
+    elif dl == 0:
+        deadline_label = "امروز"
+    else:
+        deadline_label = to_persian_digits(f"{dl} روز مانده")
+    return {
+        "id": project.id,
+        "title": project.title,
+        "color": project.color,
+        "deadline": project.deadline or "",
+        "deadline_label": deadline_label,
+        "deadline_overdue": dl is not None and dl < 0,
+        "is_done": project.is_done,
+        "total": stats["total"],
+        "done": stats["done"],
+        "progress": stats["progress"],
+    }
+
+
+def _project_task_dict(task: ProjectTask, db: Database, today: datetime.date) -> dict:
+    existing = db.get_daily_tasks_for_project_task(task.id)
+    scheduled_today = any(t.date == today.isoformat() for t in existing)
+    return {
+        "id": task.id,
+        "title": task.title,
+        "is_done": task.is_done,
+        "scheduled_today": scheduled_today,
+    }
+
+
 def build_state(
     db: Database,
     timer: TimerService,
@@ -171,6 +215,7 @@ def build_state(
     finance_year: Optional[int] = None,
     finance_month: Optional[int] = None,
     toast: Optional[dict] = None,
+    current_project_id: Optional[int] = None,
 ) -> dict:
     today = datetime.date.today()
     active_id = timer.active_task_id
@@ -324,14 +369,15 @@ def build_state(
         for cat, amounts in by_cat_data.items():
             cat_income = amounts["income"]
             cat_expense = amounts["expense"]
+            cat_investment = amounts["investment"]
             budget = budget_limits.get(cat, 0)
-            if (
-                cat_expense <= 0
-                and cat_income <= 0
-                and budget <= 0
-                and cat not in custom_cats
-            ):
+            if cat in BUDGET_EXCLUDED_CATEGORIES and budget <= 0:
                 continue
+            if cat_expense <= 0 and budget <= 0:
+                if cat not in custom_cats:
+                    continue
+                if cat_income > 0 or cat_investment > 0:
+                    continue
             by_category_list.append({
                 "category": cat,
                 "income": cat_income,
@@ -432,5 +478,22 @@ def build_state(
             {"id": r.id, "title": r.title}
             for r in db.get_all_recurring()
         ]
+
+    elif screen == "projects":
+        projects = db.get_all_projects()
+        state["projects"] = {
+            "list": [_project_dict(p, db) for p in projects],
+            "colors": PROJECT_COLORS,
+        }
+
+    elif screen == "project_detail":
+        project = db.get_project_by_id(current_project_id) if current_project_id else None
+        if project:
+            tasks = db.get_project_tasks(project.id)
+            state["project_detail"] = {
+                **_project_dict(project, db),
+                "tasks": [_project_task_dict(t, db, today) for t in tasks],
+                "colors": PROJECT_COLORS,
+            }
 
     return state

@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
-from dailyplanner.models import DailyTask, DailyWellness, FinanceEntry, RecurringTask, date_to_str, str_to_date
+from dailyplanner.models import DailyTask, DailyWellness, FinanceEntry, Project, ProjectTask, RecurringTask, date_to_str, str_to_date
 
 
 DEFAULT_SETTINGS = {"theme": "dark"}
@@ -75,6 +75,24 @@ class Database:
                 category TEXT PRIMARY KEY,
                 monthly_limit INTEGER NOT NULL DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                color TEXT NOT NULL DEFAULT '#5E5CE6',
+                deadline TEXT,
+                is_done INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS project_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                is_done INTEGER NOT NULL DEFAULT 0,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
             """
         )
         self.conn.commit()
@@ -91,6 +109,13 @@ class Database:
         if "sort_order" not in columns:
             self.conn.execute(
                 "ALTER TABLE daily_tasks ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"
+            )
+        if "project_task_id" not in columns:
+            self.conn.execute(
+                """
+                ALTER TABLE daily_tasks ADD COLUMN project_task_id INTEGER
+                REFERENCES project_tasks(id) ON DELETE SET NULL
+                """
             )
 
         fin_cols = {
@@ -567,6 +592,12 @@ class Database:
         )
         self.conn.commit()
 
+    def delete_budget_limit(self, category: str):
+        self.conn.execute(
+            "DELETE FROM budget_limits WHERE category = ?", (category.strip(),)
+        )
+        self.conn.commit()
+
     def get_finance_custom_categories(self) -> List[str]:
         raw = self.get_setting("finance_custom_categories", "[]")
         try:
@@ -689,3 +720,153 @@ class Database:
         if self._conn:
             self._conn.close()
             self._conn = None
+
+    # ── projects ──────────────────────────────────────────────────────────────
+
+    def get_all_projects(self) -> List[Project]:
+        rows = self.conn.execute(
+            "SELECT * FROM projects ORDER BY is_done ASC, id DESC"
+        ).fetchall()
+        return [Project.from_row(row) for row in rows]
+
+    def get_project_by_id(self, project_id: int) -> Optional[Project]:
+        row = self.conn.execute(
+            "SELECT * FROM projects WHERE id = ?", (project_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return Project.from_row(row)
+
+    def create_project(
+        self, title: str, color: str, deadline: Optional[str]
+    ) -> Project:
+        now = datetime.now().isoformat()
+        cursor = self.conn.execute(
+            """
+            INSERT INTO projects (title, color, deadline, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (title.strip(), color, deadline, now),
+        )
+        self.conn.commit()
+        return self.get_project_by_id(cursor.lastrowid)
+
+    def update_project(
+        self, project_id: int, title: str, color: str, deadline: Optional[str]
+    ):
+        self.conn.execute(
+            """
+            UPDATE projects SET title = ?, color = ?, deadline = ?
+            WHERE id = ?
+            """,
+            (title.strip(), color, deadline, project_id),
+        )
+        self.conn.commit()
+
+    def mark_project_done(self, project_id: int, is_done: bool):
+        self.conn.execute(
+            "UPDATE projects SET is_done = ? WHERE id = ?",
+            (1 if is_done else 0, project_id),
+        )
+        self.conn.commit()
+
+    def delete_project(self, project_id: int):
+        self.conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        self.conn.commit()
+
+    def get_project_tasks(self, project_id: int) -> List[ProjectTask]:
+        rows = self.conn.execute(
+            """
+            SELECT * FROM project_tasks WHERE project_id = ?
+            ORDER BY is_done ASC, sort_order ASC, id ASC
+            """,
+            (project_id,),
+        ).fetchall()
+        return [ProjectTask.from_row(row) for row in rows]
+
+    def get_project_task_by_id(self, task_id: int) -> Optional[ProjectTask]:
+        row = self.conn.execute(
+            "SELECT * FROM project_tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return ProjectTask.from_row(row)
+
+    def add_project_task(self, project_id: int, title: str) -> ProjectTask:
+        row = self.conn.execute(
+            """
+            SELECT COALESCE(MAX(sort_order), -1) + 1 AS n
+            FROM project_tasks WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+        sort_order = int(row["n"])
+        now = datetime.now().isoformat()
+        cursor = self.conn.execute(
+            """
+            INSERT INTO project_tasks (project_id, title, sort_order, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (project_id, title.strip(), sort_order, now),
+        )
+        self.conn.commit()
+        return self.get_project_task_by_id(cursor.lastrowid)
+
+    def toggle_project_task(self, task_id: int) -> ProjectTask:
+        task = self.get_project_task_by_id(task_id)
+        if task is None:
+            raise ValueError(f"project task {task_id} not found")
+        new_done = 0 if task.is_done else 1
+        self.conn.execute(
+            "UPDATE project_tasks SET is_done = ? WHERE id = ?",
+            (new_done, task_id),
+        )
+        self.conn.commit()
+        return self.get_project_task_by_id(task_id)
+
+    def delete_project_task(self, task_id: int):
+        self.conn.execute("DELETE FROM project_tasks WHERE id = ?", (task_id,))
+        self.conn.commit()
+
+    def edit_project_task_title(self, task_id: int, title: str):
+        self.conn.execute(
+            "UPDATE project_tasks SET title = ? WHERE id = ?",
+            (title.strip(), task_id),
+        )
+        self.conn.commit()
+
+    def get_project_stats(self, project_id: int) -> dict:
+        row = self.conn.execute(
+            """
+            SELECT COUNT(*) AS total, COALESCE(SUM(is_done), 0) AS done
+            FROM project_tasks WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+        total = int(row["total"])
+        done = int(row["done"])
+        progress = int(done / total * 100) if total > 0 else 0
+        return {"total": total, "done": done, "progress": progress}
+
+    def get_daily_tasks_for_project_task(
+        self, project_task_id: int
+    ) -> List[DailyTask]:
+        rows = self.conn.execute(
+            "SELECT * FROM daily_tasks WHERE project_task_id = ?",
+            (project_task_id,),
+        ).fetchall()
+        return [DailyTask.from_row(row) for row in rows]
+
+    def create_daily_task_from_project(
+        self, project_task_id: int, d: date
+    ) -> DailyTask:
+        pt = self.get_project_task_by_id(project_task_id)
+        if pt is None:
+            raise ValueError(f"project task {project_task_id} not found")
+        new_task = self.add_task(d, pt.title)
+        self.conn.execute(
+            "UPDATE daily_tasks SET project_task_id = ? WHERE id = ?",
+            (project_task_id, new_task.id),
+        )
+        self.conn.commit()
+        return self.get_task_by_id(new_task.id)

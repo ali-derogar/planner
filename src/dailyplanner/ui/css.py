@@ -429,23 +429,39 @@ a {{ text-decoration: none; color: inherit; }}
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 500;
-    padding: 20px;
+    z-index: 600;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
     direction: rtl;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }}
 .modal-box {{
     background: #1C1C1E;
     border-radius: 18px;
-    padding: 24px 20px 20px;
+    padding: 20px 16px 16px;
     width: 100%;
     max-width: 360px;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     border: 1px solid #3C3C3E;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin: auto;
+}}
+#modal-fields {{
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+    padding-left: 2px;
+    padding-right: 2px;
 }}
 .modal-title {{
     font-size: 16px;
     font-weight: bold;
     margin-bottom: 14px;
     text-align: center;
+    flex-shrink: 0;
 }}
 .modal-label {{
     font-size: 12px;
@@ -466,7 +482,40 @@ a {{ text-decoration: none; color: inherit; }}
     outline: none;
 }}
 .modal-input:focus {{ border-color: #5E5CE6; }}
-.modal-btns {{ display: flex; gap: 8px; direction: rtl; }}
+
+.color-picker {{ margin-bottom: 12px; }}
+.color-picker-grid {{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    direction: rtl;
+    justify-items: center;
+}}
+.color-swatch {{
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
+    transition: transform 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}}
+.color-swatch.selected {{
+    border-color: #fff;
+    transform: scale(1.06);
+    box-shadow: 0 0 0 2px var(--primary), inset 0 0 0 1px rgba(255,255,255,0.2);
+}}
+.color-picker-label {{
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}}
+
+.modal-btns {{ display: flex; gap: 8px; direction: rtl; flex-shrink: 0; padding-top: 10px; }}
 .modal-confirm {{
     flex: 1;
     background: linear-gradient(135deg, #3D5AFE, #8B00E0);
@@ -713,6 +762,35 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .cal-day.has-data {{ font-weight: bold; }}
 .cal-day.eff-high {{ background: rgba(77,217,128,0.25); }}
+.cal-day.selected {{
+    background: var(--primary) !important;
+    color: #fff;
+    font-weight: bold;
+}}
+.cal-day.today {{ box-shadow: inset 0 0 0 2px var(--primary); }}
+.cal-day-empty {{ visibility: hidden; pointer-events: none; }}
+.cal-weekdays {{
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+    margin-bottom: 4px; text-align: center; font-size: 10px; color: var(--text-muted);
+}}
+.date-picker {{ margin-bottom: 12px; }}
+.date-picker-cal {{ margin: 0; padding: 8px; }}
+.date-picker-label {{
+    text-align: center; font-size: 13px; color: var(--text);
+    margin-bottom: 8px; font-weight: bold;
+}}
+.date-picker-clear {{
+    display: block; width: 100%; margin-top: 8px;
+    background: var(--surface-muted); color: var(--text-muted);
+    border: 1px solid var(--divider); border-radius: var(--radius-sm);
+    padding: 10px 8px; font-size: 12px; cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}}
+.date-picker-cal .cal-day {{
+    padding: 6px 2px; font-size: 11px; min-height: 32px;
+}}
+.date-picker-cal .cal-nav {{ padding: 6px 10px; font-size: 16px; }}
 .streak-badge {{
     text-align: center; font-size: 13px; color: var(--warning);
     padding: 4px 8px; margin: 0 8px;
@@ -755,7 +833,7 @@ a {{ text-decoration: none; color: inherit; }}
 .toggle-btn.on {{ background: var(--primary); color: #fff; border-color: var(--primary); }}
 .recur-row {{ display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--divider); }}
 .recur-row:last-child {{ border-bottom: none; }}
-.modal-error {{ color: var(--error); font-size: 12px; margin-bottom: 8px; text-align: center; }}
+.modal-error {{ color: var(--error); font-size: 12px; margin-bottom: 8px; text-align: center; flex-shrink: 0; }}
 .modal-textarea {{ min-height: 80px; resize: vertical; }}
 .hint {{ font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px; }}
 .toast {{
@@ -996,4 +1074,267 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .daily-fin-row:last-child {{ border-bottom: none; }}
 .daily-fin-date {{ color: var(--text-muted); min-width: 72px; }}
+
+/* ── Projects ── */
+.proj-page {{ padding-bottom: 12px; }}
+
+.proj-header {{
+    background: linear-gradient(135deg, #3D5AFE 0%, #5E5CE6 50%, #8B00E0 100%);
+    padding: calc(16px + var(--safe-top)) 16px 18px;
+    box-shadow: 0 4px 20px rgba(94,92,230,0.35);
+}}
+@media (hover: none) and (pointer: coarse) {{
+    .proj-header {{ padding-top: calc(16px + max(36px, var(--safe-top))); }}
+}}
+.proj-header-top {{
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 14px;
+}}
+.proj-header-title {{ font-size: 18px; font-weight: bold; color: #fff; }}
+.proj-header-add {{
+    background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.25);
+    padding: 8px 14px; border-radius: 20px; font-size: 12px; font-weight: bold;
+    cursor: pointer; font-family: 'Vazirmatn', sans-serif; white-space: nowrap;
+    backdrop-filter: blur(4px);
+}}
+.proj-header-add:active {{ background: rgba(255,255,255,0.28); }}
+.proj-summary {{
+    display: flex; gap: 8px; direction: rtl;
+}}
+.proj-summary-item {{
+    flex: 1; text-align: center; background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 10px 6px;
+}}
+.proj-summary-val {{ display: block; font-size: 16px; font-weight: bold; color: #fff; font-variant-numeric: tabular-nums; }}
+.proj-summary-lbl {{ display: block; font-size: 10px; color: rgba(255,255,255,0.75); margin-top: 2px; }}
+
+.proj-section {{ padding: 12px 12px 0; }}
+.proj-section-head {{
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}}
+.proj-section-title {{ font-size: 14px; font-weight: bold; }}
+.proj-section-badge {{
+    background: var(--surface-muted); color: var(--text-muted);
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+}}
+.proj-empty-mini {{
+    text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px 12px;
+}}
+
+.proj-card {{
+    position: relative; background: var(--surface); border-radius: 16px;
+    border: 1px solid var(--divider); margin-bottom: 10px; overflow: hidden;
+    display: flex; align-items: stretch; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: transform 0.15s;
+}}
+.proj-card:active {{ transform: scale(0.985); }}
+.proj-card.muted {{ opacity: 0.7; }}
+.proj-card-accent {{
+    width: 5px; flex-shrink: 0; background: var(--project-color, var(--primary));
+}}
+.proj-card-body {{ flex: 1; padding: 14px 10px 14px 14px; cursor: pointer; min-width: 0; }}
+.proj-card-top {{ display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }}
+.proj-card-info {{ flex: 1; min-width: 0; }}
+.proj-card-title {{
+    font-size: 15px; font-weight: bold; margin-bottom: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}}
+.proj-card-meta {{ font-size: 11px; color: var(--text-muted); margin-top: 6px; }}
+.proj-card-menu {{
+    align-self: stretch; width: 40px; flex-shrink: 0;
+    background: none; border: none; border-right: 1px solid var(--divider);
+    color: var(--text-muted); font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}}
+.proj-card-menu:active {{ background: var(--surface-muted); }}
+
+.proj-deadline-badge {{
+    display: inline-block; font-size: 10px; padding: 3px 8px; border-radius: 10px;
+    background: rgba(255,255,255,0.06); color: var(--text-muted);
+    border: 1px solid var(--divider); margin-top: 2px;
+}}
+.proj-deadline-badge.overdue {{ background: var(--error-bg); color: var(--error); border-color: #FF595944; }}
+.proj-deadline-badge.today {{ background: rgba(255,179,64,0.12); color: #FFB340; border-color: #FFB34044; }}
+
+.proj-bar {{
+    height: 5px; border-radius: 3px; background: var(--surface-muted); overflow: hidden;
+}}
+.proj-bar-lg {{ height: 8px; border-radius: 4px; margin-top: 4px; }}
+.proj-bar-fill {{
+    height: 100%; border-radius: inherit; background: var(--project-color, var(--primary));
+    transition: width 0.35s ease;
+}}
+.proj-ring {{ flex-shrink: 0; color: var(--text); }}
+
+.proj-done-toggle {{
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--divider); border-radius: 12px;
+    padding: 12px 14px; cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+    font-size: 13px; color: var(--text-muted); margin-bottom: 10px;
+}}
+.proj-done-toggle.open {{ border-color: var(--primary); color: var(--text); }}
+.proj-done-chevron {{ margin-right: auto; font-size: 12px; }}
+
+/* detail page */
+.proj-detail-page {{ padding-bottom: 16px; --project-color: var(--primary); }}
+.proj-detail-hero {{
+    position: relative; padding: calc(12px + var(--safe-top)) 16px 18px;
+    background: #1C1C1E; overflow: hidden;
+}}
+@media (hover: none) and (pointer: coarse) {{
+    .proj-detail-hero {{ padding-top: calc(12px + max(36px, var(--safe-top))); }}
+}}
+.proj-detail-hero::before {{
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(145deg, var(--project-color) 0%, transparent 55%);
+    opacity: 0.22; pointer-events: none;
+}}
+.proj-detail-nav {{
+    position: relative; display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+}}
+.proj-back-btn {{
+    background: rgba(255,255,255,0.12); color: #fff; border: none;
+    width: 38px; height: 38px; border-radius: 50%; font-size: 18px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+}}
+.proj-detail-actions-top {{ display: flex; gap: 8px; }}
+.proj-icon-btn {{
+    background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.15);
+    width: 38px; height: 38px; border-radius: 50%; font-size: 15px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}}
+.proj-icon-btn.danger {{ background: rgba(255,89,89,0.15); border-color: #FF595944; }}
+.proj-detail-hero-body {{
+    position: relative; display: flex; align-items: center; gap: 16px; margin-bottom: 14px;
+}}
+.proj-detail-hero-text {{ flex: 1; min-width: 0; }}
+.proj-detail-name {{ font-size: 20px; font-weight: bold; margin-bottom: 8px; line-height: 1.3; }}
+.proj-detail-sub {{ font-size: 12px; color: var(--text-muted); margin-top: 8px; }}
+.proj-detail-hero .proj-deadline-badge {{
+    background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.92);
+    border-color: rgba(255,255,255,0.2);
+}}
+.proj-detail-hero .proj-deadline-badge.overdue {{ background: rgba(255,89,89,0.2); color: #FF8A8A; border-color: #FF595966; }}
+.proj-detail-hero .proj-deadline-badge.today {{ background: rgba(255,179,64,0.2); color: #FFD080; border-color: #FFB34066; }}
+.proj-done-toggle-btn {{
+    position: relative; width: 100%; margin-top: 14px;
+    background: rgba(255,255,255,0.06); color: var(--text-muted);
+    border: 1px dashed var(--divider); border-radius: 12px;
+    padding: 11px; font-size: 12px; cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+}}
+.proj-done-toggle-btn.on {{
+    background: var(--success-bg); color: var(--success); border-style: solid; border-color: #4DD98044;
+}}
+
+.proj-tasks-card {{
+    background: var(--surface); border-radius: 16px;
+    margin: 12px; padding: 14px; border: 1px solid var(--divider);
+}}
+.proj-task-list {{ margin-bottom: 12px; }}
+.proj-task-item {{
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--surface-muted);
+}}
+.proj-task-item:last-child {{ border-bottom: none; }}
+.proj-task-item.done {{ opacity: 0.75; }}
+.proj-task-check {{
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--divider); background: transparent;
+    color: transparent; font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Vazirmatn', sans-serif; transition: all 0.15s;
+}}
+.proj-task-check.checked {{
+    background: var(--success); border-color: var(--success); color: #fff;
+}}
+.proj-task-body {{ flex: 1; min-width: 0; cursor: pointer; }}
+.proj-task-title {{ font-size: 14px; line-height: 1.4; word-break: break-word; }}
+.proj-task-item.done .proj-task-title {{ text-decoration: line-through; color: var(--text-muted); }}
+.proj-task-actions {{ display: flex; align-items: center; gap: 6px; flex-shrink: 0; }}
+.proj-today-chip {{
+    font-size: 10px; padding: 4px 10px; border-radius: 12px;
+    background: rgba(90,200,250,0.12); color: #5AC8FA;
+    border: 1px solid #5AC8FA44; cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif; white-space: nowrap;
+}}
+.proj-today-chip.done {{
+    background: var(--success-bg); color: var(--success); border-color: #4DD98055; cursor: default;
+}}
+.proj-task-del {{
+    width: 28px; height: 28px; border-radius: 50%; border: none;
+    background: var(--surface-muted); color: var(--text-muted);
+    font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}}
+.proj-task-del:active {{ background: var(--error-bg); color: var(--error); }}
+.proj-add-task-btn {{
+    width: 100%; background: rgba(94,92,230,0.12); color: var(--primary);
+    border: 1px dashed #5E5CE655; border-radius: 12px; padding: 12px;
+    font-size: 13px; font-weight: bold; cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+}}
+.proj-add-task-btn:active {{ background: rgba(94,92,230,0.2); }}
+
+/* action sheet */
+.proj-sheet-overlay {{
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    z-index: 500; display: flex; align-items: flex-end; justify-content: center;
+    padding: 0 0 calc(var(--safe-bottom));
+}}
+.proj-sheet {{
+    width: 100%; max-width: 480px; background: var(--surface);
+    border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + var(--safe-bottom));
+    border-top: 1px solid var(--divider);
+    animation: projSheetUp 0.25s ease;
+}}
+@keyframes projSheetUp {{
+    from {{ transform: translateY(100%); }}
+    to {{ transform: translateY(0); }}
+}}
+.proj-sheet-handle {{
+    width: 36px; height: 4px; background: var(--divider); border-radius: 2px;
+    margin: 4px auto 12px;
+}}
+.proj-sheet-title {{
+    font-size: 14px; font-weight: bold; text-align: center;
+    margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--divider);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}}
+.proj-sheet-btn {{
+    display: block; width: 100%; text-align: center;
+    background: var(--surface-muted); color: var(--text);
+    border: 1px solid var(--divider); border-radius: 12px;
+    padding: 14px; margin-bottom: 8px; font-size: 14px;
+    cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+}}
+.proj-sheet-btn.danger {{ background: var(--error-bg); color: var(--error); border-color: #FF595933; }}
+.proj-sheet-btn.cancel {{ background: transparent; color: var(--text-muted); border: none; margin-top: 4px; }}
+
+/* Projects — mobile tweaks */
+@media (max-width: 400px) {{
+    .proj-header-title {{ font-size: 16px; }}
+    .proj-header-add {{ padding: 7px 10px; font-size: 11px; }}
+    .proj-summary-val {{ font-size: 14px; }}
+    .proj-card-body {{ padding: 12px 8px 12px 12px; }}
+    .proj-card-top {{ gap: 8px; }}
+    .proj-ring {{ transform: scale(0.9); transform-origin: center; }}
+    .proj-detail-name {{ font-size: 17px; word-break: break-word; }}
+    .proj-detail-hero-body {{ gap: 10px; }}
+    .proj-detail-hero-body .proj-ring {{ transform: scale(0.82); transform-origin: center; }}
+    .proj-done-toggle-btn {{ font-size: 11px; padding: 10px 8px; line-height: 1.5; }}
+    .proj-task-item {{ gap: 8px; flex-wrap: wrap; }}
+    .proj-task-body {{ flex: 1 1 calc(100% - 38px); order: 1; }}
+    .proj-task-check {{ order: 0; }}
+    .proj-task-actions {{ order: 2; margin-right: auto; }}
+    .proj-tasks-card {{ margin: 10px 8px; padding: 12px; }}
+    .proj-section {{ padding: 10px 8px 0; }}
+    .color-swatch {{ width: 44px; height: 44px; }}
+}}
+@media (max-width: 340px) {{
+    .nav-btn {{ font-size: 11px; padding: 5px 2px; }}
+    .nav-icon {{ font-size: 18px; }}
+    .color-picker-grid {{ gap: 6px; }}
+    .color-swatch {{ width: 40px; height: 40px; }}
+}}
 """

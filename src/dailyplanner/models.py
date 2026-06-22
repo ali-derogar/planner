@@ -157,3 +157,51 @@ def format_money(amount: int) -> str:
     sign = "−" if amount < 0 else ""
     text = f"{sign}{abs(amount):,}".replace(",", "،")
     return to_persian_digits(text)
+
+
+@dataclass
+class Project:
+    id: int
+    title: str
+    color: str
+    deadline: Optional[str]
+    is_done: bool
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row) -> "Project":
+        return cls(
+            id=row["id"],
+            title=row["title"],
+            color=row["color"],
+            deadline=row["deadline"],
+            is_done=bool(row["is_done"]),
+            created_at=row["created_at"],
+        )
+
+    def days_until_deadline(self) -> Optional[int]:
+        if not self.deadline:
+            return None
+        delta = date.fromisoformat(self.deadline) - date.today()
+        return delta.days
+
+
+@dataclass
+class ProjectTask:
+    id: int
+    project_id: int
+    title: str
+    is_done: bool
+    sort_order: int
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row) -> "ProjectTask":
+        return cls(
+            id=row["id"],
+            project_id=row["project_id"],
+            title=row["title"],
+            is_done=bool(row["is_done"]),
+            sort_order=row["sort_order"],
+            created_at=row["created_at"],
+        )

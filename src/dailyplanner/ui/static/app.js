@@ -59,6 +59,190 @@ function pad2(n) {
     return String(Math.max(0, parseInt(n, 10) || 0)).padStart(2, '0');
 }
 
+var JALALI_MONTH_NAMES = [
+    '', 'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
+    'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند',
+];
+var JALALI_WEEKDAYS = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
+
+function isJalaaliLeap(jy) {
+    var r = jy % 33;
+    return [1, 5, 9, 13, 17, 22, 26, 30].indexOf(r) !== -1;
+}
+
+function jalaaliMonthLength(jy, jm) {
+    if (jm <= 6) return 31;
+    if (jm <= 11) return 30;
+    return isJalaaliLeap(jy) ? 30 : 29;
+}
+
+function toJalaali(gy, gm, gd) {
+    var g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+    var gy2 = gm > 2 ? gy + 1 : gy;
+    var days = 355666 + (365 * gy) + Math.floor((gy2 + 3) / 4) - Math.floor((gy2 + 99) / 100) +
+        Math.floor((gy2 + 399) / 400) + gd + g_d_m[gm - 1];
+    var jy = -1595 + (33 * Math.floor(days / 12053));
+    days %= 12053;
+    jy += 4 * Math.floor(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+        jy += Math.floor((days - 1) / 365);
+        days = (days - 1) % 365;
+    }
+    var jm, jd;
+    if (days < 186) {
+        jm = 1 + Math.floor(days / 31);
+        jd = 1 + (days % 31);
+    } else {
+        jm = 7 + Math.floor((days - 186) / 30);
+        jd = 1 + ((days - 186) % 30);
+    }
+    return { jy: jy, jm: jm, jd: jd };
+}
+
+function toGregorian(jy, jm, jd) {
+    var jy2 = jy + 1595;
+    var days = -355668 + (365 * jy2) + Math.floor(jy2 / 33) * 8 + Math.floor(((jy2 % 33) + 3) / 4) +
+        jd + (jm < 7 ? (jm - 1) * 31 : ((jm - 7) * 30) + 186);
+    var gy = 400 * Math.floor(days / 146097);
+    days %= 146097;
+    if (days > 36524) {
+        gy += 100 * Math.floor(--days / 36524);
+        days %= 36524;
+        if (days >= 365) days++;
+    }
+    gy += 4 * Math.floor(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+        gy += Math.floor((days - 1) / 365);
+        days = (days - 1) % 365;
+    }
+    var gd = days + 1;
+    var sal_a = [0, 31, ((gy % 4 === 0 && gy % 100 !== 0) || (gy % 400 === 0)) ? 29 : 28,
+        31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    var gm = 0;
+    for (gm = 0; gm < 13 && gd > sal_a[gm]; gm++) gd -= sal_a[gm];
+    return { gy: gy, gm: gm, gd: gd };
+}
+
+function parseIsoDate(s) {
+    if (!s) return null;
+    var p = String(s).trim().split('-');
+    if (p.length !== 3) return null;
+    var y = parseInt(p[0], 10), m = parseInt(p[1], 10), d = parseInt(p[2], 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+    return { y: y, m: m, d: d };
+}
+
+function isoFromGregorian(gy, gm, gd) {
+    return gy + '-' + pad2(gm) + '-' + pad2(gd);
+}
+
+function persianWeekday(gy, gm, gd) {
+    var dt = new Date(gy, gm - 1, gd);
+    return (dt.getDay() + 1) % 7;
+}
+
+function formatJalaliIso(iso) {
+    if (!iso) return 'بدون ددلاین';
+    var p = parseIsoDate(iso);
+    if (!p) return iso;
+    var j = toJalaali(p.y, p.m, p.d);
+    return pd(j.jd) + ' ' + JALALI_MONTH_NAMES[j.jm] + ' ' + pd(j.jy);
+}
+
+function buildDatePickerEl(field) {
+    var wrap = document.createElement('div');
+    wrap.className = 'date-picker';
+    wrap.id = 'mf-' + field.key;
+
+    var hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.id = 'mf-' + field.key + '-val';
+    hidden.value = field.value || '';
+    wrap.appendChild(hidden);
+
+    var now = new Date();
+    var initGreg = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+    if (field.value) {
+        var parsed = parseIsoDate(field.value);
+        if (parsed) initGreg = parsed;
+    }
+    var initJ = toJalaali(initGreg.y, initGreg.m, initGreg.d);
+    var state = { jy: initJ.jy, jm: initJ.jm };
+
+    var labelEl = document.createElement('div');
+    labelEl.className = 'date-picker-label';
+    wrap.appendChild(labelEl);
+
+    var calPanel = document.createElement('div');
+    calPanel.className = 'calendar-panel date-picker-cal';
+    wrap.appendChild(calPanel);
+
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'date-picker-clear';
+    clearBtn.textContent = 'بدون ددلاین';
+    clearBtn.onclick = function() {
+        hidden.value = '';
+        refresh();
+    };
+    wrap.appendChild(clearBtn);
+
+    function renderMonth() {
+        var jy = state.jy;
+        var jm = state.jm;
+        var daysInMonth = jalaaliMonthLength(jy, jm);
+        var g1 = toGregorian(jy, jm, 1);
+        var wd = persianWeekday(g1.gy, g1.gm, g1.gd);
+        var selectedIso = hidden.value;
+        var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
+
+        var html = '<div class="cal-header">' +
+            '<button type="button" class="cal-nav date-cal-next">‹</button>' +
+            '<span>' + esc(JALALI_MONTH_NAMES[jm]) + ' ' + pd(jy) + '</span>' +
+            '<button type="button" class="cal-nav date-cal-prev">›</button></div>' +
+            '<div class="cal-weekdays">' +
+            JALALI_WEEKDAYS.map(function(w) { return '<span>' + w + '</span>'; }).join('') +
+            '</div><div class="cal-grid">';
+
+        for (var i = 0; i < wd; i++) html += '<span class="cal-day cal-day-empty"></span>';
+        for (var day = 1; day <= daysInMonth; day++) {
+            var g = toGregorian(jy, jm, day);
+            var iso = isoFromGregorian(g.gy, g.gm, g.gd);
+            var cls = 'cal-day';
+            if (iso === selectedIso) cls += ' selected';
+            if (iso === todayIso) cls += ' today';
+            html += '<button type="button" class="' + cls + '" data-iso="' + iso + '">' + pd(day) + '</button>';
+        }
+        html += '</div>';
+        calPanel.innerHTML = html;
+
+        calPanel.querySelector('.date-cal-next').onclick = function() {
+            if (state.jm === 12) { state.jm = 1; state.jy++; } else state.jm++;
+            renderMonth();
+        };
+        calPanel.querySelector('.date-cal-prev').onclick = function() {
+            if (state.jm === 1) { state.jm = 12; state.jy--; } else state.jm--;
+            renderMonth();
+        };
+        calPanel.querySelectorAll('.cal-day[data-iso]').forEach(function(btn) {
+            btn.onclick = function() {
+                hidden.value = btn.getAttribute('data-iso');
+                refresh();
+            };
+        });
+    }
+
+    function refresh() {
+        labelEl.textContent = hidden.value ? formatJalaliIso(hidden.value) : 'بدون ددلاین';
+        renderMonth();
+    }
+
+    refresh();
+    return wrap;
+}
+
 function secondsToHms(secs) {
     secs = Math.max(0, parseInt(secs, 10) || 0);
     var h = Math.floor(secs / 3600);
@@ -273,6 +457,67 @@ function showClockModal(title, cmd, hmValue, presetKind) {
     });
 }
 
+var DEFAULT_PROJECT_COLORS = [
+    '#5E5CE6', '#4DD980', '#FF7359', '#FFB340',
+    '#5AC8FA', '#FF6B9D', '#A8E063', '#8E8E93',
+];
+var PROJECT_COLOR_LABELS = {
+    '#5E5CE6': 'بنفش',
+    '#4DD980': 'سبز',
+    '#FF7359': 'قرمز',
+    '#FFB340': 'نارنجی',
+    '#5AC8FA': 'آبی',
+    '#FF6B9D': 'صورتی',
+    '#A8E063': 'سبز روشن',
+    '#8E8E93': 'خاکستری',
+};
+
+function normColor(c) {
+    return String(c || '').trim().toUpperCase();
+}
+
+function buildColorPickerEl(field) {
+    var colors = field.options && field.options.length ? field.options : DEFAULT_PROJECT_COLORS;
+    var selected = field.value || colors[0];
+    var selectedNorm = normColor(selected);
+    var wrap = document.createElement('div');
+    wrap.className = 'color-picker';
+    wrap.id = 'mf-' + field.key;
+
+    var hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.id = 'mf-' + field.key + '-val';
+    hidden.value = selected;
+    wrap.appendChild(hidden);
+
+    var grid = document.createElement('div');
+    grid.className = 'color-picker-grid';
+    colors.forEach(function(c) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'color-swatch' + (normColor(c) === selectedNorm ? ' selected' : '');
+        btn.style.backgroundColor = c;
+        btn.title = PROJECT_COLOR_LABELS[c] || c;
+        btn.setAttribute('aria-label', PROJECT_COLOR_LABELS[c] || c);
+        btn.onclick = function() {
+            hidden.value = c;
+            grid.querySelectorAll('.color-swatch').forEach(function(s) { s.classList.remove('selected'); });
+            btn.classList.add('selected');
+            var lbl = wrap.querySelector('.color-picker-label');
+            if (lbl) lbl.textContent = PROJECT_COLOR_LABELS[c] || c;
+        };
+        grid.appendChild(btn);
+    });
+    wrap.appendChild(grid);
+
+    var labelEl = document.createElement('div');
+    labelEl.className = 'color-picker-label';
+    labelEl.textContent = PROJECT_COLOR_LABELS[selected] || PROJECT_COLOR_LABELS[colors.find(function(c) { return normColor(c) === selectedNorm; })] || selected;
+    wrap.appendChild(labelEl);
+
+    return wrap;
+}
+
 function showModal(config) {
     _modal = config;
     document.getElementById('modal-title').textContent = config.title || '';
@@ -283,7 +528,11 @@ function showModal(config) {
         lbl.className = 'modal-label';
         lbl.textContent = f.label;
         fc.appendChild(lbl);
-        if (f.type === 'select') {
+        if (f.type === 'color-select') {
+            fc.appendChild(buildColorPickerEl(f));
+        } else if (f.type === 'jalali-date') {
+            fc.appendChild(buildDatePickerEl(f));
+        } else if (f.type === 'select') {
             var sel = document.createElement('select');
             sel.className = 'modal-input';
             sel.id = 'mf-' + f.key;
@@ -316,7 +565,8 @@ function showModal(config) {
     });
     document.getElementById('modal-error').textContent = '';
     document.getElementById('modal').style.display = 'flex';
-    var first = fc.querySelector('input,select,textarea');
+    fc.scrollTop = 0;
+    var first = fc.querySelector('input,select,textarea,button.color-swatch');
     if (first) setTimeout(function() { first.focus(); }, 80);
 }
 
@@ -330,6 +580,12 @@ function confirmModal() {
         var val = '';
         if (f.type === 'time-hms' || f.type === 'time-hm') {
             val = getTimePickerValue(el);
+        } else if (f.type === 'color-select') {
+            var hiddenColor = document.getElementById('mf-' + f.key + '-val');
+            val = hiddenColor ? hiddenColor.value : '';
+        } else if (f.type === 'jalali-date') {
+            var hiddenDate = document.getElementById('mf-' + f.key + '-val');
+            val = hiddenDate ? hiddenDate.value : '';
         } else {
             val = el ? el.value : '';
         }
@@ -839,8 +1095,12 @@ function renderFinanceScreen(f) {
                 '<div class="fin-budget-sub">' + esc(c.expense_fmt) + ' از ' + (c.budget > 0 ? esc(c.budget_fmt) : '—') + '</div>' +
                 '</div>' +
                 '<span class="fin-budget-pct">' + pctLbl + '</span>' +
+                '<div class="fin-txn-btns">' +
                 '<button class="fin-txn-btn" onclick="showAddBudget(\'' + escJs(c.category) + '\',' + c.budget + ')">✎</button>' +
-                '</div>' +
+                (c.budget > 0
+                    ? '<button class="fin-txn-btn del" onclick="action(\'delete_budget\',{category:\'' + escJs(c.category) + '\'})">×</button>'
+                    : '') +
+                '</div></div>' +
                 (c.budget > 0
                     ? '<div class="fin-budget-track"><div class="' + barCls + '" style="width:' + barWidth + '%"></div></div>'
                     : '<div class="fin-budget-empty">بودجه تعیین نشده — <a href="javascript:void(0)" onclick="showAddBudget(\'' + escJs(c.category) + '\',0)">تنظیم</a></div>') +
@@ -869,17 +1129,254 @@ function renderFinanceScreen(f) {
     return html + '</div>';
 }
 
+var _showCompletedProjects = false;
+
+function getProjectById(id) {
+    return (window._projectsList || []).find(function(x) { return x.id === id; });
+}
+
+function closeProjectSheet() {
+    var o = document.getElementById('proj-sheet');
+    if (o) o.style.display = 'none';
+}
+
+function showProjectSheet(id) {
+    closeProjectSheet();
+    var p = getProjectById(id);
+    if (!p) return;
+    var overlay = document.getElementById('proj-sheet');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'proj-sheet';
+        overlay.className = 'proj-sheet-overlay';
+        document.body.appendChild(overlay);
+    }
+    var doneLabel = p.is_done ? '↩ بازگردانی به فعال' : '✓ علامت‌گذاری تموم‌شده';
+    overlay.innerHTML =
+        '<div class="proj-sheet" onclick="event.stopPropagation()">' +
+        '<div class="proj-sheet-handle"></div>' +
+        '<div class="proj-sheet-title">' + esc(p.title) + '</div>' +
+        '<button type="button" class="proj-sheet-btn" onclick="closeProjectSheet();showEditProject(' + id + ',window._projectColors)">✎ ویرایش پروژه</button>' +
+        '<button type="button" class="proj-sheet-btn" onclick="closeProjectSheet();action(\'toggle_project_done\',{id:' + id + '})">' + doneLabel + '</button>' +
+        '<button type="button" class="proj-sheet-btn danger" onclick="closeProjectSheet();action(\'delete_project\',{id:' + id + '})">🗑 حذف پروژه</button>' +
+        '<button type="button" class="proj-sheet-btn cancel" onclick="closeProjectSheet()">انصراف</button></div>';
+    overlay.style.display = 'flex';
+    overlay.onclick = closeProjectSheet;
+}
+
+function projectProgressRing(pct, color, size) {
+    size = size || 48;
+    var r = (size - 8) / 2;
+    var c = 2 * Math.PI * r;
+    var offset = c * (1 - Math.min(100, Math.max(0, pct)) / 100);
+    var cx = size / 2;
+    return '<svg class="proj-ring" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true">' +
+        '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="4"/>' +
+        '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="' + esc(color) + '" stroke-width="4" ' +
+        'stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + offset.toFixed(2) + '" ' +
+        'stroke-linecap="round" transform="rotate(-90 ' + cx + ' ' + cx + ')"/>' +
+        '<text x="' + cx + '" y="' + (cx + 4) + '" text-anchor="middle" fill="currentColor" font-size="11" font-weight="bold">' +
+        pd(pct) + '٪</text></svg>';
+}
+
+function projectDeadlineBadge(p) {
+    if (!p.deadline_label) return '';
+    var cls = 'proj-deadline-badge';
+    if (p.deadline_overdue) cls += ' overdue';
+    else if (p.deadline_label === 'امروز') cls += ' today';
+    return '<span class="' + cls + '">📅 ' + esc(p.deadline_label) + '</span>';
+}
+
+function showAddProject(colors) {
+    colors = colors || window._projectColors || DEFAULT_PROJECT_COLORS;
+    showModal({
+        title: 'پروژه جدید',
+        cmd: 'add_project',
+        fields: [
+            { label: 'عنوان', key: 'title', validate: 'required' },
+            { label: 'ددلاین (اختیاری)', key: 'deadline', type: 'jalali-date', value: '' },
+            { label: 'رنگ', key: 'color', type: 'color-select', value: '#5E5CE6', options: colors },
+        ],
+    });
+}
+
+function showEditProject(id, colors) {
+    closeProjectSheet();
+    colors = colors || window._projectColors || DEFAULT_PROJECT_COLORS;
+    var p = (window._projectsList || []).find(function(x) { return x.id === id; });
+    if (!p && window._projectDetail && window._projectDetail.id === id) p = window._projectDetail;
+    if (!p) return;
+    var colorVal = p.color;
+    if (colors.indexOf(colorVal) === -1) colors = colors.concat([colorVal]);
+    showModal({
+        title: 'ویرایش پروژه',
+        cmd: 'edit_project',
+        params: { id: id },
+        fields: [
+            { label: 'عنوان', key: 'title', value: p.title, validate: 'required' },
+            { label: 'ددلاین (اختیاری)', key: 'deadline', type: 'jalali-date', value: p.deadline || '' },
+            { label: 'رنگ', key: 'color', type: 'color-select', value: colorVal, options: colors },
+        ],
+    });
+}
+
+function renderProjectCard(p, muted) {
+    var mutedCls = muted ? ' muted' : '';
+    var progress = p.progress || 0;
+    var html = '<div class="proj-card' + mutedCls + '" style="--project-color:' + esc(p.color) + '">';
+    html += '<div class="proj-card-accent"></div>';
+    html += '<div class="proj-card-body" onclick="action(\'open_project\',{id:' + p.id + '})">';
+    html += '<div class="proj-card-top">';
+    html += '<div class="proj-card-info">';
+    html += '<div class="proj-card-title">' + esc(p.title) + '</div>';
+    html += projectDeadlineBadge(p);
+    html += '<div class="proj-card-meta">' + pd(p.done) + ' از ' + pd(p.total) + ' تسک انجام‌شده</div>';
+    html += '</div>';
+    html += projectProgressRing(progress, p.color, 52);
+    html += '</div>';
+    html += '<div class="proj-bar"><div class="proj-bar-fill" style="width:' + progress + '%"></div></div>';
+    html += '</div>';
+    html += '<button type="button" class="proj-card-menu" onclick="event.stopPropagation();showProjectSheet(' + p.id + ')" aria-label="گزینه‌ها">⋮</button>';
+    html += '</div>';
+    return html;
+}
+
+function renderProjects(data) {
+    window._projectsList = data.list;
+    window._projectColors = data.colors;
+    var active = data.list.filter(function(p) { return !p.is_done; });
+    var done = data.list.filter(function(p) { return p.is_done; });
+    var totalTasks = 0;
+    var doneTasks = 0;
+    active.forEach(function(p) { totalTasks += p.total; doneTasks += p.done; });
+    var overallPct = totalTasks > 0 ? Math.round(doneTasks / totalTasks * 100) : 0;
+
+    var html = '<div class="proj-page">';
+
+    html += '<div class="proj-header">' +
+        '<div class="proj-header-top">' +
+        '<span class="proj-header-title">📋 پروژه‌ها</span>' +
+        '<button type="button" class="proj-header-add" onclick="showAddProject(window._projectColors)">+ پروژه جدید</button>' +
+        '</div>';
+
+    if (data.list.length) {
+        html += '<div class="proj-summary">' +
+            '<div class="proj-summary-item"><span class="proj-summary-val">' + pd(active.length) + '</span><span class="proj-summary-lbl">فعال</span></div>' +
+            '<div class="proj-summary-item"><span class="proj-summary-val">' + pd(doneTasks) + '/' + pd(totalTasks) + '</span><span class="proj-summary-lbl">تسک</span></div>' +
+            '<div class="proj-summary-item"><span class="proj-summary-val">' + pd(overallPct) + '٪</span><span class="proj-summary-lbl">پیشرفت</span></div>' +
+            '</div>';
+    }
+    html += '</div>';
+
+    if (!data.list.length) {
+        html += finEmptyState('📋', 'هنوز پروژه‌ای ندارید.<br>اولین پروژه‌تان را بسازید و تسک‌ها را مدیریت کنید.', '+ ساخت پروژه', 'showAddProject(window._projectColors)');
+        return html + '</div>';
+    }
+
+    if (active.length) {
+        html += '<div class="proj-section"><div class="proj-section-head"><span class="proj-section-title">در جریان</span>' +
+            '<span class="proj-section-badge">' + pd(active.length) + '</span></div>';
+        active.forEach(function(p) { html += renderProjectCard(p, false); });
+        html += '</div>';
+    } else {
+        html += '<div class="proj-section"><div class="proj-empty-mini">پروژه فعالی ندارید</div></div>';
+    }
+
+    if (done.length) {
+        html += '<div class="proj-section proj-section-done">';
+        html += '<button type="button" class="proj-done-toggle' + (_showCompletedProjects ? ' open' : '') +
+            '" onclick="_showCompletedProjects=!_showCompletedProjects;renderApp(window._lastState)">' +
+            '<span>✓ پروژه‌های تموم‌شده</span><span class="proj-section-badge">' + pd(done.length) + '</span>' +
+            '<span class="proj-done-chevron">' + (_showCompletedProjects ? '▾' : '▸') + '</span></button>';
+        if (_showCompletedProjects) {
+            done.forEach(function(p) { html += renderProjectCard(p, true); });
+        }
+        html += '</div>';
+    }
+
+    return html + '</div>';
+}
+
+function renderProjectDetail(p) {
+    window._projectDetail = p;
+    window._projectColors = p.colors;
+    var progress = p.progress || 0;
+
+    var html = '<div class="proj-detail-page" style="--project-color:' + esc(p.color) + '">';
+
+    html += '<div class="proj-detail-hero">' +
+        '<div class="proj-detail-nav">' +
+        '<button type="button" class="proj-back-btn" onclick="action(\'navigate\',{screen:\'projects\'})">→</button>' +
+        '<div class="proj-detail-actions-top">' +
+        '<button type="button" class="proj-icon-btn" onclick="showEditProject(' + p.id + ',window._projectColors)" title="ویرایش">✎</button>' +
+        '<button type="button" class="proj-icon-btn danger" onclick="action(\'delete_project\',{id:' + p.id + '})" title="حذف">🗑</button>' +
+        '</div></div>' +
+        '<div class="proj-detail-hero-body">' +
+        '<div class="proj-detail-hero-text">' +
+        '<div class="proj-detail-name">' + esc(p.title) + '</div>' +
+        projectDeadlineBadge(p) +
+        '<div class="proj-detail-sub">' + pd(p.done) + ' از ' + pd(p.total) + ' تسک انجام‌شده</div>' +
+        '</div>' +
+        projectProgressRing(progress, p.color, 72) +
+        '</div>' +
+        '<div class="proj-bar proj-bar-lg"><div class="proj-bar-fill" style="width:' + progress + '%"></div></div>' +
+        '<button type="button" class="proj-done-toggle-btn' + (p.is_done ? ' on' : '') +
+        '" onclick="action(\'toggle_project_done\',{id:' + p.id + '})">' +
+        (p.is_done ? '✓ پروژه تموم شده — بازگردانی' : '✓ علامت‌گذاری پروژه به عنوان تموم‌شده') +
+        '</button></div>';
+
+    html += '<div class="proj-tasks-card">' +
+        '<div class="proj-section-head"><span class="proj-section-title">تسک‌ها</span>' +
+        '<span class="proj-section-badge">' + pd(p.tasks.length) + '</span></div>';
+
+    if (!p.tasks.length) {
+        html += finEmptyState('☑', 'هنوز تسکی اضافه نکرده‌اید', '+ افزودن تسک',
+            'showModal({title:\'تسک جدید\',cmd:\'add_project_task\',params:{project_id:' + p.id +
+            '},fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})');
+    } else {
+        html += '<div class="proj-task-list">';
+        p.tasks.forEach(function(task) {
+            var rowCls = 'proj-task-item' + (task.is_done ? ' done' : '');
+            html += '<div class="' + rowCls + '">';
+            html += '<button type="button" class="proj-task-check' + (task.is_done ? ' checked' : '') +
+                '" onclick="action(\'toggle_project_task\',{id:' + task.id + '})">' +
+                (task.is_done ? '✓' : '') + '</button>';
+            html += '<div class="proj-task-body" onclick="showModal({title:\'ویرایش تسک\',cmd:\'edit_project_task_title\',params:{id:' + task.id +
+                '},fields:[{label:\'عنوان\',key:\'value\',value:\'' + escJs(task.title) + '\',validate:\'required\'}]})">' +
+                '<div class="proj-task-title">' + esc(task.title) + '</div></div>';
+            html += '<div class="proj-task-actions">';
+            if (task.scheduled_today) {
+                html += '<span class="proj-today-chip done">✓ امروز</span>';
+            } else if (!task.is_done) {
+                html += '<button type="button" class="proj-today-chip" onclick="action(\'send_task_to_today\',{id:' + task.id + '})">+ امروز</button>';
+            }
+            html += '<button type="button" class="proj-task-del" onclick="action(\'delete_project_task\',{id:' + task.id + '})" title="حذف">×</button>';
+            html += '</div></div>';
+        });
+        html += '</div>';
+    }
+
+    html += '<button type="button" class="proj-add-task-btn" onclick="showModal({title:\'تسک جدید\',cmd:\'add_project_task\',params:{project_id:' + p.id +
+        '},fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">+ افزودن تسک</button>';
+    html += '</div></div>';
+
+    return html;
+}
+
 function renderNav(screen) {
     var home = screen === 'home' ? 'nav-btn active' : 'nav-btn';
     var fin = screen === 'finance' ? 'nav-btn active' : 'nav-btn';
+    var proj = screen === 'projects' ? 'nav-btn active' : 'nav-btn';
     var anal = screen === 'analytics' ? 'nav-btn active' : 'nav-btn';
     return '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'home\'})" class="' + home + '"><span class="nav-icon">🏠</span>امروز</a>' +
         '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'finance\'})" class="' + fin + '"><span class="nav-icon">💰</span>مالی</a>' +
+        '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'projects\'})" class="' + proj + '"><span class="nav-icon">📋</span>پروژه‌ها</a>' +
         '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'analytics\'})" class="' + anal + '"><span class="nav-icon">📊</span>آمار</a>';
 }
 
 /* Main render */
 function renderApp(state) {
+    closeProjectSheet();
     window._categories = state.finance_categories || [];
     window._investCategories = state.investment_categories || [];
     window._moodEmojis = state.mood_emojis || [];
@@ -894,11 +1391,14 @@ function renderApp(state) {
     else if (state.screen === 'analytics' && state.analytics) html = renderAnalytics(state.analytics);
     else if (state.screen === 'settings' && state.settings) html = renderSettings(state.settings);
     else if (state.screen === 'recurring' && state.recurring) html = renderRecurring(state.recurring);
+    else if (state.screen === 'projects' && state.projects) html = renderProjects(state.projects);
+    else if (state.screen === 'project_detail' && state.project_detail) html = renderProjectDetail(state.project_detail);
 
+    window._lastState = state;
     root.innerHTML = html;
 
     var nav = document.getElementById('bottom-nav');
-    if (nav && (state.screen === 'home' || state.screen === 'finance' || state.screen === 'analytics')) {
+    if (nav && (state.screen === 'home' || state.screen === 'finance' || state.screen === 'analytics' || state.screen === 'projects')) {
         nav.innerHTML = renderNav(state.screen);
         nav.style.display = 'flex';
     } else if (nav) {
