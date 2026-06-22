@@ -481,6 +481,91 @@ a {{ text-decoration: none; color: inherit; }}
     font-family: 'Vazirmatn', sans-serif;
 }}
 
+/* ── Time Picker ── */
+.time-picker {{
+    margin-bottom: 12px;
+}}
+.time-picker-preview {{
+    text-align: center;
+    font-size: 32px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: var(--primary);
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+}}
+.time-picker-cols {{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    direction: ltr;
+}}
+.time-picker-col {{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    max-width: 88px;
+}}
+.time-picker-btn {{
+    width: 100%;
+    background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 8px 0;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+    line-height: 1;
+    transition: background 0.15s, border-color 0.15s;
+}}
+.time-picker-btn:active {{
+    background: rgba(94,92,230,0.25);
+    border-color: var(--primary);
+}}
+.time-picker-val {{
+    font-size: 28px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    min-width: 56px;
+    text-align: center;
+    padding: 6px 0;
+    background: var(--surface-muted);
+    border-radius: 10px;
+    border: 1px solid var(--divider);
+}}
+.time-picker-lbl {{
+    font-size: 11px;
+    color: var(--text-muted);
+    direction: rtl;
+}}
+.time-picker-presets {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 14px;
+    direction: rtl;
+}}
+.time-preset-btn {{
+    background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    color: var(--text-muted);
+    border-radius: 20px;
+    padding: 5px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}}
+.time-preset-btn:active {{
+    background: rgba(94,92,230,0.2);
+    color: var(--primary);
+    border-color: var(--primary);
+}}
+
 /* ── Analytics ── */
 .analytics-period {{
     display: flex; gap: 6px;

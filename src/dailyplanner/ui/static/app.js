@@ -54,6 +54,224 @@ var _modalValidators = {
     required: function(v) { return v.trim().length > 0; },
 };
 
+function pad2(n) {
+    return String(Math.max(0, parseInt(n, 10) || 0)).padStart(2, '0');
+}
+
+function secondsToHms(secs) {
+    secs = Math.max(0, parseInt(secs, 10) || 0);
+    var h = Math.floor(secs / 3600);
+    var m = Math.floor((secs % 3600) / 60);
+    var s = secs % 60;
+    return h + ':' + pad2(m) + ':' + pad2(s);
+}
+
+function parseTimeParts(value, includeSeconds) {
+    var parts = String(value || '').trim().split(':');
+    var h = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    if (isNaN(h)) h = 0;
+    if (isNaN(m)) m = 0;
+    var s = 0;
+    if (includeSeconds && parts.length > 2) {
+        s = parseInt(parts[2], 10);
+        if (isNaN(s)) s = 0;
+    }
+    return { h: h, m: m, s: s };
+}
+
+function getTimePickerValue(el) {
+    if (!el) return '';
+    var h = 0, m = 0, s = 0;
+    el.querySelectorAll('.time-picker-col').forEach(function(col) {
+        var v = parseInt(col.dataset.val, 10) || 0;
+        if (col.dataset.unit === 'h') h = v;
+        else if (col.dataset.unit === 'm') m = v;
+        else if (col.dataset.unit === 's') s = v;
+    });
+    if (el.dataset.mode === 'hms') {
+        return h + ':' + pad2(m) + ':' + pad2(s);
+    }
+    return h + ':' + pad2(m);
+}
+
+function updateTimePickerPreview(picker) {
+    var preview = picker.querySelector('.time-picker-preview');
+    if (!preview) return;
+    var raw = getTimePickerValue(picker);
+    var parts = raw.split(':');
+    if (picker.dataset.mode === 'hms') {
+        preview.textContent = pd(parts[0]) + ':' + pd(parts[1]) + ':' + pd(parts[2]);
+    } else {
+        preview.textContent = pd(parts[0]) + ':' + pd(parts[1]);
+    }
+}
+
+function setTimePickerValues(picker, h, m, s) {
+    picker.querySelectorAll('.time-picker-col').forEach(function(col) {
+        var unit = col.dataset.unit;
+        var max = parseInt(col.dataset.max, 10);
+        var val = unit === 'h' ? h : (unit === 'm' ? m : s);
+        val = Math.max(0, Math.min(max, val));
+        col.dataset.val = val;
+        var num = col.querySelector('.time-picker-val');
+        if (num) num.textContent = pd(pad2(val));
+    });
+    updateTimePickerPreview(picker);
+}
+
+function stepTimeUnit(picker, unit, delta) {
+    var col = picker.querySelector('.time-picker-col[data-unit="' + unit + '"]');
+    if (!col) return;
+    var max = parseInt(col.dataset.max, 10);
+    var val = (parseInt(col.dataset.val, 10) || 0) + delta;
+    if (val > max) val = 0;
+    if (val < 0) val = max;
+    col.dataset.val = val;
+    var num = col.querySelector('.time-picker-val');
+    if (num) num.textContent = pd(pad2(val));
+    updateTimePickerPreview(picker);
+}
+
+function buildTimeCol(key, label, val, max, pickerWrap) {
+    var col = document.createElement('div');
+    col.className = 'time-picker-col';
+    col.dataset.unit = key;
+    col.dataset.max = String(max);
+    col.dataset.val = String(Math.max(0, Math.min(max, val)));
+
+    var up = document.createElement('button');
+    up.type = 'button';
+    up.className = 'time-picker-btn';
+    up.textContent = '▲';
+    up.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        stepTimeUnit(pickerWrap, key, 1);
+    };
+
+    var num = document.createElement('div');
+    num.className = 'time-picker-val';
+    num.textContent = pd(pad2(col.dataset.val));
+
+    var down = document.createElement('button');
+    down.type = 'button';
+    down.className = 'time-picker-btn';
+    down.textContent = '▼';
+    down.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        stepTimeUnit(pickerWrap, key, -1);
+    };
+
+    var lbl = document.createElement('div');
+    lbl.className = 'time-picker-lbl';
+    lbl.textContent = label;
+
+    col.appendChild(up);
+    col.appendChild(num);
+    col.appendChild(down);
+    col.appendChild(lbl);
+    return col;
+}
+
+function buildDurationPresets(pickerWrap) {
+    var presets = [
+        { label: '۱۵ دقیقه', h: 0, m: 15, s: 0 },
+        { label: '۳۰ دقیقه', h: 0, m: 30, s: 0 },
+        { label: '۴۵ دقیقه', h: 0, m: 45, s: 0 },
+        { label: '۱ ساعت', h: 1, m: 0, s: 0 },
+        { label: '۱:۳۰', h: 1, m: 30, s: 0 },
+        { label: '۲ ساعت', h: 2, m: 0, s: 0 },
+    ];
+    var row = document.createElement('div');
+    row.className = 'time-picker-presets';
+    presets.forEach(function(p) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'time-preset-btn';
+        btn.textContent = p.label;
+        btn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setTimePickerValues(pickerWrap, p.h, p.m, p.s);
+        };
+        row.appendChild(btn);
+    });
+    return row;
+}
+
+function buildClockPresets(pickerWrap, kind) {
+    var presets = kind === 'sleep'
+        ? [{ label: '۲۲:۰۰', h: 22, m: 0 }, { label: '۲۳:۰۰', h: 23, m: 0 }, { label: '۰۰:۰۰', h: 0, m: 0 }]
+        : [{ label: '۰۶:۰۰', h: 6, m: 0 }, { label: '۰۷:۰۰', h: 7, m: 0 }, { label: '۰۸:۰۰', h: 8, m: 0 }];
+    var row = document.createElement('div');
+    row.className = 'time-picker-presets';
+    presets.forEach(function(p) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'time-preset-btn';
+        btn.textContent = p.label;
+        btn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setTimePickerValues(pickerWrap, p.h, p.m, 0);
+        };
+        row.appendChild(btn);
+    });
+    return row;
+}
+
+function buildTimePickerEl(field) {
+    var includeSeconds = field.type === 'time-hms';
+    var parts = parseTimeParts(field.value, includeSeconds);
+    var wrap = document.createElement('div');
+    wrap.className = 'time-picker';
+    wrap.id = 'mf-' + field.key;
+    wrap.dataset.key = field.key;
+    wrap.dataset.mode = includeSeconds ? 'hms' : 'hm';
+
+    var preview = document.createElement('div');
+    preview.className = 'time-picker-preview';
+    wrap.appendChild(preview);
+
+    var cols = document.createElement('div');
+    cols.className = 'time-picker-cols';
+    var units = includeSeconds
+        ? [{ k: 'h', label: 'ساعت', max: 99, val: parts.h }, { k: 'm', label: 'دقیقه', max: 59, val: parts.m }, { k: 's', label: 'ثانیه', max: 59, val: parts.s }]
+        : [{ k: 'h', label: 'ساعت', max: 23, val: parts.h }, { k: 'm', label: 'دقیقه', max: 59, val: parts.m }];
+    units.forEach(function(u) {
+        cols.appendChild(buildTimeCol(u.k, u.label, u.val, u.max, wrap));
+    });
+    wrap.appendChild(cols);
+
+    if (includeSeconds) {
+        wrap.appendChild(buildDurationPresets(wrap));
+    } else if (field.presetKind) {
+        wrap.appendChild(buildClockPresets(wrap, field.presetKind));
+    }
+
+    updateTimePickerPreview(wrap);
+    return wrap;
+}
+
+function showDurationModal(title, cmd, taskId, seconds) {
+    showModal({
+        title: title,
+        cmd: cmd,
+        params: { id: taskId },
+        fields: [{ label: 'مدت زمان', key: 'value', type: 'time-hms', value: secondsToHms(seconds), validate: 'hms' }],
+    });
+}
+
+function showClockModal(title, cmd, hmValue, presetKind) {
+    showModal({
+        title: title,
+        cmd: cmd,
+        fields: [{ label: 'ساعت', key: 'value', type: 'time-hm', value: hmValue || '00:00', validate: 'hm', presetKind: presetKind }],
+    });
+}
+
 function showModal(config) {
     _modal = config;
     document.getElementById('modal-title').textContent = config.title || '';
@@ -76,6 +294,8 @@ function showModal(config) {
                 sel.appendChild(o);
             });
             fc.appendChild(sel);
+        } else if (f.type === 'time-hms' || f.type === 'time-hm') {
+            fc.appendChild(buildTimePickerEl(f));
         } else if (f.type === 'textarea') {
             var ta = document.createElement('textarea');
             ta.className = 'modal-input modal-textarea';
@@ -106,7 +326,12 @@ function confirmModal() {
     var errEl = document.getElementById('modal-error');
     (_modal.fields || []).forEach(function(f) {
         var el = document.getElementById('mf-' + f.key);
-        var val = el ? el.value : '';
+        var val = '';
+        if (f.type === 'time-hms' || f.type === 'time-hm') {
+            val = getTimePickerValue(el);
+        } else {
+            val = el ? el.value : '';
+        }
         params[f.key] = val;
         if (f.validate && _modalValidators[f.validate]) {
             if (!_modalValidators[f.validate](val)) valid = false;
@@ -202,12 +427,12 @@ function taskCard(t) {
         detail = '<div class="task-detail">' +
             '<div class="timer-row"><span class="timer-big" id="tbig-' + t.id + '">' + esc(t.display_fmt) + '</span>' + timerBtn + '</div>' +
             '<div class="est-row"><span>تخمین: ' + esc(t.estimated_fmt) + '</span>' +
-            '<a href="javascript:void(0)" onclick="showModal({title:\'تنظیم تخمین\',cmd:\'set_estimated\',params:{id:' + t.id + '},fields:[{label:\'مدت\',key:\'value\',placeholder:\'00:00:00\',validate:\'hms\'}]})" class="chip chip-edit">ویرایش</a></div>' +
+            '<a href="javascript:void(0)" onclick="showDurationModal(\'تنظیم تخمین\',\'set_estimated\',' + t.id + ',' + t.estimated + ')" class="chip chip-edit">ویرایش</a></div>' +
             '<div class="chips">' +
             '<a href="javascript:void(0)" onclick="action(\'set_useful\',{id:' + t.id + ',value:\'true\'})" class="chip ' + uCls + '">✔ مفید</a>' +
             '<a href="javascript:void(0)" onclick="action(\'set_useful\',{id:' + t.id + ',value:\'false\'})" class="chip ' + nuCls + '">✖ نامفید</a>' +
             '<a href="javascript:void(0)" onclick="showModal({title:\'ویرایش عنوان\',cmd:\'edit_title\',params:{id:' + t.id + '},fields:[{label:\'عنوان\',key:\'value\',value:\'' + escJs(t.title) + '\',validate:\'required\'}]})" class="chip chip-edit">✎ عنوان</a>' +
-            '<a href="javascript:void(0)" onclick="showModal({title:\'ویرایش مدت\',cmd:\'set_duration\',params:{id:' + t.id + '},fields:[{label:\'مدت\',key:\'value\',validate:\'hms\'}]})" class="chip chip-edit">⏱ مدت</a>' +
+            '<a href="javascript:void(0)" onclick="showDurationModal(\'ویرایش مدت\',\'set_duration\',' + t.id + ',' + t.display_sec + ')" class="chip chip-edit">⏱ مدت</a>' +
             '<a href="javascript:void(0)" onclick="action(\'copy_task\',{id:' + t.id + '})" class="chip chip-edit">📋 فردا</a>' +
             '<a href="javascript:void(0)" onclick="action(\'move_task\',{id:' + t.id + ',dir:\'up\'})" class="chip chip-neutral">↑</a>' +
             '<a href="javascript:void(0)" onclick="action(\'move_task\',{id:' + t.id + ',dir:\'down\'})" class="chip chip-neutral">↓</a>' +
@@ -316,8 +541,8 @@ function renderWellness(w) {
     });
     return '<div class="section"><div class="sec-header"><span class="sec-title">سلامتی من</span></div>' +
         '<div class="well-row">' +
-        '<a href="javascript:void(0)" onclick="showModal({title:\'ساعت خواب\',cmd:\'set_sleep\',fields:[{label:\'HH:MM\',key:\'value\',value:\'' + w.sleep_raw + '\',validate:\'hm\'}]})" class="well-btn"><span class="well-lbl">خواب</span><span class="well-val">' + esc(w.sleep) + '</span></a>' +
-        '<a href="javascript:void(0)" onclick="showModal({title:\'ساعت بیداری\',cmd:\'set_wake\',fields:[{label:\'HH:MM\',key:\'value\',value:\'' + w.wake_raw + '\',validate:\'hm\'}]})" class="well-btn"><span class="well-lbl">بیداری</span><span class="well-val">' + esc(w.wake) + '</span></a>' +
+        '<a href="javascript:void(0)" onclick="showClockModal(\'ساعت خواب\',\'set_sleep\',\'' + escJs(w.sleep_raw) + '\',\'sleep\')" class="well-btn"><span class="well-lbl">خواب</span><span class="well-val">' + esc(w.sleep) + '</span></a>' +
+        '<a href="javascript:void(0)" onclick="showClockModal(\'ساعت بیداری\',\'set_wake\',\'' + escJs(w.wake_raw) + '\',\'wake\')" class="well-btn"><span class="well-lbl">بیداری</span><span class="well-val">' + esc(w.wake) + '</span></a>' +
         '<div class="well-btn well-static"><span class="well-lbl">مدت خواب</span><span class="well-val">' + esc(w.sleep_dur) + '</span></div></div>' +
         '<div class="mood-row">' + moods + '</div></div>';
 }
