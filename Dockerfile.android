@@ -95,9 +95,9 @@ RUN find /app/build -name "*.gradle" | while read f; do \
         "$f"; \
 done && echo "Gradle files patched."
 
-# Stage 3: sync sources and build the APK
+# Stage 3: sync sources, resources (icons), and build the APK
 RUN JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
-    briefcase update android --no-input
+    briefcase update android --no-input --update-resources
 
 RUN JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
     briefcase build android --no-input
