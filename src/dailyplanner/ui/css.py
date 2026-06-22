@@ -330,6 +330,7 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .fin-income {{ color: #4DD980; }}
 .fin-expense {{ color: #FF7359; }}
+.fin-investment {{ color: #FFB020; }}
 .fin-balance {{ color: #5E5CE6; }}
 
 .fin-entry {{
@@ -344,6 +345,14 @@ a {{ text-decoration: none; color: inherit; }}
 .fin-entry:last-child {{ border-bottom: none; }}
 .fin-type-income {{ color: #4DD980; }}
 .fin-type-expense {{ color: #FF7359; }}
+.fin-type-investment {{ color: #FFB020; }}
+.btn-sm-invest {{
+    background: #3D3018; color: #FFB020;
+    padding: 4px 10px; border-radius: 14px;
+    font-size: 12px; cursor: pointer;
+    border: 1px solid #FFB02044;
+    font-family: 'Vazirmatn', sans-serif;
+}}
 .fin-del {{
     background: none; border: none;
     color: #FF595988; font-size: 16px;
@@ -710,6 +719,12 @@ a {{ text-decoration: none; color: inherit; }}
 }}
 .chart-box {{ padding: 8px 12px; }}
 .sparkline {{ width: 100%; height: 60px; display: block; }}
+.fin-chart-legend {{
+    display: flex; justify-content: center; gap: 16px;
+    font-size: 11px; color: var(--text-muted); margin-bottom: 6px; flex-wrap: wrap;
+}}
+.fin-legend-item {{ display: flex; align-items: center; gap: 4px; }}
+.fin-legend-dot {{ width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }}
 .heatmap {{ display: flex; gap: 3px; padding: 4px 12px 8px; flex-wrap: wrap; }}
 .hm-cell {{ width: 10px; height: 10px; border-radius: 2px; background: var(--surface-muted); }}
 .hm-high {{ background: var(--success); }}
@@ -761,4 +776,224 @@ a {{ text-decoration: none; color: inherit; }}
     margin: 0 auto 2px;
 }}
 .well-static {{ cursor: default; }}
+
+/* ── Finance screen ── */
+.fin-page {{ padding-bottom: 8px; }}
+
+.fin-hero {{
+    margin: 12px 12px 0;
+    padding: 20px 18px 16px;
+    background: linear-gradient(145deg, #1E1E3A 0%, #1C1C1E 60%, #162016 100%);
+    border-radius: 18px;
+    border: 1px solid #3C3C5E44;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    text-align: center;
+}}
+.fin-hero-label {{ font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }}
+.fin-hero-balance {{
+    font-size: 28px; font-weight: bold; letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums; line-height: 1.2;
+}}
+.fin-hero-balance.positive {{ color: #4DD980; }}
+.fin-hero-balance.negative {{ color: #FF7359; }}
+.fin-hero-unit {{ font-size: 12px; font-weight: normal; color: var(--text-muted); margin-right: 4px; }}
+.fin-hero-stats {{
+    display: flex; gap: 10px; margin-top: 16px; direction: rtl;
+}}
+.fin-hero-stat {{
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.04); border-radius: 12px;
+    padding: 10px 12px; border: 1px solid #ffffff0a;
+}}
+.fin-stat-icon {{
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: bold; flex-shrink: 0;
+}}
+.fin-hero-stat.income .fin-stat-icon {{ background: #1A4028; color: #4DD980; }}
+.fin-hero-stat.expense .fin-stat-icon {{ background: #3D1818; color: #FF7359; }}
+.fin-stat-lbl {{ display: block; font-size: 10px; color: var(--text-muted); }}
+.fin-stat-val {{ display: block; font-size: 13px; font-weight: bold; font-variant-numeric: tabular-nums; }}
+
+.fin-actions {{
+    display: flex; gap: 8px; padding: 12px 12px 4px; direction: rtl;
+}}
+.fin-action-btn {{
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 11px 8px; border-radius: 12px; border: none; cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif; font-size: 13px; font-weight: bold;
+    transition: opacity 0.15s;
+}}
+.fin-action-btn:active {{ opacity: 0.75; }}
+.fin-action-icon {{ font-size: 16px; line-height: 1; }}
+.fin-action-btn.income {{ background: #1A4028; color: #4DD980; border: 1px solid #4DD98033; }}
+.fin-action-btn.expense {{ background: #3D1818; color: #FF7359; border: 1px solid #FF595933; }}
+.fin-action-btn.invest {{ background: #3D3018; color: #FFB020; border: 1px solid #FFB02033; }}
+.fin-action-btn.budget {{ background: #1A1A40; color: #7B8CDE; border: 1px solid #5E5CE633; }}
+.fin-hero-invest {{
+    margin-top: 12px; padding: 8px 12px; border-radius: 10px;
+    background: rgba(255,176,32,0.1); border: 1px solid rgba(255,176,32,0.2);
+    font-size: 12px; color: #FFB020; display: flex; align-items: center; gap: 6px; justify-content: center;
+}}
+.fin-hero-invest-note {{ font-size: 10px; color: var(--text-muted); }}
+
+.fin-card {{
+    background: var(--surface); border-radius: 16px;
+    margin: 10px 12px; padding: 14px 14px 12px;
+    border: 1px solid var(--divider);
+}}
+.fin-card-head {{
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; direction: rtl;
+}}
+.fin-card-title {{ font-size: 14px; font-weight: bold; }}
+.fin-card-badge {{
+    background: var(--surface-muted); color: var(--text-muted);
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+}}
+.fin-card-actions {{ display: flex; gap: 6px; }}
+
+.fin-chip-btn {{
+    background: var(--surface-muted); border: 1px solid var(--divider);
+    color: var(--text-muted); padding: 4px 10px; border-radius: 14px;
+    font-size: 11px; cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+}}
+.fin-chip-btn.primary {{ background: rgba(94,92,230,0.15); color: var(--primary); border-color: #5E5CE644; }}
+
+.fin-empty {{
+    text-align: center; padding: 20px 12px; color: var(--text-muted);
+}}
+.fin-empty-icon {{ font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.6; }}
+.fin-empty p {{ font-size: 12px; margin-bottom: 12px; line-height: 1.6; }}
+.fin-empty-btn {{
+    background: var(--primary); color: #fff; border: none;
+    padding: 8px 18px; border-radius: 20px; font-size: 12px;
+    cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+}}
+
+.finance-line-chart {{ width: 100%; height: 130px; display: block; }}
+.fin-chart-wrap {{ margin: 0 -4px; }}
+.fin-chart-legend {{
+    display: flex; justify-content: center; gap: 14px;
+    font-size: 11px; color: var(--text-muted); margin-bottom: 8px; flex-wrap: wrap;
+}}
+.fin-legend-item {{ display: flex; align-items: center; gap: 4px; }}
+.fin-legend-dot {{ width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }}
+
+.fin-date-chip {{
+    font-size: 11px; color: var(--primary); background: rgba(94,92,230,0.12);
+    padding: 3px 10px; border-radius: 10px; display: inline-block;
+    margin: 8px 0 4px; font-weight: bold;
+}}
+.fin-txn {{
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--surface-muted);
+    direction: rtl;
+}}
+.fin-txn:last-child {{ border-bottom: none; }}
+.fin-txn-icon {{
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: bold; flex-shrink: 0;
+}}
+.fin-txn.income .fin-txn-icon {{ background: #1A4028; color: #4DD980; }}
+.fin-txn.expense .fin-txn-icon {{ background: #3D1818; color: #FF7359; }}
+.fin-txn.income {{ border-right: 3px solid #4DD980; padding-right: 8px; margin-right: -3px; }}
+.fin-txn.expense {{ border-right: 3px solid #FF7359; padding-right: 8px; margin-right: -3px; }}
+.fin-txn-body {{ flex: 1; min-width: 0; }}
+.fin-txn-title {{ font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+.fin-txn-meta {{ font-size: 11px; color: var(--text-muted); margin-top: 2px; }}
+.fin-txn-cat {{ opacity: 0.85; }}
+.fin-txn-right {{ text-align: left; flex-shrink: 0; }}
+.fin-txn-amount {{ font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; }}
+.fin-txn.income .fin-txn-amount {{ color: #4DD980; }}
+.fin-txn.expense .fin-txn-amount {{ color: #FF7359; }}
+.fin-txn.investment .fin-txn-icon {{ background: #3D3018; color: #FFB020; }}
+.fin-txn.investment {{ border-right: 3px solid #FFB020; padding-right: 8px; margin-right: -3px; }}
+.fin-txn.investment .fin-txn-amount {{ color: #FFB020; }}
+.fin-txn-tag {{
+    font-size: 10px; background: rgba(255,176,32,0.15); color: #FFB020;
+    padding: 1px 6px; border-radius: 8px;
+}}
+.fin-txn-btns {{ display: flex; gap: 2px; justify-content: flex-end; margin-top: 2px; }}
+.fin-txn-btn {{
+    background: none; border: none; color: var(--text-muted);
+    font-size: 14px; cursor: pointer; padding: 2px 5px; border-radius: 6px;
+}}
+.fin-txn-btn.del {{ color: #FF595988; }}
+.fin-txn-btn:active {{ background: var(--surface-muted); }}
+
+.fin-budget-item {{
+    padding: 10px 0; border-bottom: 1px solid var(--surface-muted);
+}}
+.fin-budget-item:last-child {{ border-bottom: none; }}
+.fin-budget-item.over {{ background: rgba(255,89,89,0.04); margin: 0 -8px; padding: 10px 8px; border-radius: 10px; }}
+.fin-budget-top {{ display: flex; align-items: center; gap: 8px; direction: rtl; }}
+.fin-budget-icon {{ font-size: 20px; flex-shrink: 0; }}
+.fin-budget-info {{ flex: 1; min-width: 0; }}
+.fin-budget-name {{ font-size: 13px; font-weight: bold; }}
+.fin-budget-sub {{ font-size: 11px; color: var(--text-muted); margin-top: 1px; }}
+.fin-budget-pct {{ font-size: 12px; font-weight: bold; color: var(--primary); min-width: 32px; text-align: center; }}
+.fin-budget-item.over .fin-budget-pct {{ color: var(--error); }}
+.fin-budget-track {{
+    height: 5px; border-radius: 3px; background: var(--surface-muted);
+    overflow: hidden; margin-top: 8px;
+}}
+.fin-budget-fill {{
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--success));
+    transition: width 0.4s ease;
+}}
+.fin-budget-fill.over {{ background: linear-gradient(90deg, #FF7359, var(--error)); }}
+.fin-budget-empty {{ font-size: 11px; color: var(--text-muted); margin-top: 6px; }}
+.fin-budget-empty a {{ color: var(--primary); }}
+.fin-budget-warn {{ font-size: 10px; color: var(--error); margin-top: 4px; }}
+
+.fin-daily-table {{ direction: rtl; }}
+.fin-daily-head, .fin-daily-row {{
+    display: grid; grid-template-columns: 1.1fr 0.9fr 0.9fr 0.9fr 0.9fr;
+    gap: 4px; padding: 6px 0; font-size: 10px; align-items: center;
+}}
+.fin-daily-head {{ color: var(--text-muted); border-bottom: 1px solid var(--divider); font-weight: bold; }}
+.fin-daily-row {{ border-bottom: 1px solid var(--surface-muted); }}
+.fin-daily-row:last-child {{ border-bottom: none; }}
+.fin-daily-date {{ color: var(--text-muted); }}
+.fin-daily-inc {{ color: #4DD980; font-variant-numeric: tabular-nums; }}
+.fin-daily-exp {{ color: #FF7359; font-variant-numeric: tabular-nums; }}
+.fin-daily-inv {{ color: #FFB020; font-variant-numeric: tabular-nums; }}
+.fin-daily-net {{ font-weight: bold; font-variant-numeric: tabular-nums; }}
+.fin-daily-net.pos {{ color: #4DD980; }}
+.fin-daily-net.neg {{ color: #FF7359; }}
+
+/* legacy budget styles (home screen) */
+.budget-row {{ margin-bottom: 12px; }}
+.budget-row:last-child {{ margin-bottom: 0; }}
+.budget-row-head {{
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; margin-bottom: 4px; gap: 6px;
+}}
+.budget-cat {{ flex: 1; font-weight: bold; }}
+.budget-amounts {{ font-size: 12px; color: var(--text-muted); }}
+.budget-bar {{
+    height: 6px; border-radius: 3px; background: var(--surface-muted); overflow: hidden;
+}}
+.budget-bar-fill {{
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--success));
+    transition: width 0.3s;
+}}
+.budget-bar-fill.over {{ background: var(--error); }}
+.budget-over {{ font-size: 11px; color: var(--error); margin-top: 2px; }}
+.budget-none {{ font-size: 11px; color: var(--text-muted); margin-top: 2px; }}
+.fin-date-header {{
+    font-size: 12px; color: var(--text-muted); padding: 8px 0 4px;
+    border-bottom: 1px solid var(--divider); margin-bottom: 4px;
+}}
+.daily-fin-row {{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--surface-muted);
+    gap: 4px; flex-wrap: wrap;
+}}
+.daily-fin-row:last-child {{ border-bottom: none; }}
+.daily-fin-date {{ color: var(--text-muted); min-width: 72px; }}
 """

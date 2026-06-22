@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Literal, Optional
 
-FinanceType = Literal["income", "expense"]
+FinanceType = Literal["income", "expense", "investment"]
 
 
 @dataclass
@@ -90,6 +90,10 @@ class FinanceEntry:
     @property
     def is_income(self) -> bool:
         return self.entry_type == "income"
+
+    @property
+    def is_investment(self) -> bool:
+        return self.entry_type == "investment"
 
     @classmethod
     def from_row(cls, row) -> "FinanceEntry":

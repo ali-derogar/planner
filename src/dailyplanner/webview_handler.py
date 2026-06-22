@@ -32,6 +32,8 @@ class WebViewHandler:
         self.show_calendar: bool = False
         self.calendar_year: Optional[int] = None
         self.calendar_month: Optional[int] = None
+        self.finance_month: int = datetime.date.today().month
+        self.finance_year: int = datetime.date.today().year
         self._shell_loaded: bool = False
         self._pending_toast: Optional[dict] = None
         self._restore_active_timer()
@@ -85,6 +87,8 @@ class WebViewHandler:
             show_calendar=self.show_calendar,
             calendar_year=self.calendar_year,
             calendar_month=self.calendar_month,
+            finance_year=self.finance_year,
+            finance_month=self.finance_month,
             toast=toast,
         )
 
@@ -348,7 +352,7 @@ class WebViewHandler:
 
     async def _on_add_finance(self, p):
         entry_type = p.get("type", "expense")
-        if entry_type not in ("income", "expense"):
+        if entry_type not in ("income", "expense", "investment"):
             entry_type = "expense"
         title = p.get("title", "").strip()
         category = p.get("category", "عمومی")
@@ -390,6 +394,55 @@ class WebViewHandler:
         if confirmed:
             self.db.delete_finance_entry(entry_id)
             self.toast("حذف شد")
+        await self.push_state()
+
+    async def _on_finance_prev_month(self, p):
+        if self.finance_month == 1:
+            self.finance_month = 12
+            self.finance_year -= 1
+        else:
+            self.finance_month -= 1
+        await self.push_state()
+
+    async def _on_finance_next_month(self, p):
+        if self.finance_month == 12:
+            self.finance_month = 1
+            self.finance_year += 1
+        else:
+            self.finance_month += 1
+        await self.push_state()
+
+    async def _on_finance_current_month(self, p):
+        today = datetime.date.today()
+        self.finance_year = today.year
+        self.finance_month = today.month
+        await self.push_state()
+
+    async def _on_set_budget(self, p):
+        category = p.get("category", "").strip()
+        try:
+            amount = int(float(p.get("amount", "0")))
+        except (ValueError, TypeError):
+            amount = 0
+        if category:
+            self.db.set_budget_limit(category, max(0, amount))
+            self.toast("بودجه ذخیره شد")
+        await self.push_state()
+
+    async def _on_add_finance_category(self, p):
+        from dailyplanner.ui.tokens import FINANCE_CATEGORIES
+
+        name = p.get("name", "").strip()
+        if not name:
+            await self.push_state()
+            return
+        existing = set(FINANCE_CATEGORIES) | set(self.db.get_finance_custom_categories())
+        if name in existing:
+            self.toast("این دسته قبلاً وجود دارد", "error")
+        elif self.db.add_finance_custom_category(name):
+            self.toast("دسته افزوده شد")
+        else:
+            self.toast("خطا در افزودن دسته", "error")
         await self.push_state()
 
     # ── wellness ──────────────────────────────────────────────────────────────

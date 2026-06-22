@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -48,7 +49,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS finance_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT NOT NULL,
-                entry_type TEXT NOT NULL CHECK(entry_type IN ('income', 'expense')),
+                entry_type TEXT NOT NULL CHECK(entry_type IN ('income', 'expense', 'investment')),
                 title TEXT NOT NULL,
                 amount INTEGER NOT NULL CHECK(amount > 0)
             );
@@ -68,6 +69,11 @@ class Database:
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS budget_limits (
+                category TEXT PRIMARY KEY,
+                monthly_limit INTEGER NOT NULL DEFAULT 0
             );
             """
         )
@@ -93,6 +99,44 @@ class Database:
         if "category" not in fin_cols:
             self.conn.execute(
                 "ALTER TABLE finance_entries ADD COLUMN category TEXT NOT NULL DEFAULT 'عمومی'"
+            )
+
+        tables = {
+            row[0]
+            for row in self.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        if "budget_limits" not in tables:
+            self.conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS budget_limits (
+                    category TEXT PRIMARY KEY,
+                    monthly_limit INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+
+        fin_sql_row = self.conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='finance_entries'"
+        ).fetchone()
+        fin_sql = fin_sql_row["sql"] if fin_sql_row else ""
+        if fin_sql and "'investment'" not in fin_sql:
+            self.conn.executescript(
+                """
+                CREATE TABLE finance_entries_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    entry_type TEXT NOT NULL CHECK(entry_type IN ('income', 'expense', 'investment')),
+                    title TEXT NOT NULL,
+                    amount INTEGER NOT NULL CHECK(amount > 0),
+                    category TEXT NOT NULL DEFAULT 'عمومی'
+                );
+                INSERT INTO finance_entries_new (id, date, entry_type, title, amount, category)
+                SELECT id, date, entry_type, title, amount, category FROM finance_entries;
+                DROP TABLE finance_entries;
+                ALTER TABLE finance_entries_new RENAME TO finance_entries;
+                """
             )
         self.conn.commit()
 
@@ -331,12 +375,13 @@ class Database:
             """
             SELECT
                 COALESCE(SUM(CASE WHEN entry_type = 'income' THEN amount END), 0) AS income,
-                COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS expense
+                COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS expense,
+                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN amount END), 0) AS investment
             FROM finance_entries WHERE date = ?
             """,
             (date_to_str(d),),
         ).fetchone()
-        return int(row["income"]), int(row["expense"])
+        return int(row["income"]), int(row["expense"]), int(row["investment"])
 
     def get_finance_balance_until(self, d: date) -> int:
         row = self.conn.execute(
@@ -345,7 +390,8 @@ class Database:
                 SUM(
                     CASE
                         WHEN entry_type = 'income' THEN amount
-                        ELSE -amount
+                        WHEN entry_type IN ('expense', 'investment') THEN -amount
+                        ELSE 0
                     END
                 ),
                 0
@@ -430,18 +476,135 @@ class Database:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_finance_entries_for_month(self, year: int, month: int) -> List[FinanceEntry]:
+        prefix = f"{year:04d}-{month:02d}"
+        rows = self.conn.execute(
+            """
+            SELECT * FROM finance_entries
+            WHERE date LIKE ?
+            ORDER BY date, id
+            """,
+            (f"{prefix}%",),
+        ).fetchall()
+        return [FinanceEntry.from_row(row) for row in rows]
+
+    def get_finance_monthly_totals(self, year: int, month: int) -> dict:
+        prefix = f"{year:04d}-{month:02d}"
+        rows = self.conn.execute(
+            """
+            SELECT category, entry_type, SUM(amount) AS total
+            FROM finance_entries
+            WHERE date LIKE ?
+            GROUP BY category, entry_type
+            """,
+            (f"{prefix}%",),
+        ).fetchall()
+        total_income = 0
+        total_expense = 0
+        total_investment = 0
+        by_category: dict = {}
+        for row in rows:
+            cat = row["category"] or "عمومی"
+            if cat not in by_category:
+                by_category[cat] = {"income": 0, "expense": 0, "investment": 0}
+            amount = int(row["total"])
+            entry_type = row["entry_type"]
+            if entry_type == "income":
+                by_category[cat]["income"] += amount
+                total_income += amount
+            elif entry_type == "investment":
+                by_category[cat]["investment"] += amount
+                total_investment += amount
+            else:
+                by_category[cat]["expense"] += amount
+                total_expense += amount
+        return {
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "total_investment": total_investment,
+            "by_category": by_category,
+        }
+
+    def get_finance_daily_series(self, year: int, month: int) -> List[dict]:
+        prefix = f"{year:04d}-{month:02d}"
+        rows = self.conn.execute(
+            """
+            SELECT
+                date,
+                COALESCE(SUM(CASE WHEN entry_type = 'income' THEN amount END), 0) AS income,
+                COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS expense,
+                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN amount END), 0) AS investment
+            FROM finance_entries
+            WHERE date LIKE ?
+            GROUP BY date
+            ORDER BY date
+            """,
+            (f"{prefix}%",),
+        ).fetchall()
+        return [
+            {
+                "date": row["date"],
+                "income": int(row["income"]),
+                "expense": int(row["expense"]),
+                "investment": int(row["investment"]),
+            }
+            for row in rows
+        ]
+
+    def get_budget_limits(self) -> dict:
+        rows = self.conn.execute(
+            "SELECT category, monthly_limit FROM budget_limits"
+        ).fetchall()
+        return {row["category"]: int(row["monthly_limit"]) for row in rows}
+
+    def set_budget_limit(self, category: str, monthly_limit: int):
+        self.conn.execute(
+            """
+            INSERT INTO budget_limits (category, monthly_limit) VALUES (?, ?)
+            ON CONFLICT(category) DO UPDATE SET monthly_limit = excluded.monthly_limit
+            """,
+            (category, monthly_limit),
+        )
+        self.conn.commit()
+
+    def get_finance_custom_categories(self) -> List[str]:
+        raw = self.get_setting("finance_custom_categories", "[]")
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        if not isinstance(data, list):
+            return []
+        return [str(c).strip() for c in data if str(c).strip()]
+
+    def add_finance_custom_category(self, name: str) -> bool:
+        name = name.strip()
+        if not name:
+            return False
+        cats = self.get_finance_custom_categories()
+        if name in cats:
+            return False
+        cats.append(name)
+        self.set_setting("finance_custom_categories", json.dumps(cats, ensure_ascii=False))
+        return True
+
     def get_finance_summary_for_range(self, start: date, end: date) -> dict:
         row = self.conn.execute(
             """
             SELECT
                 COALESCE(SUM(CASE WHEN entry_type = 'income' THEN amount END), 0) AS total_income,
-                COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS total_expense
+                COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS total_expense,
+                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN amount END), 0) AS total_investment
             FROM finance_entries
             WHERE date >= ? AND date <= ?
             """,
             (date_to_str(start), date_to_str(end)),
         ).fetchone()
-        return {"total_income": int(row["total_income"]), "total_expense": int(row["total_expense"])}
+        return {
+            "total_income": int(row["total_income"]),
+            "total_expense": int(row["total_expense"]),
+            "total_investment": int(row["total_investment"]),
+        }
 
     def get_wellness_for_range(self, start: date, end: date) -> List[DailyWellness]:
         rows = self.conn.execute(

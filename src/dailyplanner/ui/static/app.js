@@ -51,6 +51,7 @@ var _modalValidators = {
     hms: function(v) { return /^\d{1,2}:\d{2}(:\d{2})?$/.test(v.trim()); },
     hm: function(v) { return /^\d{1,2}:\d{2}$/.test(v.trim()); },
     amount: function(v) { return parseFloat(v) > 0; },
+    budget: function(v) { var n = parseFloat(v); return !isNaN(n) && n >= 0; },
     required: function(v) { return v.trim().length > 0; },
 };
 
@@ -377,6 +378,84 @@ function sparklineSvg(points, w, h) {
         '</svg>';
 }
 
+function financeLineChartSvg(chart, w, h) {
+    if (!chart || !chart.income || !chart.income.length) return '';
+    var lines = [
+        { points: chart.income, color: '#4DD980', label: 'درآمد', width: 1.5, opacity: 0.85 },
+        { points: chart.expense, color: '#FF7359', label: 'هزینه', width: 1.5, opacity: 0.85 },
+        { points: chart.investment || chart.income.map(function() { return 0; }), color: '#FFB020', label: 'سرمایه\u200cگذاری', width: 1.5, opacity: 0.85 },
+        { points: chart.balance, color: '#5E5CE6', label: 'موجودی', width: 2.5, opacity: 1, fill: true },
+    ];
+    var allVals = [];
+    lines.forEach(function(l) { allVals = allVals.concat(l.points); });
+    var min = Math.min.apply(null, allVals.concat([0]));
+    var max = Math.max.apply(null, allVals.concat([1]));
+    var range = max - min || 1;
+    var n = chart.income.length;
+    var step = w / (n - 1 || 1);
+    var padT = 14, padB = 8, padX = 4;
+
+    function toY(v) {
+        return padT + (h - padT - padB) * (1 - (v - min) / range);
+    }
+    function toPts(arr) {
+        return arr.map(function(v, i) {
+            return (padX + i * (w - padX * 2) / (n - 1 || 1)).toFixed(1) + ',' + toY(v).toFixed(1);
+        });
+    }
+
+    var svg = '<svg class="finance-line-chart" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">';
+    svg += '<defs><linearGradient id="finGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5E5CE6"/><stop offset="100%" stop-color="#5E5CE6" stop-opacity="0"/></linearGradient></defs>';
+    for (var g = 0; g <= 3; g++) {
+        var gy = padT + (h - padT - padB) * g / 3;
+        svg += '<line x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (w - padX) + '" y2="' + gy.toFixed(1) + '" stroke="#2C2C2E" stroke-width="0.5"/>';
+    }
+    if (min < 0 && max > 0) {
+        var zeroY = toY(0).toFixed(1);
+        svg += '<line x1="' + padX + '" y1="' + zeroY + '" x2="' + (w - padX) + '" y2="' + zeroY + '" stroke="#5E5CE6" stroke-width="1" stroke-dasharray="4,3" opacity="0.4"/>';
+    }
+    var balPts = toPts(chart.balance);
+    var areaPath = 'M' + balPts[0];
+    for (var i = 1; i < balPts.length; i++) areaPath += ' L' + balPts[i];
+    var zeroLine = min < 0 ? toY(0) : toY(min);
+    areaPath += ' L' + (padX + (n - 1) * (w - padX * 2) / (n - 1 || 1)).toFixed(1) + ',' + zeroLine.toFixed(1);
+    areaPath += ' L' + padX + ',' + zeroLine.toFixed(1) + ' Z';
+    svg += '<path d="' + areaPath + '" fill="url(#finGrad)" opacity="0.25"/>';
+    lines.forEach(function(line) {
+        var pts = toPts(line.points).join(' ');
+        svg += '<polyline fill="none" stroke="' + line.color + '" stroke-width="' + line.width + '" stroke-linejoin="round" stroke-linecap="round" opacity="' + line.opacity + '" points="' + pts + '"/>';
+    });
+    svg += '</svg>';
+
+    var legend = '<div class="fin-chart-legend">';
+    lines.forEach(function(line) {
+        legend += '<span class="fin-legend-item"><span class="fin-legend-dot" style="background:' + line.color + '"></span>' + line.label + '</span>';
+    });
+    legend += '</div>';
+    return legend + '<div class="fin-chart-wrap">' + svg + '</div>';
+}
+
+var FIN_CAT_ICONS = {
+    'عمومی': '📦', 'غذا': '🍽', 'حمل\u200cونقل': '🚌', 'خانه': '🏠',
+    'قبوض': '💡', 'تفریح': '🎬', 'درمان': '💊', 'آموزش': '📚',
+    'حقوق': '💼',
+    'سهام': '📈', 'طلا': '🥇', 'رمزارز': '₿', 'سپرده بانکی': '🏦',
+    'صندوق': '💹', 'املاک': '🏗', 'سایر': '💎',
+};
+function finCatIcon(cat) { return FIN_CAT_ICONS[cat] || '💳'; }
+
+function finTypeInfo(type) {
+    if (type === 'income') return { cls: 'income', arrow: '↑', label: 'درآمد' };
+    if (type === 'investment') return { cls: 'investment', arrow: '◆', label: 'سرمایه\u200cگذاری' };
+    return { cls: 'expense', arrow: '↓', label: 'هزینه' };
+}
+
+function finEmptyState(icon, msg, btnLabel, btnOnclick) {
+    var html = '<div class="fin-empty"><span class="fin-empty-icon">' + icon + '</span><p>' + msg + '</p>';
+    if (btnLabel) html += '<button class="fin-empty-btn" onclick="' + btnOnclick + '">' + btnLabel + '</button>';
+    return html + '</div>';
+}
+
 function heatmapHtml(heatmap) {
     if (!heatmap || !heatmap.length) return '';
     var html = '<div class="heatmap">';
@@ -499,36 +578,93 @@ function renderCalendar(cal) {
 }
 
 function renderFinance(fin) {
+    window._finEntries = fin.entries;
     var rows = fin.entries.map(function(e) {
-        var cls = e.type === 'income' ? 'fin-type-income' : 'fin-type-expense';
-        var arrow = e.type === 'income' ? '↑' : '↓';
+        var info = finTypeInfo(e.type);
         return '<div class="fin-entry">' +
-            '<span class="' + cls + '">' + arrow + ' ' + esc(e.title) + ' <span class="fin-cat">' + esc(e.category) + '</span></span>' +
+            '<span class="fin-type-' + info.cls + '">' + info.arrow + ' ' + esc(e.title) + ' <span class="fin-cat">' + esc(e.category) + '</span></span>' +
             '<span>' + esc(e.amount_fmt) + '</span>' +
-            '<button class="fin-edit" onclick="showModal({title:\'ویرایش\',cmd:\'edit_finance\',params:{id:' + e.id + '},fields:[{label:\'عنوان\',key:\'title\',value:\'' + escJs(e.title) + '\',validate:\'required\'},{label:\'مبلغ\',key:\'amount\',value:\'' + e.amount + '\',type:\'number\',validate:\'amount\'},{label:\'دسته\',key:\'category\',type:\'select\',value:\'' + escJs(e.category) + '\',options:window._categories}]})">✎</button>' +
+            '<button class="fin-edit" onclick="showEditFinanceById(' + e.id + ')">✎</button>' +
             '<button class="fin-del" onclick="action(\'delete_finance\',{id:' + e.id + '})">×</button></div>';
     }).join('');
     if (!rows) rows = '<div class="empty-mini">هیچ ورودی ندارید</div>';
     var balCls = fin.balance >= 0 ? 'fin-income' : 'fin-expense';
+    var invLine = fin.investment > 0 ? '<span class="fin-investment">سرمایه\u200cگذاری: ' + esc(fin.investment_fmt) + '</span>' : '';
     return '<div class="section"><div class="sec-header"><span class="sec-title">امور مالی</span><div class="sec-actions">' +
         '<a href="javascript:void(0)" onclick="showAddFinance(\'income\')" class="btn-sm-green">+ درآمد</a>' +
-        '<a href="javascript:void(0)" onclick="showAddFinance(\'expense\')" class="btn-sm-red">+ هزینه</a></div></div>' +
+        '<a href="javascript:void(0)" onclick="showAddFinance(\'expense\')" class="btn-sm-red">+ هزینه</a>' +
+        '<a href="javascript:void(0)" onclick="showAddFinance(\'investment\')" class="btn-sm-invest">+ سرمایه</a></div></div>' +
         '<div class="fin-donut-row"><div class="fin-donut" style="--income-pct:' + (fin.income + fin.expense ? fin.income / (fin.income + fin.expense) * 100 : 50) + '"></div>' +
         '<div class="fin-summary"><span class="fin-income">درآمد: ' + esc(fin.income_fmt) + '</span>' +
         '<span class="' + balCls + '">موجودی: ' + esc(fin.balance_fmt) + '</span>' +
-        '<span class="fin-expense">هزینه: ' + esc(fin.expense_fmt) + '</span></div></div>' + rows + '</div>';
+        '<span class="fin-expense">هزینه: ' + esc(fin.expense_fmt) + '</span>' +
+        invLine + '</div></div>' + rows + '</div>';
+}
+
+function showEditFinance(entry) {
+    var isInvest = entry.type === 'investment';
+    showModal({
+        title: 'ویرایش',
+        cmd: 'edit_finance',
+        params: { id: entry.id },
+        fields: [
+            { label: 'عنوان', key: 'title', value: entry.title, validate: 'required' },
+            { label: 'مبلغ', key: 'amount', value: String(entry.amount), type: 'number', validate: 'amount' },
+            { label: isInvest ? 'نوع سرمایه' : 'دسته', key: 'category', type: 'select', value: entry.category, options: isInvest ? window._investCategories : window._categories },
+        ],
+    });
+}
+
+function showEditFinanceById(id) {
+    var entry = (window._finEntries || []).find(function(e) { return e.id === id; });
+    if (entry) showEditFinance(entry);
 }
 
 function showAddFinance(type) {
+    var titles = { income: 'افزودن درآمد', expense: 'افزودن هزینه', investment: 'ثبت سرمایه\u200cگذاری' };
+    var isInvest = type === 'investment';
+    var cats = isInvest ? (window._investCategories || []) : (window._categories || []);
+    var defaultCat = isInvest ? (cats[0] || 'سایر') : 'عمومی';
     showModal({
-        title: type === 'income' ? 'افزودن درآمد' : 'افزودن هزینه',
+        title: titles[type] || 'ثبت مالی',
         cmd: 'add_finance',
         params: { type: type },
         fields: [
-            { label: 'عنوان', key: 'title', validate: 'required' },
+            { label: 'عنوان', key: 'title', validate: 'required', placeholder: isInvest ? 'مثلاً خرید سهام' : '' },
             { label: 'مبلغ (تومان)', key: 'amount', type: 'number', validate: 'amount' },
-            { label: 'دسته', key: 'category', type: 'select', value: 'عمومی', options: window._categories },
+            { label: isInvest ? 'نوع سرمایه' : 'دسته', key: 'category', type: 'select', value: defaultCat, options: cats },
         ],
+    });
+}
+
+function showAddCategory() {
+    showModal({
+        title: 'افزودن دسته',
+        cmd: 'add_finance_category',
+        fields: [
+            { label: 'نام دسته', key: 'name', validate: 'required', placeholder: 'مثلاً سرگرمی' },
+        ],
+    });
+}
+
+function showAddBudget(preselectedCategory, currentAmount) {
+    var cats = window._categories || [];
+    if (!cats.length) {
+        showToast('ابتدا یک دسته اضافه کنید', 'error');
+        return;
+    }
+    var cat = preselectedCategory || cats[0];
+    var fields = [
+        { label: 'دسته', key: 'category', type: 'select', value: cat, options: cats },
+        { label: 'بودجه ماهانه (تومان)', key: 'amount', type: 'number', validate: 'budget', placeholder: '۰' },
+    ];
+    if (currentAmount !== undefined && currentAmount !== null) {
+        fields[1].value = String(currentAmount);
+    }
+    showModal({
+        title: preselectedCategory ? 'ویرایش بودجه' : 'تعیین بودجه',
+        cmd: 'set_budget',
+        fields: fields,
     });
 }
 
@@ -613,16 +749,139 @@ function renderRecurring(list) {
         '<button class="back-btn" onclick="action(\'navigate\',{screen:\'home\'})">← برگشت</button>';
 }
 
+function renderFinanceScreen(f) {
+    window._finEntries = f.entries;
+    var t = f.totals;
+    var balCls = t.balance >= 0 ? 'positive' : 'negative';
+
+    var html = '<div class="fin-page">' +
+        '<div class="date-header fin-header">' +
+        '<a href="javascript:void(0)" onclick="action(\'finance_next_month\')" class="date-nav-btn">‹</a>' +
+        '<span class="date-title">' + esc(f.month_label) + '</span>' +
+        '<div class="header-actions">' +
+        (f.is_current_month ? '' : '<a href="javascript:void(0)" onclick="action(\'finance_current_month\')" class="today-btn">ماه جاری</a>') +
+        '<a href="javascript:void(0)" onclick="action(\'finance_prev_month\')" class="date-nav-btn">›</a></div></div>';
+
+    html += '<div class="fin-hero">' +
+        '<div class="fin-hero-label">موجودی این ماه</div>' +
+        '<div class="fin-hero-balance ' + balCls + '">' + esc(t.balance_fmt) + '<span class="fin-hero-unit">تومان</span></div>' +
+        '<div class="fin-hero-stats">' +
+        '<div class="fin-hero-stat income"><span class="fin-stat-icon">↑</span><div><span class="fin-stat-lbl">درآمد</span><span class="fin-stat-val">' + esc(t.income_fmt) + '</span></div></div>' +
+        '<div class="fin-hero-stat expense"><span class="fin-stat-icon">↓</span><div><span class="fin-stat-lbl">هزینه</span><span class="fin-stat-val">' + esc(t.expense_fmt) + '</span></div></div>' +
+        '</div>' +
+        (t.investment > 0 ? '<div class="fin-hero-invest"><span class="fin-stat-icon">◆</span> سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + ' <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
+        '</div>';
+
+    html += '<div class="fin-actions">' +
+        '<button class="fin-action-btn income" onclick="showAddFinance(\'income\')"><span class="fin-action-icon">+</span>درآمد</button>' +
+        '<button class="fin-action-btn expense" onclick="showAddFinance(\'expense\')"><span class="fin-action-icon">+</span>هزینه</button>' +
+        '<button class="fin-action-btn invest" onclick="showAddFinance(\'investment\')"><span class="fin-action-icon">◆</span>سرمایه</button>' +
+        '<button class="fin-action-btn budget" onclick="showAddBudget()"><span class="fin-action-icon">◎</span>بودجه</button>' +
+        '</div>';
+
+    html += '<div class="fin-card"><div class="fin-card-head"><span class="fin-card-title">📈 روند ماهانه</span></div>';
+    if (f.chart && f.chart.has_data) {
+        html += financeLineChartSvg(f.chart, 320, 130);
+    } else {
+        html += finEmptyState('📊', 'با ثبت اولین تراکنش، نمودار روند مالی نمایش داده می‌شود', '+ ثبت هزینه', 'showAddFinance(\'expense\')');
+    }
+    html += '</div>';
+
+    html += '<div class="fin-card"><div class="fin-card-head">' +
+        '<span class="fin-card-title">🧾 تراکنش‌ها</span>' +
+        '<span class="fin-card-badge">' + pd(f.entries.length) + '</span></div>';
+    if (!f.entries.length) {
+        html += finEmptyState('🧾', 'هنوز تراکنشی ثبت نشده', '+ ثبت درآمد', 'showAddFinance(\'income\')');
+    } else {
+        var lastDate = '';
+        f.entries.slice().reverse().forEach(function(e) {
+            if (e.date_label !== lastDate) {
+                lastDate = e.date_label;
+                html += '<div class="fin-date-chip">' + esc(e.date_label) + '</div>';
+            }
+            var info = finTypeInfo(e.type);
+            var rowCls = 'fin-txn ' + info.cls;
+            html += '<div class="' + rowCls + '">' +
+                '<div class="fin-txn-icon">' + info.arrow + '</div>' +
+                '<div class="fin-txn-body">' +
+                '<div class="fin-txn-title">' + esc(e.title) + '</div>' +
+                '<div class="fin-txn-meta"><span class="fin-txn-cat">' + finCatIcon(e.category) + ' ' + esc(e.category) + '</span>' +
+                (e.type === 'investment' ? ' <span class="fin-txn-tag">سرمایه\u200cگذاری</span>' : '') +
+                '</div></div>' +
+                '<div class="fin-txn-right">' +
+                '<div class="fin-txn-amount">' + esc(e.amount_fmt) + '</div>' +
+                '<div class="fin-txn-btns">' +
+                '<button class="fin-txn-btn" onclick="showEditFinanceById(' + e.id + ')">✎</button>' +
+                '<button class="fin-txn-btn del" onclick="action(\'delete_finance\',{id:' + e.id + '})">×</button>' +
+                '</div></div></div>';
+        });
+    }
+    html += '</div>';
+
+    html += '<div class="fin-card"><div class="fin-card-head">' +
+        '<span class="fin-card-title">🎯 بودجه دسته‌ها</span>' +
+        '<div class="fin-card-actions">' +
+        '<button class="fin-chip-btn" onclick="showAddCategory()">+ دسته</button>' +
+        '<button class="fin-chip-btn primary" onclick="showAddBudget()">+ بودجه</button>' +
+        '</div></div>';
+    if (!f.by_category.length) {
+        html += finEmptyState('🎯', 'بودجه ماهانه برای دسته‌ها تعیین نشده', '+ تعیین بودجه', 'showAddBudget()');
+    } else {
+        f.by_category.forEach(function(c) {
+            var barCls = c.over_budget ? 'fin-budget-fill over' : 'fin-budget-fill';
+            var barWidth = c.budget > 0 ? Math.min(c.used_pct, 100) : 0;
+            var pctLbl = c.budget > 0 ? pd(c.used_pct) + '٪' : '—';
+            html += '<div class="fin-budget-item' + (c.over_budget ? ' over' : '') + '">' +
+                '<div class="fin-budget-top">' +
+                '<span class="fin-budget-icon">' + finCatIcon(c.category) + '</span>' +
+                '<div class="fin-budget-info">' +
+                '<div class="fin-budget-name">' + esc(c.category) + '</div>' +
+                '<div class="fin-budget-sub">' + esc(c.expense_fmt) + ' از ' + (c.budget > 0 ? esc(c.budget_fmt) : '—') + '</div>' +
+                '</div>' +
+                '<span class="fin-budget-pct">' + pctLbl + '</span>' +
+                '<button class="fin-txn-btn" onclick="showAddBudget(\'' + escJs(c.category) + '\',' + c.budget + ')">✎</button>' +
+                '</div>' +
+                (c.budget > 0
+                    ? '<div class="fin-budget-track"><div class="' + barCls + '" style="width:' + barWidth + '%"></div></div>'
+                    : '<div class="fin-budget-empty">بودجه تعیین نشده — <a href="javascript:void(0)" onclick="showAddBudget(\'' + escJs(c.category) + '\',0)">تنظیم</a></div>') +
+                (c.over_budget ? '<div class="fin-budget-warn">⚠ بیش از بودجه</div>' : '') +
+                '</div>';
+        });
+    }
+    html += '</div>';
+
+    if (f.daily_series.length) {
+        html += '<div class="fin-card"><div class="fin-card-head"><span class="fin-card-title">📅 خلاصه روزانه</span></div>' +
+            '<div class="fin-daily-table">' +
+            '<div class="fin-daily-head"><span>تاریخ</span><span>درآمد</span><span>هزینه</span><span>سرمایه</span><span>خالص</span></div>';
+        f.daily_series.forEach(function(d) {
+            var netCls = d.net >= 0 ? 'pos' : 'neg';
+            html += '<div class="fin-daily-row">' +
+                '<span class="fin-daily-date">' + esc(d.date_label) + '</span>' +
+                '<span class="fin-daily-inc">' + esc(d.income_fmt) + '</span>' +
+                '<span class="fin-daily-exp">' + esc(d.expense_fmt) + '</span>' +
+                '<span class="fin-daily-inv">' + esc(d.investment_fmt) + '</span>' +
+                '<span class="fin-daily-net ' + netCls + '">' + esc(d.net_fmt) + '</span></div>';
+        });
+        html += '</div></div>';
+    }
+
+    return html + '</div>';
+}
+
 function renderNav(screen) {
     var home = screen === 'home' ? 'nav-btn active' : 'nav-btn';
+    var fin = screen === 'finance' ? 'nav-btn active' : 'nav-btn';
     var anal = screen === 'analytics' ? 'nav-btn active' : 'nav-btn';
     return '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'home\'})" class="' + home + '"><span class="nav-icon">🏠</span>امروز</a>' +
+        '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'finance\'})" class="' + fin + '"><span class="nav-icon">💰</span>مالی</a>' +
         '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'analytics\'})" class="' + anal + '"><span class="nav-icon">📊</span>آمار</a>';
 }
 
 /* Main render */
 function renderApp(state) {
     window._categories = state.finance_categories || [];
+    window._investCategories = state.investment_categories || [];
     window._moodEmojis = state.mood_emojis || [];
     document.documentElement.setAttribute('data-theme', state.theme || 'dark');
 
@@ -631,6 +890,7 @@ function renderApp(state) {
 
     var html = '';
     if (state.screen === 'home' && state.home) html = renderHome(state.home);
+    else if (state.screen === 'finance' && state.finance_screen) html = renderFinanceScreen(state.finance_screen);
     else if (state.screen === 'analytics' && state.analytics) html = renderAnalytics(state.analytics);
     else if (state.screen === 'settings' && state.settings) html = renderSettings(state.settings);
     else if (state.screen === 'recurring' && state.recurring) html = renderRecurring(state.recurring);
@@ -638,7 +898,7 @@ function renderApp(state) {
     root.innerHTML = html;
 
     var nav = document.getElementById('bottom-nav');
-    if (nav && (state.screen === 'home' || state.screen === 'analytics')) {
+    if (nav && (state.screen === 'home' || state.screen === 'finance' || state.screen === 'analytics')) {
         nav.innerHTML = renderNav(state.screen);
         nav.style.display = 'flex';
     } else if (nav) {

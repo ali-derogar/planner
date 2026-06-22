@@ -38,6 +38,26 @@ def test_finance_with_category(db):
     assert updated.amount == 60000
 
 
+def test_finance_investment_not_expense(db):
+    d = datetime.date.today()
+    db.add_finance_entry(d, "income", "salary", 1000000, "عمومی")
+    db.add_finance_entry(d, "expense", "food", 100000, "غذا")
+    db.add_finance_entry(d, "investment", "stocks", 200000, "سهام")
+
+    income, expense, investment = db.get_finance_daily_totals(d)
+    assert income == 1000000
+    assert expense == 100000
+    assert investment == 200000
+    assert db.get_finance_balance_until(d) == 700000
+
+    monthly = db.get_finance_monthly_totals(d.year, d.month)
+    assert monthly["total_investment"] == 200000
+    assert monthly["total_expense"] == 100000
+    assert monthly["by_category"]["غذا"]["expense"] == 100000
+    assert monthly["by_category"]["سهام"]["investment"] == 200000
+    assert "expense" not in monthly["by_category"].get("سهام", {}) or monthly["by_category"]["سهام"]["expense"] == 0
+
+
 def test_daily_note(db):
     d = datetime.date.today()
     db.set_daily_note(d, "??????? ???")
