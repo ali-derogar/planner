@@ -986,13 +986,83 @@ function statCard(key, val, color) {
 
 function renderSettings(s) {
     var dark = s.theme === 'dark';
-    return '<div class="page-header">⚙ تنظیمات</div>' +
-        '<div class="section"><div class="setting-row"><span>تم رنگی</span>' +
-        '<button class="toggle-btn' + (dark ? ' on' : '') + '" onclick="action(\'set_theme\',{theme:\'' + (dark ? 'light' : 'dark') + '\'})">' +
-        (dark ? 'تاریک' : 'روشن') + '</button></div></div>' +
-        '<div class="section"><button class="add-btn" onclick="action(\'export_data\')">خروجی داده JSON</button>' +
-        '<p class="hint">داده‌ها در کلیپ‌بورد WebView ذخیره شدند</p></div>' +
-        '<button class="back-btn" onclick="action(\'navigate\',{screen:\'home\'})">← برگشت</button>';
+    var fileName = 'dailyplanner_backup.json';
+    if (s.export_path) {
+        var parts = s.export_path.replace(/\\/g, '/').split('/');
+        fileName = parts[parts.length - 1] || fileName;
+    }
+    var hasExport = !!window._exportData;
+    var importDraft = window._importDraft || '';
+
+    var html = '<div class="settings-page">';
+    html += '<div class="page-header">⚙ تنظیمات</div>';
+
+    html += '<div class="section settings-section">'
+          + '<div class="sec-title">ظاهر</div>'
+          + '<div class="setting-row">'
+          + '<div class="setting-label">'
+          + '<span class="setting-name">تم رنگی</span>'
+          + '<span class="setting-desc">' + (dark ? 'پس‌زمینه تیره' : 'پس‌زمینه روشن') + '</span>'
+          + '</div>'
+          + '<button class="toggle-btn' + (dark ? ' on' : '') + '"'
+          + ' onclick="action(\'set_theme\',{theme:\'' + (dark ? 'light' : 'dark') + '\'})">'
+          + (dark ? 'تاریک' : 'روشن') + '</button>'
+          + '</div></div>';
+
+    html += '<div class="section settings-section backup-section">'
+          + '<div class="sec-title">پشتیبان‌گیری</div>'
+          + '<p class="section-desc">تمام داده‌های شما در یک فایل JSON ذخیره می‌شود. '
+          + 'می‌توانید آن را کپی کنید یا از فایل ذخیره‌شده در حافظه داخلی اپ استفاده کنید.</p>'
+          + '<button type="button" class="section-btn section-btn-primary"'
+          + ' onclick="action(\'export_data\')">'
+          + '<span class="section-btn-icon">💾</span>ذخیره بکاپ</button>'
+          + '<div class="backup-meta"><span class="backup-file-badge">' + esc(fileName) + '</span></div>'
+          + '<button type="button" class="backup-toggle" id="export-toggle"'
+          + (hasExport ? '' : ' style="display:none"')
+          + ' onclick="toggleExportPreview()">نمایش محتوای JSON</button>'
+          + '<textarea id="export-ta" class="backup-ta backup-preview" style="display:none"'
+          + ' placeholder="JSON بکاپ اینجا نمایش داده می‌شود..." readonly></textarea>'
+          + '</div>';
+
+    html += '<div class="section settings-section import-section">'
+          + '<div class="sec-title">بازگردانی</div>'
+          + '<div class="import-warning">'
+          + '<span class="import-warning-icon">⚠</span>'
+          + '<span>این عملیات همه داده‌های فعلی را پاک و با محتوای بکاپ جایگزین می‌کند. '
+          + 'قبل از ادامه حتماً بکاپ بگیرید.</span>'
+          + '</div>'
+          + '<p class="section-desc">محتوای فایل JSON بکاپ را در کادر زیر قرار دهید.</p>'
+          + '<textarea id="import-ta" class="backup-ta"'
+          + ' placeholder="JSON بکاپ را اینجا paste کنید..."'
+          + ' oninput="window._importDraft=this.value">' + esc(importDraft) + '</textarea>'
+          + '<button type="button" class="section-btn section-btn-danger"'
+          + ' onclick="submitImport()">'
+          + '<span class="section-btn-icon">📥</span>بازگردانی داده‌ها</button>'
+          + '</div>';
+
+    html += '<button class="back-btn"'
+          + ' onclick="action(\'navigate\',{screen:\'home\'})">← برگشت</button>';
+    html += '</div>';
+    return html;
+}
+
+function toggleExportPreview() {
+    var ta = document.getElementById('export-ta');
+    var btn = document.getElementById('export-toggle');
+    if (!ta) return;
+    var show = ta.style.display === 'none';
+    ta.style.display = show ? 'block' : 'none';
+    if (btn) btn.textContent = show ? 'پنهان کردن JSON' : 'نمایش محتوای JSON';
+}
+
+function submitImport() {
+    var ta = document.getElementById('import-ta');
+    if (!ta || !ta.value.trim()) {
+        showToast('داده‌ای وارد نشده', 'error');
+        return;
+    }
+    window._importDraft = ta.value.trim();
+    action('import_data', { json: ta.value.trim() });
 }
 
 function renderRecurring(list) {
@@ -1396,6 +1466,11 @@ function renderApp(state) {
 
     window._lastState = state;
     root.innerHTML = html;
+
+    if (state.screen === 'settings' && window._exportData) {
+        var exportTa = document.getElementById('export-ta');
+        if (exportTa) exportTa.value = window._exportData;
+    }
 
     var nav = document.getElementById('bottom-nav');
     if (nav && (state.screen === 'home' || state.screen === 'finance' || state.screen === 'analytics' || state.screen === 'projects')) {

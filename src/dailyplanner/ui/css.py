@@ -836,6 +836,120 @@ a {{ text-decoration: none; color: inherit; }}
 .modal-error {{ color: var(--error); font-size: 12px; margin-bottom: 8px; text-align: center; flex-shrink: 0; }}
 .modal-textarea {{ min-height: 80px; resize: vertical; }}
 .hint {{ font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px; }}
+
+/* ── Settings / Backup ── */
+.settings-page {{ padding-bottom: 16px; }}
+.settings-section {{ margin-top: 10px; }}
+.section-desc {{
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 6px 0 12px;
+}}
+.setting-label {{ display: flex; flex-direction: column; gap: 2px; }}
+.setting-name {{ font-size: 14px; color: var(--text); }}
+.setting-desc {{ font-size: 11px; color: var(--text-muted); }}
+.section-btn {{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 13px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: 'Vazirmatn', sans-serif;
+    cursor: pointer;
+    border: none;
+    margin-top: 4px;
+}}
+.section-btn-icon {{ font-size: 16px; line-height: 1; }}
+.section-btn-primary {{
+    background: linear-gradient(135deg, #3D5AFE, #8B00E0);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(61,90,254,0.3);
+}}
+.section-btn-danger {{
+    background: var(--error-bg);
+    color: var(--error);
+    border: 1px solid rgba(255,89,89,0.35);
+    margin-top: 10px;
+}}
+.backup-meta {{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+}}
+.backup-file-badge {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    border-radius: 20px;
+    padding: 5px 12px;
+    direction: ltr;
+    font-family: monospace;
+}}
+.backup-toggle {{
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px;
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 12px;
+    font-family: 'Vazirmatn', sans-serif;
+    cursor: pointer;
+    text-align: center;
+}}
+.import-section {{
+    border-color: rgba(255,115,89,0.25);
+}}
+.import-warning {{
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: rgba(255,115,89,0.08);
+    border: 1px solid rgba(255,115,89,0.22);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--warning);
+}}
+.import-warning-icon {{
+    flex-shrink: 0;
+    font-size: 15px;
+    line-height: 1.4;
+}}
+.backup-ta {{
+    width: 100%;
+    min-height: 120px;
+    max-height: 240px;
+    background: var(--surface-muted);
+    color: var(--text);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 11px;
+    font-family: 'Courier New', Courier, monospace;
+    direction: ltr;
+    text-align: left;
+    resize: vertical;
+    box-sizing: border-box;
+    margin-top: 8px;
+    outline: none;
+    line-height: 1.5;
+}}
+.backup-ta:focus {{ border-color: var(--primary); }}
+.backup-ta::placeholder {{ color: var(--text-muted); opacity: 0.7; }}
+.backup-preview {{ font-size: 10px; max-height: 200px; }}
 .toast {{
     position: fixed; top: calc(12px + var(--safe-top)); left: 50%; transform: translateX(-50%);
     background: var(--surface); color: var(--text); padding: 10px 20px;

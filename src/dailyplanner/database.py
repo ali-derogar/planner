@@ -706,15 +706,224 @@ class Database:
         notes = self.conn.execute("SELECT * FROM daily_notes ORDER BY date").fetchall()
         recurring = self.conn.execute("SELECT * FROM recurring_tasks ORDER BY id").fetchall()
         settings = self.conn.execute("SELECT * FROM settings").fetchall()
+        projects = self.conn.execute("SELECT * FROM projects ORDER BY id").fetchall()
+        proj_tasks = self.conn.execute(
+            "SELECT * FROM project_tasks ORDER BY project_id, sort_order"
+        ).fetchall()
+        budgets = self.conn.execute("SELECT * FROM budget_limits").fetchall()
         return {
-            "version": 1,
+            "version": 2,
             "tasks": [dict(r) for r in tasks],
             "finance": [dict(r) for r in finance],
             "wellness": [dict(r) for r in wellness],
             "notes": [dict(r) for r in notes],
             "recurring": [dict(r) for r in recurring],
             "settings": {r["key"]: r["value"] for r in settings},
+            "projects": [dict(r) for r in projects],
+            "project_tasks": [dict(r) for r in proj_tasks],
+            "budget_limits": [dict(r) for r in budgets],
         }
+
+    def validate_backup(self, data) -> tuple[bool, str]:
+        if not isinstance(data, dict):
+            return False, "فرمت فایل نامعتبر است"
+
+        try:
+            version = int(data.get("version"))
+        except (TypeError, ValueError):
+            return False, "نسخه فایل پشتیبانی نمی‌شود"
+
+        if version not in (1, 2):
+            return False, "نسخه فایل پشتیبانی نمی‌شود"
+
+        tasks = data.get("tasks")
+        if not isinstance(tasks, list):
+            return False, "تسک‌ها خراب هستند"
+        for t in tasks:
+            if not isinstance(t, dict):
+                return False, "تسک‌ها خراب هستند"
+            if not isinstance(t.get("date"), str) or not isinstance(t.get("title"), str):
+                return False, "تسک‌ها خراب هستند"
+
+        finance = data.get("finance")
+        if not isinstance(finance, list):
+            return False, "ورودی‌های مالی خراب هستند"
+        for f in finance:
+            if not isinstance(f, dict):
+                return False, "ورودی‌های مالی خراب هستند"
+            if not isinstance(f.get("date"), str):
+                return False, "ورودی‌های مالی خراب هستند"
+            if f.get("entry_type") not in ("income", "expense"):
+                return False, "ورودی‌های مالی خراب هستند"
+            if not isinstance(f.get("title"), str):
+                return False, "ورودی‌های مالی خراب هستند"
+            try:
+                if int(f.get("amount")) <= 0:
+                    return False, "ورودی‌های مالی خراب هستند"
+            except (TypeError, ValueError):
+                return False, "ورودی‌های مالی خراب هستند"
+
+        for key in ("wellness", "notes", "recurring"):
+            if not isinstance(data.get(key), list):
+                return False, "فرمت فایل نامعتبر است"
+
+        if version == 2:
+            projects = data.get("projects")
+            if not isinstance(projects, list):
+                return False, "پروژه‌ها خراب هستند"
+            for p in projects:
+                if not isinstance(p, dict) or not isinstance(p.get("title"), str):
+                    return False, "پروژه‌ها خراب هستند"
+
+            proj_tasks = data.get("project_tasks")
+            if not isinstance(proj_tasks, list):
+                return False, "پروژه‌ها خراب هستند"
+            for pt in proj_tasks:
+                if not isinstance(pt, dict):
+                    return False, "پروژه‌ها خراب هستند"
+                if not isinstance(pt.get("title"), str) or "project_id" not in pt:
+                    return False, "پروژه‌ها خراب هستند"
+
+        for t in tasks[:5]:
+            try:
+                date.fromisoformat(t["date"])
+            except ValueError:
+                return False, "تسک‌ها خراب هستند"
+
+        for f in finance[:5]:
+            try:
+                date.fromisoformat(f["date"])
+            except ValueError:
+                return False, "ورودی‌های مالی خراب هستند"
+
+        return True, ""
+
+    def import_json(self, data: dict):
+        version = int(data.get("version", 1))
+        with self.conn:
+            self.conn.execute("DELETE FROM daily_tasks")
+            self.conn.execute("DELETE FROM finance_entries")
+            self.conn.execute("DELETE FROM daily_wellness")
+            self.conn.execute("DELETE FROM daily_notes")
+            self.conn.execute("DELETE FROM recurring_tasks")
+            self.conn.execute("DELETE FROM projects")
+            self.conn.execute("DELETE FROM project_tasks")
+            self.conn.execute("DELETE FROM budget_limits")
+            self.conn.execute("DELETE FROM settings")
+
+            try:
+                for tbl in (
+                    "daily_tasks",
+                    "finance_entries",
+                    "recurring_tasks",
+                    "projects",
+                    "project_tasks",
+                ):
+                    self.conn.execute(
+                        "DELETE FROM sqlite_sequence WHERE name = ?", (tbl,)
+                    )
+            except Exception:
+                pass
+
+            for r in data.get("recurring", []):
+                self.conn.execute(
+                    "INSERT INTO recurring_tasks (id, title, created_at) VALUES (?,?,?)",
+                    (r["id"], r["title"], r.get("created_at", "")),
+                )
+
+            if version >= 2:
+                for p in data.get("projects", []):
+                    self.conn.execute(
+                        "INSERT INTO projects (id, title, color, deadline, is_done, created_at)"
+                        " VALUES (?,?,?,?,?,?)",
+                        (
+                            p["id"],
+                            p["title"],
+                            p.get("color", "#5E5CE6"),
+                            p.get("deadline"),
+                            int(p.get("is_done", 0)),
+                            p.get("created_at", ""),
+                        ),
+                    )
+                for pt in data.get("project_tasks", []):
+                    self.conn.execute(
+                        "INSERT INTO project_tasks"
+                        " (id, project_id, title, is_done, sort_order, created_at)"
+                        " VALUES (?,?,?,?,?,?)",
+                        (
+                            pt["id"],
+                            pt["project_id"],
+                            pt["title"],
+                            int(pt.get("is_done", 0)),
+                            int(pt.get("sort_order", 0)),
+                            pt.get("created_at", ""),
+                        ),
+                    )
+
+            for t in data.get("tasks", []):
+                self.conn.execute(
+                    "INSERT INTO daily_tasks"
+                    " (id, date, title, duration_seconds, estimated_seconds,"
+                    "  is_useful, recurring_id, sort_order, project_task_id)"
+                    " VALUES (?,?,?,?,?,?,?,?,?)",
+                    (
+                        t["id"],
+                        t["date"],
+                        t["title"],
+                        int(t.get("duration_seconds", 0)),
+                        int(t.get("estimated_seconds", 0)),
+                        t.get("is_useful"),
+                        t.get("recurring_id"),
+                        int(t.get("sort_order", 0)),
+                        t.get("project_task_id"),
+                    ),
+                )
+
+            for f in data.get("finance", []):
+                self.conn.execute(
+                    "INSERT INTO finance_entries (id, date, entry_type, title, amount, category)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (
+                        f["id"],
+                        f["date"],
+                        f["entry_type"],
+                        f["title"],
+                        int(f["amount"]),
+                        f.get("category", "عمومی"),
+                    ),
+                )
+
+            for w in data.get("wellness", []):
+                self.conn.execute(
+                    "INSERT INTO daily_wellness (date, sleep_minutes, wake_minutes, mood_score)"
+                    " VALUES (?,?,?,?)",
+                    (
+                        w["date"],
+                        w.get("sleep_minutes"),
+                        w.get("wake_minutes"),
+                        w.get("mood_score"),
+                    ),
+                )
+
+            for n in data.get("notes", []):
+                self.conn.execute(
+                    "INSERT INTO daily_notes (date, note) VALUES (?,?)",
+                    (n["date"], n.get("note", "")),
+                )
+
+            if version >= 2:
+                for b in data.get("budget_limits", []):
+                    self.conn.execute(
+                        "INSERT INTO budget_limits (category, monthly_limit) VALUES (?,?)",
+                        (b["category"], int(b.get("monthly_limit", 0))),
+                    )
+
+            for key, value in data.get("settings", {}).items():
+                self.conn.execute(
+                    "INSERT INTO settings (key, value) VALUES (?,?)"
+                    " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (key, value),
+                )
 
     def close(self):
         if self._conn:

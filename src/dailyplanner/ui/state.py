@@ -216,6 +216,7 @@ def build_state(
     finance_month: Optional[int] = None,
     toast: Optional[dict] = None,
     current_project_id: Optional[int] = None,
+    export_path: str = "",
 ) -> dict:
     today = datetime.date.today()
     active_id = timer.active_task_id
@@ -470,7 +471,7 @@ def build_state(
     elif screen == "settings":
         state["settings"] = {
             "theme": theme,
-            "export_ready": True,
+            "export_path": export_path,
         }
 
     elif screen == "recurring":

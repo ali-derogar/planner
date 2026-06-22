@@ -77,6 +77,7 @@ class WebViewHandler:
             self.recurring_svc.ensure_daily_tasks(self.current_date)
         toast = self._pending_toast
         self._pending_toast = None
+        export_path = str(self.app.paths.data / "dailyplanner_backup.json")
         return build_state(
             db=self.db,
             timer=self.timer_service,
@@ -92,6 +93,7 @@ class WebViewHandler:
             finance_month=self.finance_month,
             toast=toast,
             current_project_id=self.current_project_id,
+            export_path=export_path,
         )
 
     async def push_state(self):
@@ -511,19 +513,87 @@ class WebViewHandler:
     async def _on_export_data(self, p):
         data = self.db.export_json()
         payload = json.dumps(data, ensure_ascii=False, indent=2)
+
+        backup_path = self.app.paths.data / "dailyplanner_backup.json"
+        try:
+            backup_path.write_text(payload, encoding="utf-8")
+            saved_ok = True
+        except Exception as e:
+            print(f"[export] file write failed: {e}")
+            saved_ok = False
+
         b64 = base64.b64encode(payload.encode("utf-8")).decode("ascii")
-        js = f"""
-        try {{
-            var t = decodeURIComponent(escape(atob('{b64}')));
-            if(navigator.clipboard) navigator.clipboard.writeText(t);
-            window._exportData = t;
-        }} catch(e) {{}}
-        """
+        js = (
+            "try{"
+            "var _b=atob('" + b64 + "');"
+            "var _u=new Uint8Array(_b.length);"
+            "for(var i=0;i<_b.length;i++)_u[i]=_b.charCodeAt(i);"
+            "var _s=new TextDecoder('utf-8').decode(_u);"
+            "window._exportData=_s;"
+            "}catch(e){console.error(e);}"
+        )
         try:
             await self.app.webview.evaluate_javascript(js)
         except Exception:
             pass
-        self.toast("خروجی JSON آماده است (در حافظه اپ)")
+
+        if saved_ok:
+            self.toast(f"بکاپ ذخیره شد: {backup_path.name}")
+        else:
+            self.toast("خطا در ذخیره فایل — از textarea کپی کنید", "error")
+        await self.push_state()
+
+    async def _on_import_data(self, p):
+        raw = p.get("json", "").strip()
+        if not raw:
+            self.toast("داده‌ای وارد نشده", "error")
+            await self.push_state()
+            return
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            self.toast("فرمت JSON نامعتبر است", "error")
+            await self.push_state()
+            return
+
+        ok, err = self.db.validate_backup(data)
+        if not ok:
+            self.toast(err, "error")
+            await self.push_state()
+            return
+
+        task_count = len(data.get("tasks", []))
+        msg = (
+            f"این عملیات همه داده‌های فعلی را پاک می‌کند "
+            f"و {task_count} تسک از فایل بکاپ بازگردانی می‌شود.\n"
+            f"آیا مطمئن هستید؟"
+        )
+        confirmed = await self.app.main_window.dialog(
+            toga.ConfirmDialog("بازگردانی داده", msg)
+        )
+        if not confirmed:
+            await self.push_state()
+            return
+
+        try:
+            self.db.import_json(data)
+            self.current_date = datetime.date.today()
+            self.current_screen = "home"
+            self.expanded_tasks = set()
+            self.current_project_id = None
+            self.finance_year = datetime.date.today().year
+            self.finance_month = datetime.date.today().month
+            self.timer_service = TimerService()
+            try:
+                await self.app.webview.evaluate_javascript("window._importDraft='';")
+            except Exception:
+                pass
+            self.toast("داده‌ها با موفقیت بازگردانی شدند")
+        except Exception as e:
+            print(f"[import] failed: {e}")
+            self.toast("خطا در بازگردانی — داده‌ها تغییر نکردند", "error")
+        await self.push_state()
 
     # ── recurring management ──────────────────────────────────────────────────
 
