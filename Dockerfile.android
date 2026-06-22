@@ -1,0 +1,105 @@
+FROM cirrusci/android-sdk:33
+
+# Install Java 17 and Python 3.10 (Ubuntu 22.04 default)
+RUN apt-get update -qq && apt-get install -y \
+    openjdk-17-jdk \
+    python3 \
+    python3-venv \
+    python3-pip \
+    git \
+    curl \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH=$JAVA_HOME/bin:$PATH
+
+# briefcase expects cmdline-tools/19.0 — cirrusci image has "latest"
+RUN ln -s /opt/android-sdk-linux/cmdline-tools/latest \
+         /opt/android-sdk-linux/cmdline-tools/19.0
+
+# Fake emulator binary so briefcase skips emulator download (build-only)
+RUN mkdir -p /opt/android-sdk-linux/emulator && \
+    printf '#!/bin/sh\necho "fake emulator"\n' > /opt/android-sdk-linux/emulator/emulator && \
+    chmod +x /opt/android-sdk-linux/emulator/emulator
+
+# AGP 8.5+ internally requires build-tools/35.0.0.
+# Copy 33.0.1 and patch both source.properties AND package.xml (what AGP actually reads).
+RUN cp -r /opt/android-sdk-linux/build-tools/33.0.1 \
+          /opt/android-sdk-linux/build-tools/35.0.0 && \
+    sed -i 's/^Pkg\.Revision=.*/Pkg.Revision=35.0.0/' \
+        /opt/android-sdk-linux/build-tools/35.0.0/source.properties && \
+    sed -i \
+        -e 's|path="build-tools;33\.0\.1"|path="build-tools;35.0.0"|g' \
+        -e 's|<major>33</major><minor>0</minor><micro>1</micro>|<major>35</major><minor>0</minor><micro>0</micro>|g' \
+        -e 's|Android SDK Build-Tools 33\.0\.1|Android SDK Build-Tools 35.0.0|g' \
+        /opt/android-sdk-linux/build-tools/35.0.0/package.xml
+
+# Fake platforms/android-35 from android-33 (needed when compileSdk=35).
+# Patch package.xml (primary) and source.properties (legacy).
+RUN cp -r /opt/android-sdk-linux/platforms/android-33 \
+          /opt/android-sdk-linux/platforms/android-35 && \
+    sed -i 's/^AndroidVersion\.ApiLevel=.*/AndroidVersion.ApiLevel=35/' \
+        /opt/android-sdk-linux/platforms/android-35/source.properties && \
+    sed -i \
+        -e 's|path="platforms;android-33"|path="platforms;android-35"|g' \
+        -e 's|<api-level>33</api-level>|<api-level>35</api-level>|g' \
+        -e 's|Android SDK Platform 33|Android SDK Platform 35|g' \
+        /opt/android-sdk-linux/platforms/android-35/package.xml
+
+ENV ANDROID_HOME=/opt/android-sdk-linux
+ENV ANDROID_SDK_ROOT=/opt/android-sdk-linux
+
+# Point ALL pip invocations (briefcase + Chaquopy's installDebugPythonRequirements) to Aliyun
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
+RUN printf '[global]\nindex-url = https://mirrors.aliyun.com/pypi/simple/\ntrusted-host = mirrors.aliyun.com\n' \
+    > /etc/pip.conf
+
+# Gradle init.d: replaces Google Maven / mavenCentral with Aliyun mirrors
+RUN mkdir -p /root/.gradle/init.d
+COPY docker/aliyun-mirror.gradle /root/.gradle/init.d/aliyun-mirror.gradle
+
+# Install briefcase and app Python dependencies
+RUN python3 -m pip install \
+    -i https://mirrors.aliyun.com/pypi/simple/ \
+    --trusted-host mirrors.aliyun.com \
+    briefcase==0.4.2 \
+    jdatetime \
+    arabic-reshaper \
+    python-bidi \
+    "httpx[socks]" \
+    socksio
+
+WORKDIR /app
+COPY . /app
+
+# Stage 1: generate Android Gradle project
+RUN JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    briefcase create android --no-input
+
+# Stage 2: patch requirements + Gradle files for Android/Chaquopy constraints
+RUN sed -i 's/matplotlib>=3\.7\.0/matplotlib==3.6.0/g' \
+        /app/build/dailyplanner/android/gradle/app/requirements.txt 2>/dev/null || true
+
+# values-v35 uses API-35-only attrs missing from our mirrored SDK platform
+RUN rm -rf /app/build/dailyplanner/android/gradle/app/src/main/res/values-v35
+
+RUN find /app/build -name "*.gradle" | while read f; do \
+    sed -i -E \
+        -e 's|google\(\)|maven { url "https://maven.aliyun.com/repository/google" }|g' \
+        -e 's|mavenCentral\(\)|maven { url "https://maven.aliyun.com/repository/central" }|g' \
+        -e 's|gradlePluginPortal\(\)|maven { url "https://maven.aliyun.com/repository/gradle-plugin" }|g' \
+        -e 's|https://dl.google.com/dl/android/maven2|https://maven.aliyun.com/repository/google|g' \
+        -e 's|https://maven.google.com|https://maven.aliyun.com/repository/google|g' \
+        "$f"; \
+done && echo "Gradle files patched."
+
+# Stage 3: sync sources and build the APK
+RUN JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    briefcase update android --no-input
+
+RUN JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    briefcase build android --no-input
+
+CMD ["sh", "-c", "cp /app/build/dailyplanner/android/gradle/app/build/outputs/apk/debug/app-debug.apk /output/app-debug.apk"]

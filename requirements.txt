@@ -1,0 +1,10 @@
+# BeeWare project dependencies
+briefcase>=0.3.17
+toga>=0.4.0
+toga-gtk>=0.4.0  # for Linux desktop testing
+
+# App dependencies (bundled with Android APK)
+jdatetime>=5.0.0
+arabic-reshaper>=3.0.0
+python-bidi>=0.4.2
+matplotlib>=3.7.0
