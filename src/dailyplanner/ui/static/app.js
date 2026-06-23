@@ -54,6 +54,10 @@ function escJs(s) {
     return String(s)
         .replace(/\\/g, '\\\\')
         .replace(/'/g, "\\'")
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -145,7 +149,7 @@ var _modal = null;
 var _modalValidators = {
     hms: function(v) {
         var m = normalizeDigits(v).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-        return !!(m && +m[1] < 24 && +m[2] < 60 && (!m[3] || +m[3] < 60));
+        return !!(m && +m[1] <= 99 && +m[2] < 60 && (!m[3] || +m[3] < 60));
     },
     hm: function(v) {
         var m = normalizeDigits(v).trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -506,8 +510,36 @@ function parseTimeParts(value, includeSeconds) {
     return { h: h, m: m, s: s };
 }
 
+function syncTimePickerColDisplay(col) {
+    var input = col.querySelector('.time-picker-val');
+    if (!input) return;
+    var val = parseInt(col.dataset.val, 10) || 0;
+    input.value = pd(pad2(val));
+}
+
+function commitTimePickerCol(col, pickerWrap) {
+    var input = col.querySelector('.time-picker-val');
+    if (!input) return;
+    var max = parseInt(col.dataset.max, 10);
+    var raw = normalizeDigits(input.value).trim();
+    var val = parseInt(raw, 10);
+    if (isNaN(val)) val = parseInt(col.dataset.val, 10) || 0;
+    val = Math.max(0, Math.min(max, val));
+    col.dataset.val = String(val);
+    syncTimePickerColDisplay(col);
+    updateTimePickerPreview(pickerWrap);
+}
+
+function commitTimePicker(picker) {
+    if (!picker) return;
+    picker.querySelectorAll('.time-picker-col').forEach(function(col) {
+        commitTimePickerCol(col, picker);
+    });
+}
+
 function getTimePickerValue(el) {
     if (!el) return '';
+    commitTimePicker(el);
     var h = 0, m = 0, s = 0;
     el.querySelectorAll('.time-picker-col').forEach(function(col) {
         var v = parseInt(col.dataset.val, 10) || 0;
@@ -540,8 +572,7 @@ function setTimePickerValues(picker, h, m, s) {
         var val = unit === 'h' ? h : (unit === 'm' ? m : s);
         val = Math.max(0, Math.min(max, val));
         col.dataset.val = val;
-        var num = col.querySelector('.time-picker-val');
-        if (num) num.textContent = pd(pad2(val));
+        syncTimePickerColDisplay(col);
     });
     updateTimePickerPreview(picker);
 }
@@ -554,8 +585,7 @@ function stepTimeUnit(picker, unit, delta) {
     if (val > max) val = 0;
     if (val < 0) val = max;
     col.dataset.val = val;
-    var num = col.querySelector('.time-picker-val');
-    if (num) num.textContent = pd(pad2(val));
+    syncTimePickerColDisplay(col);
     updateTimePickerPreview(picker);
 }
 
@@ -576,9 +606,38 @@ function buildTimeCol(key, label, val, max, pickerWrap) {
         stepTimeUnit(pickerWrap, key, 1);
     };
 
-    var num = document.createElement('div');
+    var num = document.createElement('input');
+    num.type = 'text';
+    num.inputMode = 'numeric';
+    num.autocomplete = 'off';
+    num.spellcheck = false;
     num.className = 'time-picker-val';
-    num.textContent = pd(pad2(col.dataset.val));
+    num.setAttribute('aria-label', label);
+    num.value = pd(pad2(col.dataset.val));
+    num.addEventListener('focus', function() {
+        num.select();
+    });
+    num.addEventListener('blur', function() {
+        commitTimePickerCol(col, pickerWrap);
+    });
+    num.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            commitTimePickerCol(col, pickerWrap);
+            num.blur();
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            stepTimeUnit(pickerWrap, key, 1);
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            stepTimeUnit(pickerWrap, key, -1);
+            return;
+        }
+    });
 
     var down = document.createElement('button');
     down.type = 'button';
@@ -822,8 +881,10 @@ function showModal(config) {
     ensureModalStructure();
     closeProjectSheet();
     _modal = config;
-    document.getElementById('modal-title').textContent = config.title || '';
+    var titleEl = document.getElementById('modal-title');
+    if (titleEl) titleEl.textContent = config.title || '';
     var fc = document.getElementById('modal-fields');
+    if (!fc) return;
     fc.innerHTML = '';
     fc.removeAttribute('data-cond-bound');
     (config.fields || []).forEach(function(f) {
@@ -880,8 +941,10 @@ function showModal(config) {
     });
     bindModalConditionalListeners(fc);
     syncModalConditionalFields();
-    document.getElementById('modal-error').textContent = '';
+    var errEl = document.getElementById('modal-error');
+    if (errEl) errEl.textContent = '';
     var modalEl = document.getElementById('modal');
+    if (!modalEl) return;
     var useCenter = shouldUseCenterModal(config);
     modalEl.style.display = 'flex';
     modalEl.classList.toggle('modal-center', useCenter);
@@ -962,7 +1025,7 @@ function confirmModal() {
         }
     });
     if (!valid) {
-        errEl.textContent = 'لطفاً فیلدهای مشخص‌شده را به‌درستی پر کنید';
+        if (errEl) errEl.textContent = 'لطفاً فیلدهای مشخص‌شده را به‌درستی پر کنید';
         var modalBody = document.getElementById('modal-body');
         if (modalBody) modalBody.scrollTop = modalBody.scrollHeight;
         return;
@@ -974,6 +1037,7 @@ function confirmModal() {
 
 function closeModal() {
     var modal = document.getElementById('modal');
+    if (!modal) return;
     var active = document.activeElement;
     if (active && modal.contains(active) && active.blur) {
         active.blur();
@@ -1255,20 +1319,20 @@ function renderHome(h) {
         '</div></div></div>';
 
     if (h.show_calendar && h.calendar) {
-        html += renderCalendar(h.calendar);
+        html += renderCalendar(h.calendar, h.date);
     }
 
     html += '<div class="search-row home-search-row"><div class="search-wrap">' + ico('search', 'ico-search') +
         '<input class="search-input" placeholder="جستجو در تسک\u200cها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" aria-label="جستجو در تسک\u200cها" /></div></div>';
 
     html += '<div class="task-list">';
-    if (h.tasks.length === 0) {
+    if (!(h.tasks && h.tasks.length)) {
         html += '<div class="empty-state">' + finIcon('home', '☑', 'lg') +
             '<div class="empty-title">هیچ تسکی وجود ندارد</div>' +
             '<div class="empty-sub">اولین تسک امروز را اضافه کنید و زمان خود را مدیریت کنید</div>' +
             '<button type="button" class="empty-btn" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">' + ico('plus', 'ico') + ' افزودن تسک</button></div>';
     } else {
-        h.tasks.forEach(function(t) { html += taskCard(t); });
+        (h.tasks || []).forEach(function(t) { html += taskCard(t); });
     }
     html += '</div>';
 
@@ -1276,23 +1340,32 @@ function renderHome(h) {
     html += '<div class="section note-section"><div class="sec-title">یادداشت روز من</div>' +
         '<textarea class="note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
         '<div class="note-saved" id="note-saved" aria-live="polite">ذخیره شد ✓</div></div>';
-    if (h.tasks.length > 0) {
+    if (h.tasks && h.tasks.length > 0) {
         html += '<button type="button" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})" class="add-btn">' + ico('plus', 'ico') + ' افزودن تسک</button>';
     }
     return html + '</div>';
 }
 
-function renderCalendar(cal) {
+function renderCalendar(cal, selectedDate) {
     var html = '<div class="calendar-panel"><div class="cal-header">' +
         navArrowBtn('prev', 'action(\'cal_prev_month\')', 'ماه قبل', 'cal-nav') +
         '<span class="cal-title">' + esc(cal.month_name) + ' ' + pd(cal.year) + '</span>' +
         navArrowBtn('next', 'action(\'cal_next_month\')', 'ماه بعد', 'cal-nav') +
+        '</div>' +
+        '<div class="cal-weekdays">' +
+        JALALI_WEEKDAYS.map(function(w) { return '<span>' + w + '</span>'; }).join('') +
         '</div><div class="cal-grid">';
-    cal.cells.forEach(function(c) {
+    var wd = cal.weekday_offset || 0;
+    for (var i = 0; i < wd; i++) html += '<span class="cal-day cal-day-empty"></span>';
+    var now = new Date();
+    var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    (cal.cells || []).forEach(function(c) {
         var cls = 'cal-day';
         if (c.has_data) cls += ' has-data';
         if (c.eff >= 70) cls += ' eff-high';
-        html += '<button class="' + cls + '" onclick="action(\'pick_date\',{date:\'' + c.date + '\'})">' + pd(c.day) + '</button>';
+        if (selectedDate && c.date === selectedDate) cls += ' selected';
+        if (c.date === todayIso) cls += ' today';
+        html += '<button type="button" class="' + cls + '" onclick="action(\'pick_date\',{date:\'' + c.date + '\'})">' + pd(c.day) + '</button>';
     });
     return html + '</div></div>';
 }
@@ -1365,9 +1438,10 @@ function showAddBudget(preselectedCategory, currentAmount) {
 }
 
 function renderWellness(w) {
+    w = w || {};
     var moodLabels = ['خیلی بد', 'بد', 'نه چندان خوب', 'معمولی', 'نسبتاً خوب', 'خوب', 'خیلی خوب', 'عالی', 'فوق‌العاده', 'عاشقانه'];
     var moods = '';
-    window._moodEmojis.forEach(function(emoji, i) {
+    (window._moodEmojis || []).forEach(function(emoji, i) {
         var score = i + 1;
         var sel = w.mood === score ? ' sel' : '';
         var lbl = moodLabels[i] || ('امتیاز ' + pd(score));
@@ -1384,7 +1458,7 @@ function renderWellness(w) {
 function renderAnalytics(a) {
     var p7 = a.period === 7 ? 'period-btn active' : 'period-btn';
     var p30 = a.period === 30 ? 'period-btn active' : 'period-btn';
-    var s = a.stats;
+    var s = a.stats || { streak: 0, eff: 0, total_fmt: '—', useful_fmt: '—', not_useful_fmt: '—', income_fmt: '—', expense_fmt: '—', investment_fmt: '—', balance_fmt: '—', avg_mood: '—', avg_sleep: '—' };
     var html = '<div class="analytics-page">' +
         '<div class="analytics-header">' +
         '<div class="analytics-header-top">' +
@@ -1411,12 +1485,13 @@ function renderAnalytics(a) {
         statCard('بازده', pd(s.eff) + '٪', '#A78BFA') +
         statCard('درآمد', s.income_fmt, '#4DD980') +
         statCard('هزینه', s.expense_fmt, '#FF7359') +
+        statCard('سرمایه\u200cگذاری', s.investment_fmt, '#FFB020') +
         statCard('موجودی', s.balance_fmt, '#818CF8') +
         statCard('خلق و خو', s.avg_mood) +
         statCard('خواب', s.avg_sleep) +
         '</div><div class="sec-title analytics-days-title">روزهای گذشته</div>';
 
-    if (!a.days.length) {
+    if (!(a.days && a.days.length)) {
         html += '<div class="empty-state">' + finIcon('analytics', '📊', 'lg') +
             '<div class="empty-title">داده\u200cای برای نمایش نیست</div>' +
             '<div class="empty-sub">چند روز تسک انجام دهید تا آمار بازدهی اینجا نمایش داده شود</div></div>';
@@ -1592,7 +1667,7 @@ function submitImport() {
 }
 
 function renderRecurring(list) {
-    var rows = list.map(function(r) {
+    var rows = (list || []).map(function(r) {
         return '<div class="recur-row"><span>' + esc(r.title) + '</span>' +
             '<button class="chip chip-delete" onclick="action(\'delete_recurring\',{id:' + r.id + '})">حذف</button></div>';
     }).join('');
@@ -1609,7 +1684,7 @@ function renderInstallmentCard(inst) {
             + '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'installments\'})">'
             + '+ افزودن قسط</a></div>';
     } else {
-        rows = inst.items.map(function(i) {
+        rows = (inst.items || []).map(function(i) {
             var statusBtn = i.is_settled
                 ? '<span class="inst-settled">✓ تسویه</span>'
                 : i.paid_this_month
@@ -1636,8 +1711,9 @@ function renderInstallmentCard(inst) {
 }
 
 function renderFinanceScreen(f) {
-    window._finEntries = f.entries;
-    var t = f.totals;
+    var entries = f.entries || [];
+    window._finEntries = entries;
+    var t = f.totals || { balance: 0, balance_fmt: '۰', income_fmt: '۰', expense_fmt: '۰', investment: 0, investment_fmt: '۰' };
     var balCls = t.balance >= 0 ? 'positive' : 'negative';
 
     var html = '<div class="fin-page">' +
@@ -1686,15 +1762,15 @@ function renderFinanceScreen(f) {
         + ' onclick="_showFinanceTransactions=!_showFinanceTransactions;renderApp(window._lastState)">'
         + finCardTitle('receipt', '🧾', 'تراکنش\u200cها')
         + '<span class="fin-card-head-end">'
-        + '<span class="fin-card-badge">' + pd(f.entries.length) + '</span>'
+        + '<span class="fin-card-badge">' + pd(entries.length) + '</span>'
         + '<span class="fin-card-chevron">' + collapseChevron(_showFinanceTransactions) + '</span>'
         + '</span></button>';
     if (_showFinanceTransactions) {
-        if (!f.entries.length) {
+        if (!entries.length) {
             html += finEmptyState('🧾', 'هنوز تراکنشی ثبت نشده', '+ ثبت درآمد', 'showAddFinance(\'income\')', 'income');
         } else {
             var lastDate = '';
-            f.entries.slice().reverse().forEach(function(e) {
+            entries.slice().reverse().forEach(function(e) {
                 if (e.date_label !== lastDate) {
                     lastDate = e.date_label;
                     html += '<div class="fin-date-chip">' + esc(e.date_label) + '</div>';
@@ -1725,7 +1801,7 @@ function renderFinanceScreen(f) {
         '<button class="fin-chip-btn" onclick="showAddCategory()">+ دسته</button>' +
         '<button class="fin-chip-btn primary" onclick="showAddBudget()">+ بودجه</button>' +
         '</div></div>';
-    if (!f.by_category.length) {
+    if (!(f.by_category && f.by_category.length)) {
         html += finEmptyState('🎯', 'بودجه ماهانه برای دسته‌ها تعیین نشده', '+ تعیین بودجه', 'showAddBudget()', 'budget');
     } else {
         f.by_category.forEach(function(c) {
@@ -1755,7 +1831,7 @@ function renderFinanceScreen(f) {
     }
     html += '</div>';
 
-    if (f.daily_series.length) {
+    if (f.daily_series && f.daily_series.length) {
         html += '<div class="fin-card"><div class="fin-card-head">' + finCardTitle('daily', '📅', 'خلاصه روزانه') + '</div>' +
             '<div class="fin-daily-table">' +
             '<div class="fin-daily-head"><span>تاریخ</span><span>درآمد</span><span>هزینه</span><span>سرمایه</span><span>خالص</span></div>';
@@ -1790,7 +1866,7 @@ function renderInstallments(data) {
     html += '<a href="javascript:void(0)" class="add-btn"'
         + ' onclick="showAddInstallment()">+ افزودن قسط</a>';
 
-    if (!data.list.length) {
+    if (!(data.list && data.list.length)) {
         html += '<div class="empty-state">'
             + '<div class="empty-icon fin-icon fin-icon-inst fin-icon-lg">📋</div>'
             + '<div>هیچ قسطی ندارید</div></div>';
@@ -1810,7 +1886,7 @@ function renderImportantDates(data) {
     html += '<a href="javascript:void(0)" class="add-btn"'
         + ' onclick="showAddImportantDate(window._dateCategories)">+ افزودن تاریخ مهم</a>';
 
-    if (!data.items.length) {
+    if (!(data.items && data.items.length)) {
         html += '<div class="empty-state">'
             + '<div class="empty-icon">📅</div>'
             + '<div>هیچ تاریخ مهمی ثبت نشده</div></div>';
@@ -2121,10 +2197,11 @@ function renderProjectCard(p, muted) {
 }
 
 function renderProjects(data) {
-    window._projectsList = data.list;
+    var list = data.list || [];
+    window._projectsList = list;
     window._projectColors = data.colors;
-    var active = data.list.filter(function(p) { return !p.is_done; });
-    var done = data.list.filter(function(p) { return p.is_done; });
+    var active = list.filter(function(p) { return !p.is_done; });
+    var done = list.filter(function(p) { return p.is_done; });
     var totalTasks = 0;
     var doneTasks = 0;
     active.forEach(function(p) { totalTasks += p.total; doneTasks += p.done; });
@@ -2146,7 +2223,7 @@ function renderProjects(data) {
         projSummaryItem('📈', pd(overallPct) + '٪', 'پیشرفت') +
         '</div></div></div>';
 
-    if (!data.list.length) {
+    if (!list.length) {
         html += finEmptyState('📋', 'هنوز پروژه\u200cای ندارید.<br>اولین پروژه\u200cتان را بسازید و تسک\u200cها را مدیریت کنید.', '+ ساخت پروژه', 'showAddProject(window._projectColors)', 'projects');
         return html + '</div>';
     }
@@ -2178,6 +2255,7 @@ function renderProjects(data) {
 function renderProjectDetail(p) {
     window._projectDetail = p;
     window._projectColors = p.colors;
+    var tasks = p.tasks || [];
     var progress = p.progress || 0;
 
     var html = '<div class="proj-detail-page" style="--project-color:' + esc(p.color) + '">';
@@ -2205,15 +2283,15 @@ function renderProjectDetail(p) {
 
     html += '<div class="proj-tasks-card">' +
         '<div class="proj-section-head"><span class="proj-section-title">تسک‌ها</span>' +
-        '<span class="proj-section-badge">' + pd(p.tasks.length) + '</span></div>';
+        '<span class="proj-section-badge">' + pd(tasks.length) + '</span></div>';
 
-    if (!p.tasks.length) {
+    if (!tasks.length) {
         html += finEmptyState('☑', 'هنوز تسکی اضافه نکرده‌اید', '+ افزودن تسک',
             'showModal({title:\'تسک جدید\',cmd:\'add_project_task\',params:{project_id:' + p.id +
             '},fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})');
     } else {
         html += '<div class="proj-task-list">';
-        p.tasks.forEach(function(task) {
+        tasks.forEach(function(task) {
             var rowCls = 'proj-task-item' + (task.is_done ? ' done' : '');
             html += '<div class="' + rowCls + '">';
             html += '<button type="button" class="proj-task-check' + (task.is_done ? ' checked' : '') +

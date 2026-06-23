@@ -1239,12 +1239,21 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     font-size: 28px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
+    font-family: 'Vazirmatn', sans-serif;
+    color: var(--text);
     min-width: 56px;
+    width: 100%;
     text-align: center;
-    padding: 6px 0;
+    padding: 6px 4px;
     background: var(--surface-muted);
     border-radius: 10px;
     border: 1px solid var(--divider);
+    outline: none;
+    box-sizing: border-box;
+}}
+.time-picker-val:focus {{
+    border-color: var(--primary);
+    background: var(--surface);
 }}
 .time-picker-lbl {{
     font-size: 11px;

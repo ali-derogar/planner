@@ -302,3 +302,200 @@ def test_parse_bank_sms_persian_comma_amount_line():
     sms = "777.888.18007694.1\n- ۲،۷۰۰،۰۰۰\n03/31_15:19"
     assert parse_bank_sms(sms).amount == 270000
     assert parse_bank_sms(sms).direction == "expense"
+
+
+def test_build_state_all_screens(db):
+    """Every SPA screen should produce renderable state."""
+    import datetime
+
+    today = datetime.date.today()
+    db.add_task(today, "task")
+    db.add_finance_entry(today, "expense", "x", 1000, "عمومی")
+    pid = db.create_project("P", "#5E5CE6", None).id
+    db.add_project_task(pid, "pt")
+    db.add_installment("loan", 50000, 6, today.isoformat(), 10)
+    db.add_important_date("evt", today.isoformat(), "سایر", "", "none", 0)
+    timer = TimerService()
+
+    screens = [
+        "home", "finance", "analytics", "settings", "recurring",
+        "projects", "project_detail", "installments", "important_dates",
+    ]
+    for screen in screens:
+        state = build_state(
+            db=db,
+            timer=timer,
+            screen=screen,
+            current_date=today,
+            expanded_tasks=set(),
+            analytics_period=7,
+            current_project_id=pid if screen == "project_detail" else None,
+            finance_year=today.year,
+            finance_month=today.month,
+        )
+        assert state["screen"] == screen
+
+
+def test_web_bundle_includes_app_js():
+    from dailyplanner.ui.shell import build_web_bundle
+
+    bundle = build_web_bundle()
+    assert "index.html" in bundle
+    assert "app.css" in bundle
+    assert "app.js" in bundle
+    assert "renderApp" in bundle["app.js"]
+    assert "function action(" in bundle["app.js"]
+
+
+def test_frontend_action_handlers_exist():
+    """Every JS action() cmd must have a Python _on_* handler."""
+    import re
+    from pathlib import Path
+
+    js = (Path(__file__).parents[1] / "src/dailyplanner/ui/static/app.js").read_text(
+        encoding="utf-8"
+    )
+    py = (Path(__file__).parents[1] / "src/dailyplanner/webview_handler.py").read_text(
+        encoding="utf-8"
+    )
+    cmds = set(re.findall(r"action\(\\'([a-z_]+)\\'", js))
+    cmds.update(re.findall(r"action\('([a-z_]+)'", js))
+    cmds.update(re.findall(r"cmd:\s*'([^']+)'", js))
+    handlers = set(re.findall(r"async def _on_([a-z_]+)", py))
+    missing = sorted(cmds - handlers)
+    assert not missing, f"Missing handlers: {missing}"
+
+
+def test_app_js_syntax():
+    import subprocess
+    from pathlib import Path
+
+    app_js = Path(__file__).parents[1] / "src/dailyplanner/ui/static/app.js"
+    subprocess.run(["node", "--check", str(app_js)], check=True)
+
+
+def test_duration_hms_validator_allows_long_hours():
+    from pathlib import Path
+
+    js = (Path(__file__).parents[1] / "src/dailyplanner/ui/static/app.js").read_text(
+        encoding="utf-8"
+    )
+    assert "+m[1] <= 99" in js, "duration validator must allow 99-hour estimates"
+    assert ".replace(/\\n/g, '\\\\n')" in js, "escJs must escape newlines in onclick strings"
+
+
+def test_frontend_render_smoke(db, tmp_path):
+    """renderApp must not throw for any screen state."""
+    import datetime
+    import json
+    import subprocess
+    from pathlib import Path
+
+    today = datetime.date.today()
+    db.add_task(today, "Task <test>")
+    db.add_finance_entry(today, "expense", "x", 1000, "عمومی")
+    pid = db.create_project("P", "#5E5CE6", None).id
+    db.add_project_task(pid, "pt")
+    db.add_installment("loan", 50000, 6, today.isoformat(), 10)
+    db.add_important_date("evt", today.isoformat(), "سایر", "", "none", 0)
+    timer = TimerService()
+
+    states = {}
+    for screen in (
+        "home", "finance", "analytics", "settings", "recurring",
+        "projects", "project_detail", "installments", "important_dates",
+    ):
+        states[screen] = build_state(
+            db=db,
+            timer=timer,
+            screen=screen,
+            current_date=today,
+            expanded_tasks=set(),
+            analytics_period=7,
+            current_project_id=pid if screen == "project_detail" else None,
+            finance_year=today.year,
+            finance_month=today.month,
+            show_calendar=True,
+            calendar_year=1404,
+            calendar_month=4,
+        )
+
+    states_file = tmp_path / "states.json"
+    states_file.write_text(json.dumps(states, ensure_ascii=False), encoding="utf-8")
+    smoke = Path(__file__).parent / "frontend_smoke.js"
+    subprocess.run(["node", str(smoke), str(states_file)], check=True, cwd=str(Path(__file__).parents[1]))
+
+
+def test_validate_backup_rejects_bad_important_dates():
+    db = Database(":memory:")
+    data = db.export_json()
+    data["important_dates"] = "not a list"
+    ok, err = db.validate_backup(data)
+    assert not ok
+    assert "تاریخ" in err
+
+
+def test_edit_installment_rejects_total_below_paid(db):
+    import asyncio
+    from dailyplanner.webview_handler import WebViewHandler
+
+    class _App:
+        pass
+
+    d = datetime.date.today()
+    inst = db.add_installment("loan", 1000, 6, d.isoformat(), 5)
+    for _ in range(3):
+        db.pay_installment(inst.id)
+
+    app = _App()
+    app.db = db
+    app.main_window = type("W", (), {"dialog": lambda *a, **k: True})()
+    handler = WebViewHandler(app)
+    handler._shell_loaded = True
+
+    async def _noop_push(self):
+        pass
+
+    handler.push_state = _noop_push.__get__(handler, WebViewHandler)
+
+    async def run():
+        await handler._on_edit_installment({
+            "id": str(inst.id),
+            "title": "loan",
+            "amount": "1000",
+            "total_count": "2",
+            "due_day": "5",
+            "start_date": d.isoformat(),
+        })
+
+    asyncio.run(run())
+    updated = db.get_installment_by_id(inst.id)
+    assert updated.total_count == 6
+    assert updated.paid_count == 3
+
+
+def test_open_project_missing_redirects(db):
+    import asyncio
+    from dailyplanner.webview_handler import WebViewHandler
+
+    class _App:
+        pass
+
+    app = _App()
+    app.db = db
+    app.main_window = type("W", (), {"dialog": lambda *a, **k: True})()
+    handler = WebViewHandler(app)
+    handler.current_screen = "projects"
+    handler._shell_loaded = True
+
+    async def _noop_push(self):
+        pass
+
+    handler.push_state = _noop_push.__get__(handler, WebViewHandler)
+
+    async def run():
+        await handler._on_open_project({"id": "99999"})
+
+    asyncio.run(run())
+    assert handler.current_screen == "projects"
+    assert handler.current_project_id is None

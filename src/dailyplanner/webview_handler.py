@@ -443,8 +443,13 @@ class WebViewHandler:
         category = p.get("category", "عمومی")
         amount = resolve_amount(p.get("amount"), p.get("sms"))
         if title and amount > 0:
+            entry_date = (
+                datetime.date.today()
+                if self.current_screen == "finance"
+                else self.current_date
+            )
             self.db.add_finance_entry(
-                self.current_date, entry_type, title, amount, category
+                entry_date, entry_type, title, amount, category
             )
             self.toast("ورود مالی ثبت شد")
         await self.push_state()
@@ -694,6 +699,12 @@ class WebViewHandler:
         if pid is None:
             await self.push_state()
             return
+        if not self.db.get_project_by_id(pid):
+            self.toast("پروژه یافت نشد", "error")
+            self.current_screen = "projects"
+            self.current_project_id = None
+            await self.push_state()
+            return
         self.current_project_id = pid
         self.current_screen = "project_detail"
         await self.push_state()
@@ -852,10 +863,20 @@ class WebViewHandler:
             datetime.date.fromisoformat(start_date)
         except ValueError:
             total = None
+        inst = self.db.get_installment_by_id(inst_id)
+        if not inst:
+            await self.push_state()
+            return
         if (title and amount > 0 and total is not None and due_day is not None
                 and 1 <= total <= 360 and 1 <= due_day <= 31 and start_date):
-            self.db.edit_installment(inst_id, title, amount, total, start_date, due_day)
-            self.toast("ویرایش شد")
+            if total < inst.paid_count:
+                self.toast(
+                    f"تعداد اقساط نمی‌تواند کمتر از {inst.paid_count} (پرداخت‌شده) باشد",
+                    "error",
+                )
+            else:
+                self.db.edit_installment(inst_id, title, amount, total, start_date, due_day)
+                self.toast("ویرایش شد")
         else:
             self.toast("اطلاعات نامعتبر است", "error")
         await self.push_state()

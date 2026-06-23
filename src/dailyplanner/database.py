@@ -891,6 +891,26 @@ class Database:
                     if "id" not in pay or "installment_id" not in pay or "payment_date" not in pay:
                         return False, "اقساط خراب هستند"
 
+            important_dates = data.get("important_dates")
+            if important_dates is not None:
+                if not isinstance(important_dates, list):
+                    return False, "تاریخ‌های مهم خراب هستند"
+                for item in important_dates:
+                    if not isinstance(item, dict):
+                        return False, "تاریخ‌های مهم خراب هستند"
+                    if not isinstance(item.get("title"), str) or not isinstance(item.get("date"), str):
+                        return False, "تاریخ‌های مهم خراب هستند"
+                    if "id" not in item:
+                        return False, "تاریخ‌های مهم خراب هستند"
+
+            budget_limits = data.get("budget_limits")
+            if budget_limits is not None:
+                if not isinstance(budget_limits, list):
+                    return False, "بودجه‌ها خراب هستند"
+                for b in budget_limits:
+                    if not isinstance(b, dict) or not isinstance(b.get("category"), str):
+                        return False, "بودجه‌ها خراب هستند"
+
         for t in tasks[:5]:
             try:
                 date.fromisoformat(t["date"])
