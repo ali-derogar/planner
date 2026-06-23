@@ -135,7 +135,17 @@ var _modalValidators = {
     amount: function(v) { return parseFloat(v) > 0; },
     budget: function(v) { var n = parseFloat(v); return !isNaN(n) && n >= 0; },
     required: function(v) { return v.trim().length > 0; },
+    repeatMonths: function(v) {
+        var n = parseInt(v, 10);
+        return !isNaN(n) && n >= 1 && n <= 120;
+    },
 };
+
+var REPEAT_TYPE_OPTIONS = [
+    { value: 'none', label: 'بدون تکرار' },
+    { value: 'yearly', label: 'سالانه' },
+    { value: 'custom', label: 'هر چند ماه (سفارشی)' },
+];
 
 function pad2(n) {
     return String(Math.max(0, parseInt(n, 10) || 0)).padStart(2, '0');
@@ -605,41 +615,79 @@ function buildColorPickerEl(field) {
     return wrap;
 }
 
+function isModalFieldVisible(f) {
+    if (!f.showWhen) return true;
+    var el = document.getElementById('mf-' + f.showWhen.key);
+    return el && el.value === f.showWhen.value;
+}
+
+function syncModalConditionalFields() {
+    var fc = document.getElementById('modal-fields');
+    if (!fc) return;
+    fc.querySelectorAll('.modal-field-group[data-show-when]').forEach(function(grp) {
+        var parts = grp.dataset.showWhen.split(':');
+        var key = parts[0];
+        var want = parts.slice(1).join(':');
+        var el = document.getElementById('mf-' + key);
+        grp.style.display = (el && el.value === want) ? '' : 'none';
+    });
+}
+
+function bindModalConditionalListeners(fc) {
+    if (!fc || fc.dataset.condBound) return;
+    fc.dataset.condBound = '1';
+    fc.addEventListener('change', function(e) {
+        if (e.target.matches('select, input')) syncModalConditionalFields();
+    });
+}
+
 function showModal(config) {
     _modal = config;
     document.getElementById('modal-title').textContent = config.title || '';
     var fc = document.getElementById('modal-fields');
     fc.innerHTML = '';
+    fc.removeAttribute('data-cond-bound');
     (config.fields || []).forEach(function(f) {
+        var grp = document.createElement('div');
+        grp.className = 'modal-field-group';
+        grp.id = 'mfg-' + f.key;
+        if (f.showWhen) {
+            grp.dataset.showWhen = f.showWhen.key + ':' + f.showWhen.value;
+        }
         var lbl = document.createElement('div');
         lbl.className = 'modal-label';
         lbl.textContent = f.label;
-        fc.appendChild(lbl);
+        grp.appendChild(lbl);
         if (f.type === 'color-select') {
-            fc.appendChild(buildColorPickerEl(f));
+            grp.appendChild(buildColorPickerEl(f));
         } else if (f.type === 'jalali-date') {
-            fc.appendChild(buildDatePickerEl(f));
+            grp.appendChild(buildDatePickerEl(f));
         } else if (f.type === 'select') {
             var sel = document.createElement('select');
             sel.className = 'modal-input';
             sel.id = 'mf-' + f.key;
             (f.options || []).forEach(function(opt) {
                 var o = document.createElement('option');
-                o.value = opt;
-                o.textContent = opt;
-                if (f.value === opt) o.selected = true;
+                if (opt && typeof opt === 'object') {
+                    o.value = opt.value;
+                    o.textContent = opt.label;
+                } else {
+                    o.value = opt;
+                    o.textContent = opt;
+                }
+                if (f.value === o.value) o.selected = true;
                 sel.appendChild(o);
             });
-            fc.appendChild(sel);
+            grp.appendChild(sel);
         } else if (f.type === 'time-hms' || f.type === 'time-hm') {
-            fc.appendChild(buildTimePickerEl(f));
+            grp.appendChild(buildTimePickerEl(f));
         } else if (f.type === 'textarea') {
             var ta = document.createElement('textarea');
             ta.className = 'modal-input modal-textarea';
             ta.id = 'mf-' + f.key;
             ta.placeholder = f.placeholder || '';
             if (f.value) ta.value = f.value;
-            fc.appendChild(ta);
+            grp.appendChild(ta);
         } else {
             var inp = document.createElement('input');
             inp.type = f.type || 'text';
@@ -647,16 +695,26 @@ function showModal(config) {
             inp.id = 'mf-' + f.key;
             inp.placeholder = f.placeholder || '';
             if (f.value !== undefined && f.value !== null) inp.value = f.value;
-            fc.appendChild(inp);
+            grp.appendChild(inp);
         }
+        fc.appendChild(grp);
     });
+    bindModalConditionalListeners(fc);
+    syncModalConditionalFields();
     document.getElementById('modal-error').textContent = '';
     var modalEl = document.getElementById('modal');
     modalEl.style.display = 'flex';
     modalEl.classList.remove('modal-center');
     fc.scrollTop = 0;
-    var first = fc.querySelector('input,select,textarea,button.color-swatch');
-    if (first) setTimeout(function() { first.focus(); }, 80);
+    var first = fc.querySelector('input:not([type="hidden"]), textarea, select');
+    if (!first) first = fc.querySelector('button.color-swatch');
+    if (first) {
+        setTimeout(function() {
+            if (first.focus) first.focus();
+            ensureFieldVisible(first);
+        }, 80);
+    }
+    syncKeyboardLayout();
 }
 
 function confirmModal() {
@@ -665,6 +723,10 @@ function confirmModal() {
     var valid = true;
     var errEl = document.getElementById('modal-error');
     (_modal.fields || []).forEach(function(f) {
+        if (!isModalFieldVisible(f)) {
+            if (f.key === 'repeat_months') params[f.key] = 0;
+            return;
+        }
         var el = document.getElementById('mf-' + f.key);
         var val = '';
         if (f.type === 'time-hms' || f.type === 'time-hm') {
@@ -694,6 +756,7 @@ function confirmModal() {
 function closeModal() {
     document.getElementById('modal').style.display = 'none';
     _modal = null;
+    setTimeout(syncKeyboardLayout, 150);
 }
 
 document.addEventListener('click', function(e) {
@@ -937,7 +1000,6 @@ function renderHome(h) {
     }
     html += '</div>';
 
-    html += renderFinance(h.finance);
     html += renderWellness(h.wellness);
     html += '<div class="section note-section"><div class="sec-title">یادداشت روز من</div>' +
         '<textarea class="note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
@@ -961,30 +1023,6 @@ function renderCalendar(cal) {
         html += '<button class="' + cls + '" onclick="action(\'pick_date\',{date:\'' + c.date + '\'})">' + pd(c.day) + '</button>';
     });
     return html + '</div></div>';
-}
-
-function renderFinance(fin) {
-    window._finEntries = fin.entries;
-    var rows = fin.entries.map(function(e) {
-        var info = finTypeInfo(e.type);
-        return '<div class="fin-entry">' +
-            '<span class="fin-type-' + info.cls + '">' + info.arrow + ' ' + esc(e.title) + ' <span class="fin-cat">' + esc(e.category) + '</span></span>' +
-            '<span>' + esc(e.amount_fmt) + '</span>' +
-            '<button class="fin-edit" onclick="showEditFinanceById(' + e.id + ')">✎</button>' +
-            '<button class="fin-del" onclick="action(\'delete_finance\',{id:' + e.id + '})">×</button></div>';
-    }).join('');
-    if (!rows) rows = '<div class="empty-mini">هیچ ورودی ندارید</div>';
-    var balCls = fin.balance >= 0 ? 'fin-income' : 'fin-expense';
-    var invLine = fin.investment > 0 ? '<span class="fin-investment">سرمایه\u200cگذاری: ' + esc(fin.investment_fmt) + '</span>' : '';
-    return '<div class="section"><div class="sec-header"><span class="sec-title">امور مالی</span><div class="sec-actions">' +
-        '<a href="javascript:void(0)" onclick="showAddFinance(\'income\')" class="btn-sm-green">+ درآمد</a>' +
-        '<a href="javascript:void(0)" onclick="showAddFinance(\'expense\')" class="btn-sm-red">+ هزینه</a>' +
-        '<a href="javascript:void(0)" onclick="showAddFinance(\'investment\')" class="btn-sm-invest">+ سرمایه</a></div></div>' +
-        '<div class="fin-donut-row"><div class="fin-donut" style="--income-pct:' + (fin.income + fin.expense ? fin.income / (fin.income + fin.expense) * 100 : 50) + '"></div>' +
-        '<div class="fin-summary"><span class="fin-income">درآمد: ' + esc(fin.income_fmt) + '</span>' +
-        '<span class="' + balCls + '">موجودی: ' + esc(fin.balance_fmt) + '</span>' +
-        '<span class="fin-expense">هزینه: ' + esc(fin.expense_fmt) + '</span>' +
-        invLine + '</div></div>' + rows + '</div>';
 }
 
 function showEditFinance(entry) {
@@ -1519,24 +1557,33 @@ function renderDateItem(i) {
         + renewBtn + editBtn + delBtn + '</div></div>';
 }
 
+function importantDateFields(item, categories) {
+    item = item || {};
+    var repeat = item.repeat_type || 'none';
+    var months = item.repeat_months > 0 ? item.repeat_months : 3;
+    return [
+        { label: 'عنوان', key: 'title', value: item.title || '', validate: 'required' },
+        { label: 'تاریخ', key: 'date',
+          type: 'jalali-date', value: item.date || '', validate: 'required', clearable: false },
+        { label: 'دسته', key: 'category', type: 'select',
+          value: item.category || 'سایر', options: categories },
+        { label: 'تکرار', key: 'repeat_type', type: 'select',
+          value: repeat, options: REPEAT_TYPE_OPTIONS },
+        { label: 'هر چند ماه یکبار؟', key: 'repeat_months', type: 'number',
+          value: String(months), placeholder: 'مثلاً ۳', validate: 'repeatMonths',
+          showWhen: { key: 'repeat_type', value: 'custom' } },
+        { label: 'یادداشت (اختیاری)', key: 'notes',
+          type: 'textarea', value: item.notes || '', placeholder: '' },
+    ];
+}
+
 function showAddImportantDate(categories) {
     var now = new Date();
     var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
     showModal({
         title: 'تاریخ مهم جدید',
         cmd: 'add_important_date',
-        fields: [
-            { label: 'عنوان', key: 'title', validate: 'required' },
-            { label: 'تاریخ', key: 'date',
-              type: 'jalali-date', value: todayIso, validate: 'required', clearable: false },
-            { label: 'دسته', key: 'category', type: 'select',
-              value: 'سایر', options: categories },
-            { label: 'تکرار', key: 'repeat_type', type: 'select',
-              value: 'none',
-              options: ['none', 'yearly', 'custom'] },
-            { label: 'یادداشت (اختیاری)', key: 'notes',
-              placeholder: '' },
-        ],
+        fields: importantDateFields({ date: todayIso }, categories),
     });
 }
 
@@ -1545,18 +1592,7 @@ function showEditImportantDate(i) {
         title: 'ویرایش تاریخ مهم',
         cmd: 'edit_important_date',
         params: { id: i.id },
-        fields: [
-            { label: 'عنوان', key: 'title',
-              value: i.title, validate: 'required' },
-            { label: 'تاریخ', key: 'date',
-              type: 'jalali-date', value: i.date, validate: 'required', clearable: false },
-            { label: 'دسته', key: 'category', type: 'select',
-              value: i.category, options: window._dateCategories },
-            { label: 'تکرار', key: 'repeat_type', type: 'select',
-              value: i.repeat_type,
-              options: ['none', 'yearly', 'custom'] },
-            { label: 'یادداشت', key: 'notes', value: i.notes },
-        ],
+        fields: importantDateFields(i, window._dateCategories),
     });
 }
 
@@ -1936,6 +1972,8 @@ function renderApp(state) {
             if (searchCaret != null) {
                 try { searchInput.setSelectionRange(searchCaret, searchCaret); } catch (e) {}
             }
+            syncKeyboardLayout();
+            ensureFieldVisible(searchInput);
         }
     } else if (restoreNote) {
         var noteInput = document.getElementById('daily-note');
@@ -1944,8 +1982,16 @@ function renderApp(state) {
             if (noteCaret != null) {
                 try { noteInput.setSelectionRange(noteCaret, noteCaret); } catch (e) {}
             }
+            syncKeyboardLayout();
+            ensureFieldVisible(noteInput);
         }
     }
+
+    document.body.classList.toggle(
+        'has-bottom-nav',
+        state.screen === 'home' || state.screen === 'finance'
+            || state.screen === 'analytics' || state.screen === 'projects'
+    );
 
     if (state.screen === 'settings' && window._exportData) {
         var exportTa = document.getElementById('export-ta');
@@ -1962,3 +2008,96 @@ function renderApp(state) {
 
     if (state.toast) showToast(state.toast.message, state.toast.type);
 }
+
+/* Mobile keyboard — keep text fields visible above the virtual keyboard */
+var KEYBOARD_THRESHOLD = 80;
+
+function isMobileTouch() {
+    return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}
+
+function keyboardHeight() {
+    var vv = window.visualViewport;
+    if (vv) {
+        var h = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        if (h >= KEYBOARD_THRESHOLD) return h;
+    }
+    if (isMobileTouch()) {
+        var active = document.activeElement;
+        if (active && active.matches && active.matches('input:not([type="hidden"]), textarea, select')) {
+            return Math.round(window.innerHeight * 0.42);
+        }
+    }
+    return 0;
+}
+
+function visibleViewportHeight() {
+    var vv = window.visualViewport;
+    return vv ? vv.height : window.innerHeight;
+}
+
+function syncKeyboardLayout() {
+    var kb = keyboardHeight();
+    var open = kb >= KEYBOARD_THRESHOLD;
+    var root = document.documentElement;
+    root.style.setProperty('--keyboard-inset', open ? kb + 'px' : '0px');
+    root.style.setProperty('--visual-vh', visibleViewportHeight() + 'px');
+    document.body.classList.toggle('kb-open', open);
+}
+
+function scrollFieldInContainer(el, container) {
+    var elRect = el.getBoundingClientRect();
+    var contRect = container.getBoundingClientRect();
+    if (elRect.bottom > contRect.bottom - 16) {
+        container.scrollTop += elRect.bottom - contRect.bottom + 32;
+    } else if (elRect.top < contRect.top + 12) {
+        container.scrollTop -= contRect.top - elRect.top + 32;
+    }
+}
+
+function ensureFieldVisible(el) {
+    if (!el || !el.matches || !el.matches('input:not([type="hidden"]), textarea, select')) return;
+    [50, 200, 450].forEach(function(ms) {
+        setTimeout(function() {
+            syncKeyboardLayout();
+            var modalFields = document.getElementById('modal-fields');
+            if (modalFields && modalFields.contains(el)) {
+                scrollFieldInContainer(el, modalFields);
+            } else {
+                try {
+                    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                } catch (e) {
+                    el.scrollIntoView(false);
+                }
+            }
+        }, ms);
+    });
+}
+
+(function initMobileKeyboard() {
+    function bind() {
+        syncKeyboardLayout();
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', syncKeyboardLayout);
+            window.visualViewport.addEventListener('scroll', syncKeyboardLayout);
+        }
+        window.addEventListener('resize', syncKeyboardLayout);
+        document.addEventListener('focusin', function(e) {
+            ensureFieldVisible(e.target);
+        });
+        document.addEventListener('click', function(e) {
+            var t = e.target;
+            if (t && t.matches && t.matches('input:not([type="hidden"]), textarea, select')) {
+                setTimeout(function() { ensureFieldVisible(t); }, 120);
+            }
+        }, true);
+        document.addEventListener('focusout', function() {
+            setTimeout(syncKeyboardLayout, 150);
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bind);
+    } else {
+        bind();
+    }
+})();

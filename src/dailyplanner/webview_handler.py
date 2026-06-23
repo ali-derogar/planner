@@ -786,6 +786,12 @@ class WebViewHandler:
             return
         if repeat not in ("none", "yearly", "custom"):
             repeat = "none"
+        if repeat == "custom" and repeat_months < 1:
+            self.toast("تعداد ماه باید بین ۱ تا ۱۲۰ باشد", "error")
+            await self.push_state()
+            return
+        if repeat != "custom":
+            repeat_months = 0
         if title and date_str:
             self.db.add_important_date(
                 title, date_str, category, notes, repeat, repeat_months
@@ -809,6 +815,12 @@ class WebViewHandler:
             return
         if repeat not in ("none", "yearly", "custom"):
             repeat = "none"
+        if repeat == "custom" and repeat_months < 1:
+            self.toast("تعداد ماه باید بین ۱ تا ۱۲۰ باشد", "error")
+            await self.push_state()
+            return
+        if repeat != "custom":
+            repeat_months = 0
         if title and date_str:
             self.db.edit_important_date(
                 date_id, title, date_str, category, notes, repeat, repeat_months

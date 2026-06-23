@@ -51,6 +51,9 @@ def get_css() -> str:
 
 *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
+html {{
+    scroll-padding-bottom: var(--keyboard-inset);
+}}
 html, body {{
     background: var(--gradient-mesh), var(--bg);
     background-attachment: fixed;
@@ -65,10 +68,30 @@ html, body {{
     line-height: 1.5;
     font-variant-numeric: tabular-nums;
 }}
+body.kb-open .content {{
+    padding-bottom: calc(24px + var(--keyboard-inset));
+}}
+body.kb-open.has-bottom-nav .content {{
+    padding-bottom: calc(88px + max(48px, var(--safe-bottom)) + var(--keyboard-inset));
+}}
+body.kb-open .bottom-nav {{
+    transform: translateX(-50%) translateY(calc(var(--keyboard-inset) + 100px));
+    opacity: 0;
+    pointer-events: none;
+}}
 
 a {{ text-decoration: none; color: inherit; }}
 
 button, input, select, textarea {{ font-family: inherit; }}
+input:not([type="hidden"]), textarea, select {{
+    scroll-margin-top: 16px;
+    scroll-margin-bottom: calc(var(--keyboard-inset) + 24px);
+}}
+@media (hover: none) and (pointer: coarse) {{
+    .modal-input, .note-input, .search-input, .backup-ta {{
+        font-size: 16px;
+    }}
+}}
 button {{ cursor: pointer; }}
 
 button:focus-visible, a:focus-visible, input:focus-visible,
@@ -716,6 +739,15 @@ textarea:focus-visible, select:focus-visible {{
     margin: 0 auto;
     box-shadow: var(--shadow-nav);
     animation: sheetUp var(--duration-normal) var(--ease-out);
+    transition: max-height 0.15s ease-out;
+}}
+body.kb-open .modal-overlay {{
+    padding-bottom: var(--keyboard-inset);
+    align-items: flex-end;
+}}
+body.kb-open .modal-box {{
+    max-height: calc(var(--visual-vh) - 16px);
+    padding-bottom: 16px;
 }}
 .modal-center .modal-box {{
     border-radius: var(--radius-lg);

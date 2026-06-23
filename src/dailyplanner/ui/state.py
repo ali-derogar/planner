@@ -323,9 +323,6 @@ def build_state(
         useful, not_useful = db.get_useful_totals(current_date)
         total = useful + not_useful
         eff = int(useful / total * 100) if total > 0 else 0
-        entries = db.get_finance_entries_for_date(current_date)
-        income, expense, investment = db.get_finance_daily_totals(current_date)
-        balance = db.get_finance_balance_until(current_date)
         wellness = db.get_wellness(current_date)
         note = db.get_daily_note(current_date)
 
@@ -346,17 +343,6 @@ def build_state(
             "not_useful_fmt": format_duration(not_useful),
             "efficiency": eff,
             "tasks": [_task_dict(t, expanded_tasks, active_id, elapsed) for t in tasks],
-            "finance": {
-                "entries": [_finance_dict(e) for e in entries],
-                "income": income,
-                "expense": expense,
-                "investment": investment,
-                "balance": balance,
-                "income_fmt": format_money(income),
-                "expense_fmt": format_money(expense),
-                "investment_fmt": format_money(investment),
-                "balance_fmt": format_money(balance),
-            },
             "wellness": _wellness_dict(wellness),
             "daily_note": note or "",
             "recurring_count": len(db.get_all_recurring()),
