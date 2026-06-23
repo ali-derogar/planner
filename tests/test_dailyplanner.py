@@ -173,3 +173,49 @@ def test_export_json(db):
 
 def test_str_to_date():
     assert str_to_date("2026-06-22") == datetime.date(2026, 6, 22)
+
+
+def test_parse_bank_sms_expense():
+    from dailyplanner.finance_sms import parse_bank_sms, resolve_amount
+
+    sms = """777.888.18007694.1
+-2,700,000
+04/01_21:44
+مانده: 311,766,555"""
+    parsed = parse_bank_sms(sms)
+    assert parsed.amount == 270000
+    assert parsed.direction == "expense"
+    assert resolve_amount("", sms) == 270000
+
+
+def test_parse_bank_sms_income():
+    from dailyplanner.finance_sms import parse_bank_sms
+
+    sms = """777.888.18007694.1
++270,000,000
+04/01_18:30
+مانده: 314,466,555"""
+    parsed = parse_bank_sms(sms)
+    assert parsed.amount == 27000000
+    assert parsed.direction == "income"
+
+
+def test_parse_bank_sms_samples():
+    from dailyplanner.finance_sms import parse_bank_sms
+
+    samples = [
+        ("-509,000", 50900),
+        ("-200,000", 20000),
+        ("-3,560,000", 356000),
+        ("-2,737,130", 273713),
+    ]
+    for line, expected in samples:
+        sms = "777.888.18007694.1\n" + line + "\n03/31_15:19\nمانده: 48,735,555"
+        assert parse_bank_sms(sms).amount == expected
+
+
+def test_parse_bank_sms_ignores_balance_line():
+    from dailyplanner.finance_sms import parse_bank_sms
+
+    sms = "مانده: 311,766,555"
+    assert parse_bank_sms(sms).amount == 0

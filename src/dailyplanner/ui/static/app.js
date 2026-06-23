@@ -112,7 +112,7 @@ function collapseChevron(open) {
 
 function themeColorForScreen(screen, theme) {
     if (theme === 'light') return '#FAFAFC';
-    var map = { home: '#4338CA', finance: '#0F2E28', projects: '#6366F1', analytics: '#1A1A24' };
+    var map = { home: '#0369A1', finance: '#0F2E28', projects: '#6366F1', analytics: '#1A1A24' };
     return map[screen] || '#0A0A0F';
 }
 
@@ -140,6 +140,114 @@ var _modalValidators = {
         return !isNaN(n) && n >= 1 && n <= 120;
     },
 };
+
+var _PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
+var _ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+
+function normalizeDigits(text) {
+    return String(text || '').replace(/[۰-۹]/g, function(c) {
+        return String(_PERSIAN_DIGITS.indexOf(c));
+    }).replace(/[٠-٩]/g, function(c) {
+        return String(_ARABIC_DIGITS.indexOf(c));
+    });
+}
+
+function parseBankSms(text) {
+    var empty = { amount: 0, direction: null };
+    if (!text || !String(text).trim()) return empty;
+    var t = normalizeDigits(String(text)).trim();
+    var amount = 0;
+    var direction = null;
+    var lines = t.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+        var m = lines[i].trim().match(/^([+-])\s*([\d,]+)$/);
+        if (m) {
+            var a = parseInt(m[2].replace(/,/g, ''), 10);
+            if (!isNaN(a) && a > 0) {
+                amount = Math.floor(a / 10);
+                direction = m[1] === '+' ? 'income' : 'expense';
+                break;
+            }
+        }
+    }
+    return { amount: amount, direction: direction };
+}
+
+function insertSmsField(fields, amountKey) {
+    amountKey = amountKey || 'amount';
+    if ((fields || []).some(function(f) { return f.key === 'sms'; })) return fields;
+    var smsField = {
+        label: 'متن پیامک (اختیاری)',
+        key: 'sms',
+        type: 'textarea',
+        placeholder: 'پیام بانکی را بچسبانید — مبلغ به‌صورت خودکار تشخیص داده می‌شود',
+        parseAmountTarget: amountKey,
+    };
+    var result = [];
+    var inserted = false;
+    (fields || []).forEach(function(f) {
+        if (!inserted && f.key === amountKey) {
+            result.push(smsField);
+            inserted = true;
+        }
+        result.push(f);
+    });
+    if (!inserted) result.unshift(smsField);
+    return result;
+}
+
+function updateSmsParseHint(parsed) {
+    var hint = document.getElementById('sms-parse-hint');
+    if (!hint) return;
+    if (parsed.amount > 0) {
+        var dirLbl = parsed.direction === 'income' ? 'واریز' : (parsed.direction === 'expense' ? 'برداشت' : 'تراکنش');
+        hint.textContent = '✓ ' + dirLbl + ': ' + pd(String(parsed.amount).replace(/\B(?=(\d{3})+(?!\d))/g, '،')) + ' تومان';
+        hint.className = 'sms-parse-hint ok';
+    } else if (hint.dataset.hasText === '1') {
+        hint.textContent = 'مبلغی در پیامک پیدا نشد';
+        hint.className = 'sms-parse-hint err';
+    } else {
+        hint.textContent = '';
+        hint.className = 'sms-parse-hint';
+    }
+}
+
+function bindSmsAmountAutofill(amountKey) {
+    amountKey = amountKey || 'amount';
+    var smsEl = document.getElementById('mf-sms');
+    if (!smsEl) return;
+    var hint = document.createElement('div');
+    hint.id = 'sms-parse-hint';
+    hint.className = 'sms-parse-hint';
+    smsEl.parentNode.appendChild(hint);
+    function apply() {
+        hint.dataset.hasText = smsEl.value.trim() ? '1' : '0';
+        var parsed = parseBankSms(smsEl.value);
+        var amountEl = document.getElementById('mf-' + amountKey);
+        if (parsed.amount > 0 && amountEl) amountEl.value = String(parsed.amount);
+        updateSmsParseHint(parsed);
+    }
+    smsEl.addEventListener('input', apply);
+    smsEl.addEventListener('paste', function() { setTimeout(apply, 0); });
+}
+
+function applySmsAmountInModal(params, fields) {
+    var sms = (params.sms || '').trim();
+    if (!sms) return;
+    var targetKey = 'amount';
+    (fields || []).some(function(f) {
+        if (f.key === 'sms' && f.parseAmountTarget) {
+            targetKey = f.parseAmountTarget;
+            return true;
+        }
+        return false;
+    });
+    var parsed = parseBankSms(sms);
+    var current = parseFloat(params[targetKey]);
+    if (parsed.amount > 0 && (isNaN(current) || current <= 0)) {
+        params[targetKey] = String(parsed.amount);
+    }
+}
 
 var REPEAT_TYPE_OPTIONS = [
     { value: 'none', label: 'بدون تکرار' },
@@ -706,6 +814,17 @@ function showModal(config) {
     modalEl.style.display = 'flex';
     modalEl.classList.remove('modal-center');
     fc.scrollTop = 0;
+    if ((config.fields || []).some(function(f) { return f.key === 'sms'; })) {
+        var smsTarget = 'amount';
+        (config.fields || []).some(function(f) {
+            if (f.key === 'sms' && f.parseAmountTarget) {
+                smsTarget = f.parseAmountTarget;
+                return true;
+            }
+            return false;
+        });
+        bindSmsAmountAutofill(smsTarget);
+    }
     var first = fc.querySelector('input:not([type="hidden"]), textarea, select');
     if (!first) first = fc.querySelector('button.color-swatch');
     if (first) {
@@ -741,8 +860,14 @@ function confirmModal() {
             val = el ? el.value : '';
         }
         params[f.key] = val;
+    });
+    applySmsAmountInModal(params, _modal.fields);
+    (_modal.fields || []).forEach(function(f) {
+        if (!isModalFieldVisible(f)) return;
+        var val = params[f.key];
+        if (f.key === 'sms') return;
         if (f.validate && _modalValidators[f.validate]) {
-            if (!_modalValidators[f.validate](val)) valid = false;
+            if (!_modalValidators[f.validate](String(val || ''))) valid = false;
         }
     });
     if (!valid) {
@@ -874,14 +999,39 @@ var FIN_CAT_ICONS = {
 };
 function finCatIcon(cat) { return FIN_CAT_ICONS[cat] || '💳'; }
 
+function finCatIconType(cat) {
+    var invest = window._investCategories || [];
+    if (invest.indexOf(cat) !== -1) return 'investment';
+    if (cat === 'حقوق') return 'income';
+    return 'expense';
+}
+
+function finIcon(type, content, size) {
+    var cls = 'fin-icon fin-icon-' + (type || 'neutral');
+    if (size === 'lg') cls += ' fin-icon-lg';
+    return '<span class="' + cls + '" aria-hidden="true">' + content + '</span>';
+}
+
+function finIconSvg(type, iconName) {
+    return '<span class="fin-icon fin-icon-' + (type || 'neutral') + ' fin-icon-svg" aria-hidden="true">' + ico(iconName, 'ico') + '</span>';
+}
+
+function finCatIconHtml(cat) {
+    return finIcon(finCatIconType(cat), finCatIcon(cat));
+}
+
+function finCardTitle(type, icon, label) {
+    return '<span class="fin-card-title">' + finIcon(type, icon) + '<span>' + label + '</span></span>';
+}
+
 function finTypeInfo(type) {
     if (type === 'income') return { cls: 'income', arrow: '↑', label: 'درآمد' };
     if (type === 'investment') return { cls: 'investment', arrow: '◆', label: 'سرمایه\u200cگذاری' };
     return { cls: 'expense', arrow: '↓', label: 'هزینه' };
 }
 
-function finEmptyState(icon, msg, btnLabel, btnOnclick) {
-    var html = '<div class="fin-empty"><span class="fin-empty-icon">' + icon + '</span><p>' + msg + '</p>';
+function finEmptyState(icon, msg, btnLabel, btnOnclick, iconType) {
+    var html = '<div class="fin-empty">' + finIcon(iconType || 'neutral', icon, 'lg') + '<p>' + msg + '</p>';
     if (btnLabel) html += '<button class="fin-empty-btn" onclick="' + btnOnclick + '">' + btnLabel + '</button>';
     return html + '</div>';
 }
@@ -954,45 +1104,51 @@ function taskCard(t) {
 /* Screens */
 function renderHome(h) {
     var taskCount = h.tasks ? h.tasks.length : 0;
-    var calBtn = '<button type="button" class="icon-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">' + ico('calendar', 'ico') + '</button>';
-    var recurBtn = '<button type="button" class="icon-btn wide" onclick="action(\'navigate\',{screen:\'recurring\'})" aria-label="وظایف تکراری">' +
+    var calBtn = '<button type="button" class="icon-btn home-tool-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">' + ico('calendar', 'ico') + '</button>';
+    var recurBtn = '<button type="button" class="icon-btn home-tool-btn wide" onclick="action(\'navigate\',{screen:\'recurring\'})" aria-label="وظایف تکراری">' +
         ico('star', 'ico') + ' ' + pd(h.recurring_count) + '</button>';
-    var settingsBtn = '<button type="button" class="icon-btn" aria-label="تنظیمات" onclick="action(\'navigate\',{screen:\'settings\'})">' + ico('settings', 'ico') + '</button>';
+    var settingsBtn = '<button type="button" class="icon-btn home-tool-btn" aria-label="تنظیمات" onclick="action(\'navigate\',{screen:\'settings\'})">' + ico('settings', 'ico') + '</button>';
     var urgentCount = h.urgent_dates_count || 0;
     var badge = urgentCount > 0
         ? ' <span class="urgent-badge">' + pd(urgentCount) + '</span>'
         : '';
-    var datesBtn = '<button type="button" class="icon-btn dates-btn"'
+    var datesBtn = '<button type="button" class="icon-btn home-tool-btn dates-btn"'
         + ' onclick="action(\'navigate\',{screen:\'important_dates\'})"'
         + ' aria-label="تاریخ\u200cهای مهم">' + ico('bell', 'ico') + badge + '</button>';
 
-    var html = '<div class="date-header">' +
+    var html = '<div class="home-page">' +
+        '<div class="date-header home-header">' +
+        '<div class="home-header-top">' +
+        finIconSvg('home', 'home') +
+        '<span class="home-header-title">امروز</span>' +
+        '</div>' +
         '<div class="date-header-row">' +
         navArrowBtn('prev', 'action(\'prev_day\')', 'روز قبل') +
-        '<span class="date-title">' + esc(h.date_label) + '</span>' +
+        '<span class="date-title home-date-title">' + esc(h.date_label) + '</span>' +
         navArrowBtn('next', 'action(\'next_day\')', 'روز بعد') +
         '</div>' +
-        '<div class="date-header-tools">' +
-        (h.is_today ? '' : '<button type="button" onclick="action(\'today\')" class="today-btn">امروز</button>') +
+        '<div class="date-header-tools home-header-tools">' +
+        (h.is_today ? '' : '<button type="button" onclick="action(\'today\')" class="today-btn home-today-btn">امروز</button>') +
         calBtn + recurBtn + datesBtn + settingsBtn +
         '</div>' +
-        '<div class="hero-stats">' +
-        '<div class="hero-stat eff"><span class="hero-stat-val">' + pd(h.efficiency) + '٪</span><span class="hero-stat-lbl">بازده</span></div>' +
-        '<div class="hero-stat useful"><span class="hero-stat-val">' + esc(h.useful_fmt) + '</span><span class="hero-stat-lbl">مفید</span></div>' +
-        '<div class="hero-stat not"><span class="hero-stat-val">' + esc(h.not_useful_fmt) + '</span><span class="hero-stat-lbl">نامفید</span></div>' +
-        '<div class="hero-stat"><span class="hero-stat-val">' + pd(taskCount) + '</span><span class="hero-stat-lbl">تسک</span></div>' +
-        '</div></div>';
+        '<div class="home-hero-in-header"><div class="home-hero-stats">' +
+        '<div class="home-hero-stat eff">' + finIcon('analytics', '◎') + '<div><span class="home-stat-lbl">بازده</span><span class="home-stat-val">' + pd(h.efficiency) + '٪</span></div></div>' +
+        '<div class="home-hero-stat useful">' + finIcon('income', '↑') + '<div><span class="home-stat-lbl">مفید</span><span class="home-stat-val">' + esc(h.useful_fmt) + '</span></div></div>' +
+        '<div class="home-hero-stat not">' + finIcon('expense', '↓') + '<div><span class="home-stat-lbl">نامفید</span><span class="home-stat-val">' + esc(h.not_useful_fmt) + '</span></div></div>' +
+        '<div class="home-hero-stat tasks">' + finIcon('home', '☑') + '<div><span class="home-stat-lbl">تسک</span><span class="home-stat-val">' + pd(taskCount) + '</span></div></div>' +
+        '</div></div></div>';
 
     if (h.show_calendar && h.calendar) {
         html += renderCalendar(h.calendar);
     }
 
-    html += '<div class="search-row"><div class="search-wrap">' + ico('search', 'ico-search') +
+    html += '<div class="search-row home-search-row"><div class="search-wrap">' + ico('search', 'ico-search') +
         '<input class="search-input" placeholder="جستجو در تسک\u200cها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" aria-label="جستجو در تسک\u200cها" /></div></div>';
 
     html += '<div class="task-list">';
     if (h.tasks.length === 0) {
-        html += '<div class="empty-state">' + emptyListIcon() + '<div class="empty-title">هیچ تسکی وجود ندارد</div>' +
+        html += '<div class="empty-state">' + finIcon('home', '☑', 'lg') +
+            '<div class="empty-title">هیچ تسکی وجود ندارد</div>' +
             '<div class="empty-sub">اولین تسک امروز را اضافه کنید و زمان خود را مدیریت کنید</div>' +
             '<button type="button" class="empty-btn" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">' + ico('plus', 'ico') + ' افزودن تسک</button></div>';
     } else {
@@ -1007,7 +1163,7 @@ function renderHome(h) {
     if (h.tasks.length > 0) {
         html += '<button type="button" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})" class="add-btn">' + ico('plus', 'ico') + ' افزودن تسک</button>';
     }
-    return html;
+    return html + '</div>';
 }
 
 function renderCalendar(cal) {
@@ -1031,11 +1187,11 @@ function showEditFinance(entry) {
         title: 'ویرایش',
         cmd: 'edit_finance',
         params: { id: entry.id },
-        fields: [
+        fields: insertSmsField([
             { label: 'عنوان', key: 'title', value: entry.title, validate: 'required' },
             { label: 'مبلغ', key: 'amount', value: String(entry.amount), type: 'number', validate: 'amount' },
             { label: isInvest ? 'نوع سرمایه' : 'دسته', key: 'category', type: 'select', value: entry.category, options: isInvest ? window._investCategories : window._categories },
-        ],
+        ]),
     });
 }
 
@@ -1053,11 +1209,11 @@ function showAddFinance(type) {
         title: titles[type] || 'ثبت مالی',
         cmd: 'add_finance',
         params: { type: type },
-        fields: [
+        fields: insertSmsField([
             { label: 'عنوان', key: 'title', validate: 'required', placeholder: isInvest ? 'مثلاً خرید سهام' : '' },
             { label: 'مبلغ (تومان)', key: 'amount', type: 'number', validate: 'amount' },
             { label: isInvest ? 'نوع سرمایه' : 'دسته', key: 'category', type: 'select', value: defaultCat, options: cats },
-        ],
+        ]),
     });
 }
 
@@ -1088,7 +1244,7 @@ function showAddBudget(preselectedCategory, currentAmount) {
     showModal({
         title: preselectedCategory ? 'ویرایش بودجه' : 'تعیین بودجه',
         cmd: 'set_budget',
-        fields: fields,
+        fields: insertSmsField(fields),
     });
 }
 
@@ -1113,28 +1269,40 @@ function renderAnalytics(a) {
     var p7 = a.period === 7 ? 'period-btn active' : 'period-btn';
     var p30 = a.period === 30 ? 'period-btn active' : 'period-btn';
     var s = a.stats;
-    var html = '<div class="analytics-header sticky-sub"><span class="analytics-title">آمار کلی</span></div>' +
-        '<div class="analytics-period">' +
+    var html = '<div class="analytics-page">' +
+        '<div class="analytics-header">' +
+        '<div class="analytics-header-top">' +
+        finIconSvg('analytics', 'chart') +
+        '<span class="analytics-header-title">آمار کلی</span>' +
+        '</div>' +
+        '<div class="analytics-period analytics-period-in-header">' +
         '<a href="javascript:void(0)" onclick="action(\'set_period\',{days:7})" class="' + p7 + '">۷ روز</a>' +
-        '<a href="javascript:void(0)" onclick="action(\'set_period\',{days:30})" class="' + p30 + '">۳۰ روز</a></div>' +
-        '<div class="period-label">' + esc(a.start_label) + ' تا ' + esc(a.end_label) + '</div>' +
-        '<div class="streak-badge">🔥 ' + pd(s.streak) + ' روز پشت سر هم</div>' +
+        '<a href="javascript:void(0)" onclick="action(\'set_period\',{days:30})" class="' + p30 + '">۳۰ روز</a>' +
+        '</div>' +
+        '<div class="analytics-period-label">' + esc(a.start_label) + ' تا ' + esc(a.end_label) + '</div>' +
+        '<div class="analytics-hero-in-header">' +
+        '<div class="analytics-summary">' +
+        '<div class="analytics-summary-item"><span class="analytics-summary-val">' + pd(s.streak) + '</span><span class="analytics-summary-lbl">🔥 استریک</span></div>' +
+        '<div class="analytics-summary-item"><span class="analytics-summary-val">' + pd(s.eff) + '٪</span><span class="analytics-summary-lbl">بازده</span></div>' +
+        '<div class="analytics-summary-item"><span class="analytics-summary-val">' + esc(s.total_fmt) + '</span><span class="analytics-summary-lbl">کل زمان</span></div>' +
+        '</div></div></div>' +
         '<div class="chart-box">' + sparklineSvg(a.chart_points, 300, 60) + '</div>' +
         heatmapHtml(a.heatmap) +
         '<div class="stat-cards">' +
         statCard('کل زمان', s.total_fmt) +
         statCard('مفید', s.useful_fmt, '#4DD980') +
         statCard('نامفید', s.not_useful_fmt, '#FF7359') +
-        statCard('بازده', pd(s.eff) + '٪', '#5E5CE6') +
+        statCard('بازده', pd(s.eff) + '٪', '#A78BFA') +
         statCard('درآمد', s.income_fmt, '#4DD980') +
         statCard('هزینه', s.expense_fmt, '#FF7359') +
-        statCard('موجودی', s.balance_fmt, '#5E5CE6') +
+        statCard('موجودی', s.balance_fmt, '#818CF8') +
         statCard('خلق و خو', s.avg_mood) +
         statCard('خواب', s.avg_sleep) +
-        '</div><div class="sec-title" style="padding:8px 12px">روزهای گذشته</div>';
+        '</div><div class="sec-title analytics-days-title">روزهای گذشته</div>';
 
     if (!a.days.length) {
-        html += '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">داده‌ای برای نمایش نیست</div>' +
+        html += '<div class="empty-state">' + finIcon('analytics', '📊', 'lg') +
+            '<div class="empty-title">داده\u200cای برای نمایش نیست</div>' +
             '<div class="empty-sub">چند روز تسک انجام دهید تا آمار بازدهی اینجا نمایش داده شود</div></div>';
     } else {
         a.days.forEach(function(d) {
@@ -1142,12 +1310,12 @@ function renderAnalytics(a) {
                 '<div class="day-bar"><div class="day-bar-fill" style="width:' + d.eff + '%"></div></div>' +
                 '<div class="day-stats"><span>کل: ' + esc(d.total_fmt) + '</span>' +
                 '<span style="color:#4DD980">مفید: ' + esc(d.useful_fmt) + '</span>' +
-                '<span style="color:#5E5CE6">بازده: ' + pd(d.eff) + '٪</span></div>' +
+                '<span style="color:#A78BFA">بازده: ' + pd(d.eff) + '٪</span></div>' +
                 (d.sleep || d.mood ? '<div class="day-extra">' + esc(d.sleep) + ' ' + esc(d.mood) + '</div>' : '') +
                 '</div>';
         });
     }
-    return html;
+    return html + '</div>';
 }
 
 function statCard(key, val, color) {
@@ -1325,24 +1493,26 @@ function renderFinanceScreen(f) {
 
     var html = '<div class="fin-page">' +
         '<div class="date-header fin-header">' +
+        '<div class="fin-header-top">' +
+        finIconSvg('finance', 'wallet') +
+        '<span class="fin-header-title">مالی</span>' +
+        '</div>' +
         '<div class="date-header-row">' +
         navArrowBtn('prev', 'action(\'finance_prev_month\')', 'ماه قبل') +
-        '<span class="date-title">' + esc(f.month_label) + '</span>' +
+        '<span class="date-title fin-month-title">' + esc(f.month_label) + '</span>' +
         navArrowBtn('next', 'action(\'finance_next_month\')', 'ماه بعد') +
         '</div>' +
         (f.is_current_month ? '' : '<div class="date-header-tools">' +
-        '<button type="button" onclick="action(\'finance_current_month\')" class="today-btn">ماه جاری</button></div>') +
-        '</div>';
-
-    html += '<div class="fin-hero">' +
+        '<button type="button" onclick="action(\'finance_current_month\')" class="today-btn fin-today-btn">ماه جاری</button></div>') +
+        '<div class="fin-hero fin-hero-in-header">' +
         '<div class="fin-hero-label">موجودی این ماه</div>' +
         '<div class="fin-hero-balance ' + balCls + '">' + esc(t.balance_fmt) + '<span class="fin-hero-unit">تومان</span></div>' +
         '<div class="fin-hero-stats">' +
-        '<div class="fin-hero-stat income"><span class="fin-stat-icon">↑</span><div><span class="fin-stat-lbl">درآمد</span><span class="fin-stat-val">' + esc(t.income_fmt) + '</span></div></div>' +
-        '<div class="fin-hero-stat expense"><span class="fin-stat-icon">↓</span><div><span class="fin-stat-lbl">هزینه</span><span class="fin-stat-val">' + esc(t.expense_fmt) + '</span></div></div>' +
+        '<div class="fin-hero-stat income">' + finIcon('income', '↑') + '<div><span class="fin-stat-lbl">درآمد</span><span class="fin-stat-val">' + esc(t.income_fmt) + '</span></div></div>' +
+        '<div class="fin-hero-stat expense">' + finIcon('expense', '↓') + '<div><span class="fin-stat-lbl">هزینه</span><span class="fin-stat-val">' + esc(t.expense_fmt) + '</span></div></div>' +
         '</div>' +
-        (t.investment > 0 ? '<div class="fin-hero-invest"><span class="fin-stat-icon">◆</span> سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + ' <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
-        '</div>';
+        (t.investment > 0 ? '<div class="fin-hero-invest">' + finIcon('investment', '◆') + ' سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + ' <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
+        '</div></div>';
 
     html += '<div class="fin-actions">' +
         '<button class="fin-action-btn income" onclick="showAddFinance(\'income\')"><span class="fin-action-icon">+</span>درآمد</button>' +
@@ -1354,25 +1524,25 @@ function renderFinanceScreen(f) {
 
     html += renderInstallmentCard(f.installments);
 
-    html += '<div class="fin-card"><div class="fin-card-head"><span class="fin-card-title">📈 روند ماهانه</span></div>';
+    html += '<div class="fin-card"><div class="fin-card-head">' + finCardTitle('chart', '📈', 'روند ماهانه') + '</div>';
     if (f.chart && f.chart.has_data) {
         html += financeLineChartSvg(f.chart, 320, 130);
     } else {
-        html += finEmptyState('📊', 'با ثبت اولین تراکنش، نمودار روند مالی نمایش داده می‌شود', '+ ثبت هزینه', 'showAddFinance(\'expense\')');
+        html += finEmptyState('📊', 'با ثبت اولین تراکنش، نمودار روند مالی نمایش داده می‌شود', '+ ثبت هزینه', 'showAddFinance(\'expense\')', 'chart');
     }
     html += '</div>';
 
     html += '<div class="fin-card fin-card-collapsible' + (_showFinanceTransactions ? ' open' : '') + '">'
         + '<button type="button" class="fin-card-head fin-card-toggle"'
         + ' onclick="_showFinanceTransactions=!_showFinanceTransactions;renderApp(window._lastState)">'
-        + '<span class="fin-card-title">🧾 تراکنش‌ها</span>'
+        + finCardTitle('receipt', '🧾', 'تراکنش\u200cها')
         + '<span class="fin-card-head-end">'
         + '<span class="fin-card-badge">' + pd(f.entries.length) + '</span>'
         + '<span class="fin-card-chevron">' + collapseChevron(_showFinanceTransactions) + '</span>'
         + '</span></button>';
     if (_showFinanceTransactions) {
         if (!f.entries.length) {
-            html += finEmptyState('🧾', 'هنوز تراکنشی ثبت نشده', '+ ثبت درآمد', 'showAddFinance(\'income\')');
+            html += finEmptyState('🧾', 'هنوز تراکنشی ثبت نشده', '+ ثبت درآمد', 'showAddFinance(\'income\')', 'income');
         } else {
             var lastDate = '';
             f.entries.slice().reverse().forEach(function(e) {
@@ -1386,7 +1556,7 @@ function renderFinanceScreen(f) {
                     '<div class="fin-txn-icon">' + info.arrow + '</div>' +
                     '<div class="fin-txn-body">' +
                     '<div class="fin-txn-title">' + esc(e.title) + '</div>' +
-                    '<div class="fin-txn-meta"><span class="fin-txn-cat">' + finCatIcon(e.category) + ' ' + esc(e.category) + '</span>' +
+                    '<div class="fin-txn-meta"><span class="fin-txn-cat">' + finCatIconHtml(e.category) + ' ' + esc(e.category) + '</span>' +
                     (e.type === 'investment' ? ' <span class="fin-txn-tag">سرمایه\u200cگذاری</span>' : '') +
                     '</div></div>' +
                     '<div class="fin-txn-right">' +
@@ -1401,13 +1571,13 @@ function renderFinanceScreen(f) {
     html += '</div>';
 
     html += '<div class="fin-card"><div class="fin-card-head">' +
-        '<span class="fin-card-title">🎯 بودجه دسته‌ها</span>' +
+        finCardTitle('budget', '🎯', 'بودجه دسته\u200cها') +
         '<div class="fin-card-actions">' +
         '<button class="fin-chip-btn" onclick="showAddCategory()">+ دسته</button>' +
         '<button class="fin-chip-btn primary" onclick="showAddBudget()">+ بودجه</button>' +
         '</div></div>';
     if (!f.by_category.length) {
-        html += finEmptyState('🎯', 'بودجه ماهانه برای دسته‌ها تعیین نشده', '+ تعیین بودجه', 'showAddBudget()');
+        html += finEmptyState('🎯', 'بودجه ماهانه برای دسته‌ها تعیین نشده', '+ تعیین بودجه', 'showAddBudget()', 'budget');
     } else {
         f.by_category.forEach(function(c) {
             var barCls = c.over_budget ? 'fin-budget-fill over' : 'fin-budget-fill';
@@ -1415,7 +1585,7 @@ function renderFinanceScreen(f) {
             var pctLbl = c.budget > 0 ? pd(c.used_pct) + '٪' : '—';
             html += '<div class="fin-budget-item' + (c.over_budget ? ' over' : '') + '">' +
                 '<div class="fin-budget-top">' +
-                '<span class="fin-budget-icon">' + finCatIcon(c.category) + '</span>' +
+                '<span class="fin-budget-icon">' + finCatIconHtml(c.category) + '</span>' +
                 '<div class="fin-budget-info">' +
                 '<div class="fin-budget-name">' + esc(c.category) + '</div>' +
                 '<div class="fin-budget-sub">' + esc(c.expense_fmt) + ' از ' + (c.budget > 0 ? esc(c.budget_fmt) : '—') + '</div>' +
@@ -1437,7 +1607,7 @@ function renderFinanceScreen(f) {
     html += '</div>';
 
     if (f.daily_series.length) {
-        html += '<div class="fin-card"><div class="fin-card-head"><span class="fin-card-title">📅 خلاصه روزانه</span></div>' +
+        html += '<div class="fin-card"><div class="fin-card-head">' + finCardTitle('daily', '📅', 'خلاصه روزانه') + '</div>' +
             '<div class="fin-daily-table">' +
             '<div class="fin-daily-head"><span>تاریخ</span><span>درآمد</span><span>هزینه</span><span>سرمایه</span><span>خالص</span></div>';
         f.daily_series.forEach(function(d) {
@@ -1456,7 +1626,7 @@ function renderFinanceScreen(f) {
 }
 
 function renderInstallments(data) {
-    var html = '<div class="page-header">📋 مدیریت اقساط</div>';
+    var html = '<div class="page-header">' + finIcon('inst', '📋') + ' مدیریت اقساط</div>';
 
     html += '<div class="section">'
         + '<div class="sec-title">این ماه — ' + esc(data.month_label) + '</div>'
@@ -1473,7 +1643,7 @@ function renderInstallments(data) {
 
     if (!data.list.length) {
         html += '<div class="empty-state">'
-            + '<div class="empty-icon">📋</div>'
+            + '<div class="empty-icon fin-icon fin-icon-inst fin-icon-lg">📋</div>'
             + '<div>هیچ قسطی ندارید</div></div>';
     } else {
         data.list.forEach(function(i) {
@@ -1636,7 +1806,7 @@ function showAddInstallment() {
     showModal({
         title: 'افزودن قسط',
         cmd: 'add_installment',
-        fields: [
+        fields: insertSmsField([
             { label: 'عنوان (مثلاً: اقساط گوشی)', key: 'title',
               validate: 'required' },
             { label: 'مبلغ هر قسط (تومان)', key: 'amount',
@@ -1647,7 +1817,7 @@ function showAddInstallment() {
               type: 'jalali-date', value: todayIso, validate: 'required', clearable: false },
             { label: 'سررسید (چندم هر ماه)', key: 'due_day',
               type: 'number', placeholder: '15', validate: 'required' },
-        ],
+        ]),
     });
 }
 
@@ -1656,7 +1826,7 @@ function showEditInstallment(i) {
         title: 'ویرایش قسط',
         cmd: 'edit_installment',
         params: { id: i.id },
-        fields: [
+        fields: insertSmsField([
             { label: 'عنوان', key: 'title',
               value: i.title, validate: 'required' },
             { label: 'مبلغ هر قسط (تومان)', key: 'amount',
@@ -1667,7 +1837,7 @@ function showEditInstallment(i) {
               type: 'jalali-date', value: i.start_date, validate: 'required', clearable: false },
             { label: 'سررسید (چندم هر ماه)', key: 'due_day',
               type: 'number', value: i.due_day, validate: 'required' },
-        ],
+        ]),
     });
 }
 
@@ -1763,6 +1933,19 @@ function showEditProject(id, colors) {
     });
 }
 
+function projSummaryItem(type, icon, val, lbl) {
+    return '<div class="proj-summary-item">' + finIcon(type, icon) +
+        '<span class="proj-summary-val">' + val + '</span>' +
+        '<span class="proj-summary-lbl">' + lbl + '</span></div>';
+}
+
+function projSectionHead(type, icon, title, badge) {
+    return '<div class="proj-section-head">' + finCardTitle(type, icon, title) +
+        (badge !== undefined && badge !== null
+            ? '<span class="proj-section-badge">' + pd(badge) + '</span>' : '') +
+        '</div>';
+}
+
 function renderProjectCard(p, muted) {
     var mutedCls = muted ? ' muted' : '';
     var progress = p.progress || 0;
@@ -1775,7 +1958,7 @@ function renderProjectCard(p, muted) {
     html += projectDeadlineBadge(p);
     html += '<div class="proj-card-meta">' + pd(p.done) + ' از ' + pd(p.total) + ' تسک انجام‌شده</div>';
     html += '</div>';
-    html += projectProgressRing(progress, p.color, 52);
+    html += projectProgressRing(progress, p.color, 56);
     html += '</div>';
     html += '<div class="proj-bar"><div class="proj-bar-fill" style="width:' + progress + '%"></div></div>';
     html += '</div>';
@@ -1798,38 +1981,37 @@ function renderProjects(data) {
 
     html += '<div class="proj-header">' +
         '<div class="proj-header-top">' +
-        '<span class="proj-header-title">📋 پروژه‌ها</span>' +
+        '<div class="proj-header-brand">' +
+        finIconSvg('projects', 'folder') +
+        '<span class="proj-header-title">پروژه\u200cها</span>' +
+        '</div>' +
         '<button type="button" class="proj-header-add" onclick="showAddProject(window._projectColors)">+ پروژه جدید</button>' +
-        '</div>';
-
-    if (data.list.length) {
-        html += '<div class="proj-summary">' +
-            '<div class="proj-summary-item"><span class="proj-summary-val">' + pd(active.length) + '</span><span class="proj-summary-lbl">فعال</span></div>' +
-            '<div class="proj-summary-item"><span class="proj-summary-val">' + pd(doneTasks) + '/' + pd(totalTasks) + '</span><span class="proj-summary-lbl">تسک</span></div>' +
-            '<div class="proj-summary-item"><span class="proj-summary-val">' + pd(overallPct) + '٪</span><span class="proj-summary-lbl">پیشرفت</span></div>' +
-            '</div>';
-    }
-    html += '</div>';
+        '</div>' +
+        '<div class="proj-hero-in-header"><div class="proj-summary">' +
+        projSummaryItem('projects', '◆', pd(active.length), 'فعال') +
+        projSummaryItem('receipt', '☑', pd(doneTasks) + '/' + pd(totalTasks), 'تسک') +
+        projSummaryItem('analytics', '◎', pd(overallPct) + '٪', 'پیشرفت') +
+        '</div></div></div>';
 
     if (!data.list.length) {
-        html += finEmptyState('📋', 'هنوز پروژه‌ای ندارید.<br>اولین پروژه‌تان را بسازید و تسک‌ها را مدیریت کنید.', '+ ساخت پروژه', 'showAddProject(window._projectColors)');
+        html += finEmptyState('📋', 'هنوز پروژه\u200cای ندارید.<br>اولین پروژه\u200cتان را بسازید و تسک\u200cها را مدیریت کنید.', '+ ساخت پروژه', 'showAddProject(window._projectColors)', 'projects');
         return html + '</div>';
     }
 
     if (active.length) {
-        html += '<div class="proj-section"><div class="proj-section-head"><span class="proj-section-title">در جریان</span>' +
-            '<span class="proj-section-badge">' + pd(active.length) + '</span></div>';
+        html += '<div class="proj-card-section">' + projSectionHead('projects', '◆', 'در جریان', active.length);
         active.forEach(function(p) { html += renderProjectCard(p, false); });
         html += '</div>';
     } else {
-        html += '<div class="proj-section"><div class="proj-empty-mini">پروژه فعالی ندارید</div></div>';
+        html += '<div class="proj-card-section"><div class="proj-empty-mini">پروژه فعالی ندارید — یک پروژه جدید بسازید</div></div>';
     }
 
     if (done.length) {
-        html += '<div class="proj-section proj-section-done">';
+        html += '<div class="proj-card-section proj-section-done">';
         html += '<button type="button" class="proj-done-toggle' + (_showCompletedProjects ? ' open' : '') +
             '" onclick="_showCompletedProjects=!_showCompletedProjects;renderApp(window._lastState)">' +
-            '<span>✓ پروژه‌های تموم‌شده</span><span class="proj-section-badge">' + pd(done.length) + '</span>' +
+            finIcon('projects', '✓') +
+            '<span>پروژه\u200cهای تموم\u200cشده</span><span class="proj-section-badge">' + pd(done.length) + '</span>' +
             '<span class="proj-done-chevron">' + collapseChevron(_showCompletedProjects) + '</span></button>';
         if (_showCompletedProjects) {
             done.forEach(function(p) { html += renderProjectCard(p, true); });
@@ -1908,7 +2090,7 @@ function renderProjectDetail(p) {
 
 function renderNav(screen) {
     function item(id, label, iconName) {
-        var cls = screen === id ? 'nav-btn active' : 'nav-btn';
+        var cls = screen === id ? 'nav-btn active nav-' + id : 'nav-btn';
         var current = screen === id ? ' aria-current="page"' : '';
         return '<button type="button" onclick="action(\'navigate\',{screen:\'' + id + '\'})" class="' + cls + '"' + current +
             ' aria-label="' + label + '"><span class="nav-icon" aria-hidden="true">' + (ICON[iconName] || '') + '</span>' + label + '</button>';

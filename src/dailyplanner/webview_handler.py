@@ -8,6 +8,7 @@ from typing import Optional, Set
 import toga
 
 from dailyplanner.database import Database
+from dailyplanner.finance_sms import resolve_amount
 from dailyplanner.models import format_duration, str_to_date
 from dailyplanner.services.recurring import RecurringService
 from dailyplanner.services.timer import TimerService
@@ -360,10 +361,7 @@ class WebViewHandler:
             entry_type = "expense"
         title = p.get("title", "").strip()
         category = p.get("category", "عمومی")
-        try:
-            amount = int(float(p.get("amount", "0")))
-        except (ValueError, TypeError):
-            amount = 0
+        amount = resolve_amount(p.get("amount"), p.get("sms"))
         if title and amount > 0:
             self.db.add_finance_entry(
                 self.current_date, entry_type, title, amount, category
@@ -379,10 +377,7 @@ class WebViewHandler:
             return
         title = p.get("title", "").strip()
         category = p.get("category", "عمومی")
-        try:
-            amount = int(float(p.get("amount", "0")))
-        except (ValueError, TypeError):
-            amount = 0
+        amount = resolve_amount(p.get("amount"), p.get("sms"))
         if title and amount > 0:
             self.db.update_finance_entry(
                 entry_id, title, amount, entry.entry_type, category
@@ -424,10 +419,7 @@ class WebViewHandler:
 
     async def _on_set_budget(self, p):
         category = p.get("category", "").strip()
-        try:
-            amount = int(float(p.get("amount", "0")))
-        except (ValueError, TypeError):
-            amount = 0
+        amount = resolve_amount(p.get("amount"), p.get("sms"))
         if category:
             self.db.set_budget_limit(category, max(0, amount))
             self.toast("بودجه ذخیره شد")
@@ -709,8 +701,8 @@ class WebViewHandler:
 
     async def _on_add_installment(self, p):
         title = p.get("title", "").strip()
+        amount = resolve_amount(p.get("amount"), p.get("sms"))
         try:
-            amount = int(float(p.get("amount", "0")))
             total = int(p.get("total_count", "1"))
             due_day = int(p.get("due_day", "1"))
             start_date = p.get("start_date", "").strip()
@@ -729,8 +721,8 @@ class WebViewHandler:
     async def _on_edit_installment(self, p):
         inst_id = int(p.get("id", 0))
         title = p.get("title", "").strip()
+        amount = resolve_amount(p.get("amount"), p.get("sms"))
         try:
-            amount = int(float(p.get("amount", "0")))
             total = int(p.get("total_count", "1"))
             due_day = int(p.get("due_day", "1"))
             start_date = p.get("start_date", "").strip()
