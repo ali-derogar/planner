@@ -173,6 +173,18 @@ def test_export_json(db):
     assert "installment_payments" in data
 
 
+def test_backup_v1_installments_import(db):
+    d = datetime.date.today()
+    db.add_installment("loan", 500000, 12, d.isoformat(), 5)
+    exported = db.export_json()
+    exported["version"] = 1
+    ok, err = db.validate_backup(exported)
+    assert ok, err
+    db.import_json(exported)
+    assert len(db.get_all_installments()) == 1
+    assert db.get_all_installments()[0].title == "loan"
+
+
 def test_backup_roundtrip(db):
     d = datetime.date.today()
     db.add_task(d, "task-a")
@@ -261,3 +273,32 @@ def test_parse_bank_sms_ignores_balance_line():
 
     sms = "مانده: 311,766,555"
     assert parse_bank_sms(sms).amount == 0
+
+
+def test_resolve_amount_persian_digits():
+    from dailyplanner.finance_sms import resolve_amount, normalize_digits
+
+    assert resolve_amount("۵۰۰۰۰", "") == 50000
+    assert resolve_amount("۱۲،۳۴۵", "") == 12345
+    assert normalize_digits(0) == "0"
+    assert normalize_digits(None) == ""
+
+
+def test_param_int_parsing():
+    from dailyplanner.webview_handler import _param_int
+
+    assert _param_int({}, "id") is None
+    assert _param_int({"id": ""}, "id") is None
+    assert _param_int({"id": "۱۲۳"}, "id") == 123
+    assert _param_int({"total_count": "۱۲،۳"}, "total_count", 1) == 123
+    assert _param_int({"due_day": "abc"}, "due_day", 1) is None
+    assert _param_int({}, "days", 7) == 7
+    assert _param_int({}, "repeat_months", 0) == 0
+
+
+def test_parse_bank_sms_persian_comma_amount_line():
+    from dailyplanner.finance_sms import parse_bank_sms
+
+    sms = "777.888.18007694.1\n- ۲،۷۰۰،۰۰۰\n03/31_15:19"
+    assert parse_bank_sms(sms).amount == 270000
+    assert parse_bank_sms(sms).direction == "expense"

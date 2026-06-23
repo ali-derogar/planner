@@ -32,11 +32,13 @@ def build_web_bundle() -> dict[str, str]:
   <div class="modal-box" id="modal-box">
     <div class="modal-handle" aria-hidden="true"></div>
     <div class="modal-title" id="modal-title"></div>
-    <div id="modal-fields"></div>
-    <div class="modal-error" id="modal-error"></div>
+    <div class="modal-body" id="modal-body">
+      <div id="modal-fields"></div>
+      <div class="modal-error" id="modal-error"></div>
+    </div>
     <div class="modal-btns">
-      <button class="modal-confirm" onclick="confirmModal()">تأیید</button>
-      <button class="modal-cancel" onclick="closeModal()">انصراف</button>
+      <button type="button" class="modal-confirm" onclick="confirmModal()">تأیید</button>
+      <button type="button" class="modal-cancel" onclick="closeModal()">انصراف</button>
     </div>
   </div>
 </div>

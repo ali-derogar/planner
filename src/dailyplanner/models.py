@@ -183,8 +183,11 @@ class Project:
     def days_until_deadline(self) -> Optional[int]:
         if not self.deadline:
             return None
-        delta = date.fromisoformat(self.deadline) - date.today()
-        return delta.days
+        try:
+            delta = date.fromisoformat(self.deadline) - date.today()
+            return delta.days
+        except ValueError:
+            return None
 
 
 @dataclass
@@ -227,7 +230,10 @@ class Installment:
         """Gregorian date of next unpaid installment's due date."""
         if self.is_settled:
             return None
-        base = date.fromisoformat(self.start_date)
+        try:
+            base = date.fromisoformat(self.start_date)
+        except ValueError:
+            return None
         month = base.month - 1 + self.paid_count
         year = base.year + month // 12
         month = month % 12 + 1
@@ -263,7 +269,10 @@ class ImportantDate:
     def days_until(self, today: date = None) -> int:
         if today is None:
             today = date.today()
-        return (date.fromisoformat(self.date) - today).days
+        try:
+            return (date.fromisoformat(self.date) - today).days
+        except ValueError:
+            return 0
 
     @property
     def is_repeating(self) -> bool:

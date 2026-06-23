@@ -1018,7 +1018,7 @@ textarea:focus-visible, select:focus-visible {{
 .modal-box {{
     background: var(--surface);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    padding: 8px 16px calc(16px + var(--safe-bottom));
+    padding: 8px 16px 0;
     width: 100%;
     max-width: 520px;
     max-height: min(92dvh, calc(var(--visual-vh, 100dvh) - 16px));
@@ -1034,7 +1034,6 @@ textarea:focus-visible, select:focus-visible {{
 }}
 .modal-viewport-sync .modal-box {{
     max-height: calc(100% - 8px);
-    padding-bottom: 16px;
 }}
 body.kb-open .modal-overlay:not(.modal-viewport-sync) {{
     padding-bottom: var(--keyboard-inset);
@@ -1042,7 +1041,6 @@ body.kb-open .modal-overlay:not(.modal-viewport-sync) {{
 }}
 body.kb-open .modal-overlay:not(.modal-viewport-sync) .modal-box {{
     max-height: calc(var(--visual-vh) - 16px);
-    padding-bottom: 16px;
 }}
 .modal-center .modal-box {{
     border-radius: var(--radius-lg);
@@ -1059,23 +1057,36 @@ body.kb-open .modal-overlay:not(.modal-viewport-sync) .modal-box {{
     flex-shrink: 0;
 }}
 .modal-center .modal-handle {{ display: none; }}
-#modal-fields {{
-    overflow-y: auto;
-    flex: 1;
+.modal-body {{
+    flex: 1 1 auto;
     min-height: 0;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
     overscroll-behavior: contain;
     padding-left: 2px;
     padding-right: 2px;
 }}
-body.kb-open #modal-fields {{
-    padding-bottom: 12px;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+#modal-fields {{
+    overflow: visible;
+    min-height: 0;
+}}
+body.kb-open .modal-body {{
+    padding-bottom: 8px;
+}}
+body.kb-open .modal-overlay.modal-center {{
+    align-items: flex-start;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+}}
+body.kb-open .modal-center .modal-box {{
+    max-height: calc(var(--visual-vh, 100dvh) - 16px);
 }}
 body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
     touch-action: pan-y;
+}}
+body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
+    max-height: calc(100% - 8px);
 }}
 .modal-title {{
     font-size: 16px;
@@ -1136,7 +1147,23 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
     margin-top: 8px;
 }}
 
-.modal-btns {{ display: flex; gap: 8px; direction: rtl; flex-shrink: 0; padding-top: 10px; }}
+.modal-btns {{
+    display: flex;
+    gap: 8px;
+    direction: rtl;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+    background: var(--surface);
+    border-top: 1px solid var(--border-subtle);
+    margin: 0 -16px;
+    padding: 10px 16px calc(10px + var(--safe-bottom));
+}}
+.modal-center .modal-btns {{
+    margin: 0;
+    border-top: 1px solid var(--border-subtle);
+    padding-bottom: 0;
+}}
 .modal-confirm {{
     flex: 1;
     background: var(--gradient-accent);
@@ -1144,6 +1171,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
     border: none;
     border-radius: var(--radius-sm);
     padding: 12px;
+    min-height: 44px;
     font-size: var(--text-base);
     font-weight: var(--font-medium);
     cursor: pointer;
@@ -1157,6 +1185,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
     border: 1px solid var(--divider);
     border-radius: var(--radius-sm);
     padding: 10px;
+    min-height: 44px;
     font-size: 14px;
     cursor: pointer;
     font-family: 'Vazirmatn', sans-serif;
@@ -1704,7 +1733,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
 .toggle-btn.on {{ background: var(--primary); color: #fff; border-color: var(--primary); }}
 .recur-row {{ display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--divider); }}
 .recur-row:last-child {{ border-bottom: none; }}
-.modal-error {{ color: var(--error); font-size: 12px; margin-bottom: 8px; text-align: center; flex-shrink: 0; }}
+.modal-error {{ color: var(--error); font-size: 12px; margin-bottom: 8px; text-align: center; flex-shrink: 0; min-height: 0; }}
 .modal-textarea {{ min-height: 80px; resize: vertical; }}
 .sms-parse-hint {{ font-size: 11px; margin-top: 6px; min-height: 16px; }}
 .sms-parse-hint.ok {{ color: var(--success); }}
@@ -1853,6 +1882,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
     margin-top: 8px;
     outline: none;
     line-height: 1.5;
+    scroll-margin-bottom: calc(var(--keyboard-inset) + 32px);
 }}
 .backup-ta:focus {{ border-color: var(--primary); }}
 .backup-ta::placeholder {{ color: var(--text-muted); opacity: 0.7; }}
@@ -2553,12 +2583,21 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
     position: fixed; inset: 0; background: rgba(0,0,0,0.55);
     z-index: 500; display: flex; align-items: flex-end; justify-content: center;
     padding: 0 0 calc(var(--safe-bottom));
+    overflow: hidden;
+    touch-action: auto;
+}}
+body.kb-open .proj-sheet-overlay {{
+    padding-bottom: calc(var(--safe-bottom) + var(--keyboard-inset));
 }}
 .proj-sheet {{
     width: 100%; max-width: 480px; background: var(--surface);
     border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + var(--safe-bottom));
     border-top: 1px solid var(--divider);
     animation: projSheetUp 0.25s ease;
+    max-height: min(85dvh, calc(var(--visual-vh, 100dvh) - 16px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
 }}
 @keyframes projSheetUp {{
     from {{ transform: translateY(100%); }}
@@ -2577,7 +2616,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
     display: block; width: 100%; text-align: center;
     background: var(--surface-muted); color: var(--text);
     border: 1px solid var(--divider); border-radius: 12px;
-    padding: 14px; margin-bottom: 8px; font-size: 14px;
+    padding: 14px; margin-bottom: 8px; min-height: 44px; font-size: 14px;
     cursor: pointer; font-family: 'Vazirmatn', sans-serif;
 }}
 .proj-sheet-btn.danger {{ background: var(--error-bg); color: var(--error); border-color: #FF595933; }}

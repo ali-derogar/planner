@@ -277,7 +277,11 @@ class Database:
         task = self.get_task_by_id(task_id)
         if not task:
             return
-        tasks = self.get_tasks_for_date(str_to_date(task.date))
+        try:
+            task_date = str_to_date(task.date)
+        except ValueError:
+            return
+        tasks = self.get_tasks_for_date(task_date)
         ids = [t.id for t in tasks]
         idx = ids.index(task_id)
         swap_idx = idx - 1 if direction == "up" else idx + 1
@@ -299,7 +303,10 @@ class Database:
         task = self.get_task_by_id(task_id)
         if not task:
             return None
-        d = str_to_date(task.date) + timedelta(days=1)
+        try:
+            d = str_to_date(task.date) + timedelta(days=1)
+        except ValueError:
+            return None
         new_task = self.add_task(d, task.title)
         if task.estimated_seconds:
             self.update_estimated(new_task.id, task.estimated_seconds)
@@ -834,6 +841,10 @@ class Database:
             if not isinstance(data.get(key), list):
                 return False, "فرمت فایل نامعتبر است"
 
+        settings = data.get("settings")
+        if settings is not None and not isinstance(settings, dict):
+            return False, "تنظیمات خراب هستند"
+
         if version == 2:
             projects = data.get("projects")
             if not isinstance(projects, list):
@@ -856,7 +867,18 @@ class Database:
                 if not isinstance(installments, list):
                     return False, "اقساط خراب هستند"
                 for inst in installments:
-                    if not isinstance(inst, dict) or not isinstance(inst.get("title"), str):
+                    if not isinstance(inst, dict):
+                        return False, "اقساط خراب هستند"
+                    if not isinstance(inst.get("title"), str):
+                        return False, "اقساط خراب هستند"
+                    if "id" not in inst or "start_date" not in inst:
+                        return False, "اقساط خراب هستند"
+                    try:
+                        if int(inst.get("amount", 0)) <= 0:
+                            return False, "اقساط خراب هستند"
+                        if int(inst.get("total_count", 0)) <= 0:
+                            return False, "اقساط خراب هستند"
+                    except (TypeError, ValueError):
                         return False, "اقساط خراب هستند"
 
             inst_payments = data.get("installment_payments")
@@ -864,7 +886,9 @@ class Database:
                 if not isinstance(inst_payments, list):
                     return False, "اقساط خراب هستند"
                 for pay in inst_payments:
-                    if not isinstance(pay, dict) or "installment_id" not in pay:
+                    if not isinstance(pay, dict):
+                        return False, "اقساط خراب هستند"
+                    if "id" not in pay or "installment_id" not in pay or "payment_date" not in pay:
                         return False, "اقساط خراب هستند"
 
         for t in tasks[:5]:
@@ -911,8 +935,8 @@ class Database:
                     self.conn.execute(
                         "DELETE FROM sqlite_sequence WHERE name = ?", (tbl,)
                     )
-            except Exception:
-                pass
+            except Exception as _seq_err:
+                print(f"[import warning] sqlite_sequence reset failed: {_seq_err}")
 
             for r in data.get("recurring", []):
                 self.conn.execute(
@@ -1030,12 +1054,12 @@ class Database:
                     " (id, title, amount, total_count, paid_count, start_date, due_day, created_at)"
                     " VALUES (?,?,?,?,?,?,?,?)",
                     (
-                        inst["id"],
-                        inst["title"],
-                        int(inst["amount"]),
-                        int(inst["total_count"]),
+                        inst.get("id"),
+                        inst.get("title", ""),
+                        int(inst.get("amount", 0)),
+                        int(inst.get("total_count", 1)),
                         int(inst.get("paid_count", 0)),
-                        inst["start_date"],
+                        inst.get("start_date", ""),
                         int(inst.get("due_day", 1)),
                         inst.get("created_at", ""),
                     ),
@@ -1046,19 +1070,24 @@ class Database:
                     "INSERT INTO installment_payments (id, installment_id, payment_date, created_at)"
                     " VALUES (?,?,?,?)",
                     (
-                        pay["id"],
-                        pay["installment_id"],
-                        pay["payment_date"],
+                        pay.get("id"),
+                        pay.get("installment_id"),
+                        pay.get("payment_date", ""),
                         pay.get("created_at", ""),
                     ),
                 )
 
-            for key, value in data.get("settings", {}).items():
-                self.conn.execute(
-                    "INSERT INTO settings (key, value) VALUES (?,?)"
-                    " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                    (key, value),
-                )
+            _skip_import_keys = {"active_timer_task_id", "active_timer_started_at"}
+            settings = data.get("settings")
+            if isinstance(settings, dict):
+                for key, value in settings.items():
+                    if key in _skip_import_keys:
+                        continue
+                    self.conn.execute(
+                        "INSERT INTO settings (key, value) VALUES (?,?)"
+                        " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        (key, value),
+                    )
 
     def close(self):
         if self._conn:
@@ -1363,7 +1392,10 @@ class Database:
         months = 12 if item.repeat_type == "yearly" else item.repeat_months
         if months <= 0:
             return item
-        d = date.fromisoformat(item.date)
+        try:
+            d = date.fromisoformat(item.date)
+        except ValueError:
+            return item
         total_months = d.month - 1 + months
         new_year = d.year + total_months // 12
         new_month = total_months % 12 + 1

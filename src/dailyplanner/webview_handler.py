@@ -8,7 +8,7 @@ from typing import Optional, Set
 import toga
 
 from dailyplanner.database import Database
-from dailyplanner.finance_sms import resolve_amount
+from dailyplanner.finance_sms import normalize_digits, resolve_amount, _strip_group_separators
 from dailyplanner.models import format_duration, str_to_date
 from dailyplanner.services.recurring import RecurringService
 from dailyplanner.services.timer import TimerService
@@ -16,6 +16,24 @@ from dailyplanner.ui.shell import build_web_bundle
 from dailyplanner.ui.state import build_state
 from dailyplanner.utils.jalali import gregorian_to_jalali_parts, jalali_to_gregorian
 from dailyplanner.utils.platform import set_webview_bundle
+
+
+def _param_int(params: dict, key: str, default=None) -> Optional[int]:
+    if key not in params:
+        if default is None:
+            return None
+        raw = default
+    else:
+        raw = params[key]
+    if raw is None or raw == "":
+        return None
+    try:
+        cleaned = _strip_group_separators(normalize_digits(raw)).strip()
+        if not cleaned:
+            return None
+        return int(cleaned)
+    except (TypeError, ValueError):
+        return None
 
 
 class WebViewHandler:
@@ -103,6 +121,7 @@ class WebViewHandler:
             self.load_shell()
             await asyncio.sleep(0.3)
 
+        ready = False
         for _ in range(30):
             try:
                 ready = await self.app.webview.evaluate_javascript("!!window.renderApp")
@@ -111,6 +130,9 @@ class WebViewHandler:
             if ready:
                 break
             await asyncio.sleep(0.1)
+
+        if not ready:
+            print("[push_state] WebView not ready after timeout — attempting render anyway")
 
         state = self._build_state()
         payload = json.dumps(state, ensure_ascii=False)
@@ -192,6 +214,7 @@ class WebViewHandler:
         self.current_screen = screen
         await self.push_state()
         if screen == "settings":
+            await asyncio.sleep(0.15)
             await self._sync_export_preview()
 
     async def _inject_export_preview(self, payload: str) -> None:
@@ -274,7 +297,10 @@ class WebViewHandler:
     # ── tasks ─────────────────────────────────────────────────────────────────
 
     async def _on_toggle_task(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         if task_id in self.expanded_tasks:
             self.expanded_tasks.discard(task_id)
         else:
@@ -289,7 +315,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_delete_task(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         confirmed = await self.app.main_window.dialog(
             toga.ConfirmDialog("حذف تسک", "آیا مطمئن هستید؟")
         )
@@ -302,7 +331,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_toggle_star(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         task = self.db.get_task_by_id(task_id)
         if task:
             if task.is_starred:
@@ -312,7 +344,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_set_useful(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         val = p.get("value")
         if val == "true":
             is_useful = True
@@ -324,14 +359,20 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_edit_title(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         value = p.get("value", "").strip()
         if value:
             self.db.update_task_title(task_id, value)
         await self.push_state()
 
     async def _on_set_duration(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         value = p.get("value", "").strip()
         secs = _parse_hms(value)
         if secs is not None:
@@ -341,7 +382,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_set_estimated(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         value = p.get("value", "").strip()
         secs = _parse_hms(value)
         if secs is not None:
@@ -351,14 +395,20 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_copy_task(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         new_task = self.db.copy_task_to_next_day(task_id)
         if new_task:
             self.toast("کپی به فردا انجام شد")
         await self.push_state()
 
     async def _on_move_task(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         direction = p.get("dir", "up")
         self.db.move_task(task_id, direction)
         await self.push_state()
@@ -366,7 +416,10 @@ class WebViewHandler:
     # ── timer ─────────────────────────────────────────────────────────────────
 
     async def _on_start_timer(self, p):
-        task_id = int(p.get("id", 0))
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         if self.timer_service.is_running(task_id):
             await self.push_state()
             return
@@ -397,7 +450,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_edit_finance(self, p):
-        entry_id = int(p.get("id", 0))
+        entry_id = _param_int(p, "id")
+        if entry_id is None:
+            await self.push_state()
+            return
         entry = self.db.get_finance_entry_by_id(entry_id)
         if not entry:
             await self.push_state()
@@ -413,7 +469,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_delete_finance(self, p):
-        entry_id = int(p.get("id", 0))
+        entry_id = _param_int(p, "id")
+        if entry_id is None:
+            await self.push_state()
+            return
         confirmed = await self.app.main_window.dialog(
             toga.ConfirmDialog("حذف ورود مالی", "آیا مطمئن هستید؟")
         )
@@ -503,7 +562,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_set_mood(self, p):
-        score = int(p.get("score", 0))
+        score = _param_int(p, "score")
+        if score is None:
+            await self.push_state()
+            return
         if 1 <= score <= 10:
             self.db.set_wellness(self.current_date, mood_score=score, update_mood=True)
         await self.push_state()
@@ -515,7 +577,10 @@ class WebViewHandler:
     # ── analytics ─────────────────────────────────────────────────────────────
 
     async def _on_set_period(self, p):
-        days = int(p.get("days", 7))
+        days = _param_int(p, "days", 7)
+        if days is None:
+            await self.push_state()
+            return
         self.analytics_period = max(1, min(days, 365))
         await self.push_state()
 
@@ -596,6 +661,7 @@ class WebViewHandler:
             self.finance_year = datetime.date.today().year
             self.finance_month = datetime.date.today().month
             self.timer_service = TimerService()
+            self._restore_active_timer()
             try:
                 await self.app.webview.evaluate_javascript("window._importDraft='';")
             except Exception:
@@ -609,7 +675,10 @@ class WebViewHandler:
     # ── recurring management ──────────────────────────────────────────────────
 
     async def _on_delete_recurring(self, p):
-        recurring_id = int(p.get("id", 0))
+        recurring_id = _param_int(p, "id")
+        if recurring_id is None:
+            await self.push_state()
+            return
         confirmed = await self.app.main_window.dialog(
             toga.ConfirmDialog("حذف تکرار", "این تسک از لیست تکراری حذف می‌شود.")
         )
@@ -621,7 +690,11 @@ class WebViewHandler:
     # ── projects ──────────────────────────────────────────────────────────────
 
     async def _on_open_project(self, p):
-        self.current_project_id = int(p["id"])
+        pid = _param_int(p, "id")
+        if pid is None:
+            await self.push_state()
+            return
+        self.current_project_id = pid
         self.current_screen = "project_detail"
         await self.push_state()
 
@@ -640,17 +713,28 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_edit_project(self, p):
-        pid = int(p["id"])
+        pid = _param_int(p, "id")
+        if pid is None:
+            await self.push_state()
+            return
         title = p.get("title", "").strip()
         color = p.get("color", "#5E5CE6")
         deadline = p.get("deadline", "").strip() or None
+        if deadline:
+            try:
+                datetime.date.fromisoformat(deadline)
+            except ValueError:
+                deadline = None
         if title:
             self.db.update_project(pid, title, color, deadline)
             self.toast("ویرایش شد")
         await self.push_state()
 
     async def _on_delete_project(self, p):
-        pid = int(p["id"])
+        pid = _param_int(p, "id")
+        if pid is None:
+            await self.push_state()
+            return
         confirmed = await self.app.main_window.dialog(
             toga.ConfirmDialog(
                 "حذف پروژه", "پروژه و تمام تسک‌هایش حذف می‌شود. مطمئنید؟"
@@ -664,14 +748,20 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_toggle_project_done(self, p):
-        pid = int(p["id"])
+        pid = _param_int(p, "id")
+        if pid is None:
+            await self.push_state()
+            return
         project = self.db.get_project_by_id(pid)
         if project:
             self.db.mark_project_done(pid, not project.is_done)
         await self.push_state()
 
     async def _on_add_project_task(self, p):
-        pid = int(p["project_id"])
+        pid = _param_int(p, "project_id")
+        if pid is None:
+            await self.push_state()
+            return
         title = p.get("title", "").strip()
         if title:
             self.db.add_project_task(pid, title)
@@ -679,12 +769,18 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_toggle_project_task(self, p):
-        task_id = int(p["id"])
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         self.db.toggle_project_task(task_id)
         await self.push_state()
 
     async def _on_delete_project_task(self, p):
-        task_id = int(p["id"])
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         confirmed = await self.app.main_window.dialog(
             toga.ConfirmDialog("حذف تسک", "آیا مطمئن هستید؟")
         )
@@ -694,14 +790,20 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_edit_project_task_title(self, p):
-        task_id = int(p["id"])
+        task_id = _param_int(p, "id")
+        if task_id is None:
+            await self.push_state()
+            return
         title = p.get("value", "").strip()
         if title:
             self.db.edit_project_task_title(task_id, title)
         await self.push_state()
 
     async def _on_send_task_to_today(self, p):
-        project_task_id = int(p["id"])
+        project_task_id = _param_int(p, "id")
+        if project_task_id is None:
+            await self.push_state()
+            return
         today = datetime.date.today()
         existing = self.db.get_daily_tasks_for_project_task(project_task_id)
         already_today = any(t.date == today.isoformat() for t in existing)
@@ -721,16 +823,15 @@ class WebViewHandler:
     async def _on_add_installment(self, p):
         title = p.get("title", "").strip()
         amount = resolve_amount(p.get("amount"), p.get("sms"))
+        total = _param_int(p, "total_count", 1)
+        due_day = _param_int(p, "due_day", 1)
+        start_date = p.get("start_date", "").strip()
         try:
-            total = int(p.get("total_count", "1"))
-            due_day = int(p.get("due_day", "1"))
-            start_date = p.get("start_date", "").strip()
             datetime.date.fromisoformat(start_date)
-        except (ValueError, TypeError):
-            self.toast("اطلاعات نامعتبر است", "error")
-            await self.push_state()
-            return
-        if title and amount > 0 and 1 <= total <= 360 and 1 <= due_day <= 31:
+        except ValueError:
+            total = None
+        if (title and amount > 0 and total is not None and due_day is not None
+                and 1 <= total <= 360 and 1 <= due_day <= 31 and start_date):
             self.db.add_installment(title, amount, total, start_date, due_day)
             self.toast("قسط افزوده شد")
         else:
@@ -738,25 +839,32 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_edit_installment(self, p):
-        inst_id = int(p.get("id", 0))
-        title = p.get("title", "").strip()
-        amount = resolve_amount(p.get("amount"), p.get("sms"))
-        try:
-            total = int(p.get("total_count", "1"))
-            due_day = int(p.get("due_day", "1"))
-            start_date = p.get("start_date", "").strip()
-            datetime.date.fromisoformat(start_date)
-        except (ValueError, TypeError):
-            self.toast("اطلاعات نامعتبر است", "error")
+        inst_id = _param_int(p, "id")
+        if inst_id is None:
             await self.push_state()
             return
-        if title and amount > 0:
+        title = p.get("title", "").strip()
+        amount = resolve_amount(p.get("amount"), p.get("sms"))
+        total = _param_int(p, "total_count", 1)
+        due_day = _param_int(p, "due_day", 1)
+        start_date = p.get("start_date", "").strip()
+        try:
+            datetime.date.fromisoformat(start_date)
+        except ValueError:
+            total = None
+        if (title and amount > 0 and total is not None and due_day is not None
+                and 1 <= total <= 360 and 1 <= due_day <= 31 and start_date):
             self.db.edit_installment(inst_id, title, amount, total, start_date, due_day)
             self.toast("ویرایش شد")
+        else:
+            self.toast("اطلاعات نامعتبر است", "error")
         await self.push_state()
 
     async def _on_delete_installment(self, p):
-        inst_id = int(p.get("id", 0))
+        inst_id = _param_int(p, "id")
+        if inst_id is None:
+            await self.push_state()
+            return
         confirmed = await self.app.main_window.dialog(
             toga.ConfirmDialog("حذف قسط", "این قسط و تاریخچه پرداختش حذف می‌شود. مطمئنید؟")
         )
@@ -766,7 +874,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_pay_installment(self, p):
-        inst_id = int(p.get("id", 0))
+        inst_id = _param_int(p, "id")
+        if inst_id is None:
+            await self.push_state()
+            return
         result = self.db.pay_installment(inst_id)
         if result is None:
             self.toast("این قسط قبلاً تسویه شده", "error")
@@ -788,16 +899,16 @@ class WebViewHandler:
         category = p.get("category", "سایر")
         notes = p.get("notes", "").strip()
         repeat = p.get("repeat_type", "none")
+        repeat_months = _param_int(p, "repeat_months", 0) or 0
         try:
             datetime.date.fromisoformat(date_str)
-            repeat_months = int(p.get("repeat_months", 0))
-        except (ValueError, TypeError):
+        except ValueError:
             self.toast("تاریخ نامعتبر است", "error")
             await self.push_state()
             return
         if repeat not in ("none", "yearly", "custom"):
             repeat = "none"
-        if repeat == "custom" and repeat_months < 1:
+        if repeat == "custom" and not (1 <= repeat_months <= 120):
             self.toast("تعداد ماه باید بین ۱ تا ۱۲۰ باشد", "error")
             await self.push_state()
             return
@@ -811,22 +922,25 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_edit_important_date(self, p):
-        date_id = int(p.get("id", 0))
+        date_id = _param_int(p, "id")
+        if date_id is None:
+            await self.push_state()
+            return
         title = p.get("title", "").strip()
         date_str = p.get("date", "").strip()
         category = p.get("category", "سایر")
         notes = p.get("notes", "").strip()
         repeat = p.get("repeat_type", "none")
+        repeat_months = _param_int(p, "repeat_months", 0) or 0
         try:
             datetime.date.fromisoformat(date_str)
-            repeat_months = int(p.get("repeat_months", 0))
-        except (ValueError, TypeError):
+        except ValueError:
             self.toast("تاریخ نامعتبر است", "error")
             await self.push_state()
             return
         if repeat not in ("none", "yearly", "custom"):
             repeat = "none"
-        if repeat == "custom" and repeat_months < 1:
+        if repeat == "custom" and not (1 <= repeat_months <= 120):
             self.toast("تعداد ماه باید بین ۱ تا ۱۲۰ باشد", "error")
             await self.push_state()
             return
@@ -840,7 +954,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_delete_important_date(self, p):
-        date_id = int(p.get("id", 0))
+        date_id = _param_int(p, "id")
+        if date_id is None:
+            await self.push_state()
+            return
         confirmed = await self.app.main_window.dialog(
             toga.ConfirmDialog("حذف تاریخ مهم", "آیا مطمئن هستید؟")
         )
@@ -850,7 +967,10 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_renew_important_date(self, p):
-        date_id = int(p.get("id", 0))
+        date_id = _param_int(p, "id")
+        if date_id is None:
+            await self.push_state()
+            return
         item = self.db.get_important_date_by_id(date_id)
         if item is None:
             await self.push_state()
@@ -871,7 +991,7 @@ class WebViewHandler:
 
 def _parse_hms(text: str) -> Optional[int]:
     try:
-        parts = text.strip().split(":")
+        parts = normalize_digits(text).strip().split(":")
         if len(parts) == 3:
             return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
         if len(parts) == 2:
@@ -883,7 +1003,7 @@ def _parse_hms(text: str) -> Optional[int]:
 
 def _parse_hm(text: str) -> Optional[int]:
     try:
-        parts = text.strip().split(":")
+        parts = normalize_digits(text).strip().split(":")
         if len(parts) >= 2:
             return int(parts[0]) * 60 + int(parts[1])
     except (ValueError, IndexError):

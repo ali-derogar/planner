@@ -1,7 +1,20 @@
 /* Daily Planner SPA client */
 window._actions = [];
 
+function flushPendingNote() {
+    if (!_noteTimer) return;
+    clearTimeout(_noteTimer);
+    _noteTimer = null;
+    var el = document.getElementById('daily-note');
+    if (el) {
+        window._actions.push({ cmd: 'set_note', params: { value: el.value } });
+    }
+}
+
 function action(cmd, params) {
+    if (cmd !== 'set_note') {
+        flushPendingNote();
+    }
     window._actions.push({ cmd: cmd, params: params || {} });
 }
 
@@ -130,14 +143,28 @@ function showToast(msg, type) {
 /* Modal */
 var _modal = null;
 var _modalValidators = {
-    hms: function(v) { return /^\d{1,2}:\d{2}(:\d{2})?$/.test(v.trim()); },
-    hm: function(v) { return /^\d{1,2}:\d{2}$/.test(v.trim()); },
-    amount: function(v) { return parseFloat(v) > 0; },
-    budget: function(v) { var n = parseFloat(v); return !isNaN(n) && n >= 0; },
+    hms: function(v) {
+        var m = normalizeDigits(v).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+        return !!(m && +m[1] < 24 && +m[2] < 60 && (!m[3] || +m[3] < 60));
+    },
+    hm: function(v) {
+        var m = normalizeDigits(v).trim().match(/^(\d{1,2}):(\d{2})$/);
+        return !!(m && +m[1] < 24 && +m[2] < 60);
+    },
+    amount: function(v) { return parseFloat(normalizeNumber(v)) > 0; },
+    budget: function(v) { var n = parseFloat(normalizeNumber(v)); return !isNaN(n) && n >= 0; },
     required: function(v) { return v.trim().length > 0; },
     repeatMonths: function(v) {
-        var n = parseInt(v, 10);
+        var n = parseInt(normalizeNumber(v), 10);
         return !isNaN(n) && n >= 1 && n <= 120;
+    },
+    installmentTotal: function(v) {
+        var n = parseInt(normalizeNumber(v), 10);
+        return !isNaN(n) && n >= 1 && n <= 360;
+    },
+    dueDay: function(v) {
+        var n = parseInt(normalizeNumber(v), 10);
+        return !isNaN(n) && n >= 1 && n <= 31;
     },
 };
 
@@ -145,11 +172,20 @@ var _PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
 var _ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 
 function normalizeDigits(text) {
-    return String(text || '').replace(/[۰-۹]/g, function(c) {
+    if (text == null) return '';
+    return String(text).replace(/[۰-۹]/g, function(c) {
         return String(_PERSIAN_DIGITS.indexOf(c));
     }).replace(/[٠-٩]/g, function(c) {
         return String(_ARABIC_DIGITS.indexOf(c));
     });
+}
+
+function stripGroupSeparators(text) {
+    return String(text || '').replace(/[,،]/g, '');
+}
+
+function normalizeNumber(text) {
+    return stripGroupSeparators(normalizeDigits(text));
 }
 
 function parseBankSms(text) {
@@ -160,9 +196,9 @@ function parseBankSms(text) {
     var direction = null;
     var lines = t.split(/\r?\n/);
     for (var i = 0; i < lines.length; i++) {
-        var m = lines[i].trim().match(/^([+-])\s*([\d,]+)$/);
+        var m = lines[i].trim().match(/^([+-])\s*([\d,\u060c]+)$/);
         if (m) {
-            var a = parseInt(m[2].replace(/,/g, ''), 10);
+            var a = parseInt(m[2].replace(/[,،]/g, ''), 10);
             if (!isNaN(a) && a > 0) {
                 amount = Math.floor(a / 10);
                 direction = m[1] === '+' ? 'income' : 'expense';
@@ -243,7 +279,7 @@ function applySmsAmountInModal(params, fields) {
         return false;
     });
     var parsed = parseBankSms(sms);
-    var current = parseFloat(params[targetKey]);
+    var current = parseFloat(normalizeNumber(params[targetKey] || ''));
     if (parsed.amount > 0 && (isNaN(current) || current <= 0)) {
         params[targetKey] = String(parsed.amount);
     }
@@ -749,7 +785,42 @@ function bindModalConditionalListeners(fc) {
     });
 }
 
+function modalLayoutFields(fields) {
+    return (fields || []).filter(function(f) { return f.key !== 'sms'; });
+}
+
+function modalHasTallFields(fields) {
+    return modalLayoutFields(fields).some(function(f) {
+        return f.type === 'jalali-date' || f.type === 'time-hms' || f.type === 'time-hm'
+            || f.type === 'color-select' || f.type === 'textarea';
+    });
+}
+
+function shouldUseCenterModal(config) {
+    var fields = modalLayoutFields(config.fields || []);
+    if (!isMobileTouch()) return true;
+    if (fields.length <= 2 && !modalHasTallFields(config.fields || [])) return true;
+    return false;
+}
+
+function ensureModalStructure() {
+    var box = document.getElementById('modal-box');
+    if (!box || document.getElementById('modal-body')) return;
+    var fields = document.getElementById('modal-fields');
+    var err = document.getElementById('modal-error');
+    var btns = box.querySelector('.modal-btns');
+    if (!fields) return;
+    var body = document.createElement('div');
+    body.className = 'modal-body';
+    body.id = 'modal-body';
+    box.insertBefore(body, btns || null);
+    body.appendChild(fields);
+    if (err) body.appendChild(err);
+}
+
 function showModal(config) {
+    ensureModalStructure();
+    closeProjectSheet();
     _modal = config;
     document.getElementById('modal-title').textContent = config.title || '';
     var fc = document.getElementById('modal-fields');
@@ -811,12 +882,15 @@ function showModal(config) {
     syncModalConditionalFields();
     document.getElementById('modal-error').textContent = '';
     var modalEl = document.getElementById('modal');
+    var useCenter = shouldUseCenterModal(config);
     modalEl.style.display = 'flex';
-    modalEl.classList.remove('modal-center');
-    modalEl.classList.add('modal-viewport-sync');
+    modalEl.classList.toggle('modal-center', useCenter);
+    modalEl.classList.toggle('modal-viewport-sync', !useCenter);
+    var modalBody = document.getElementById('modal-body');
+    if (modalBody) modalBody.scrollTop = 0;
     fc.scrollTop = 0;
-    _modalOpenVvHeight = visibleViewportHeight();
-    lockBodyForModal();
+    _modalOpenVvHeight = useCenter ? null : visibleViewportHeight();
+    syncBodyScrollLock();
     syncModalViewport();
     syncKeyboardLayout();
     if ((config.fields || []).some(function(f) { return f.key === 'sms'; })) {
@@ -832,7 +906,7 @@ function showModal(config) {
     }
     var first = fc.querySelector('input:not([type="hidden"]), textarea, select');
     if (!first) first = fc.querySelector('button.color-swatch');
-    if (first) {
+    if (first && useCenter) {
         setTimeout(function() {
             syncModalViewport();
             syncKeyboardLayout();
@@ -860,6 +934,7 @@ function confirmModal() {
         var el = document.getElementById('mf-' + f.key);
         var val = '';
         if (f.type === 'time-hms' || f.type === 'time-hm') {
+            if (!el) { params[f.key] = ''; return; }
             val = getTimePickerValue(el);
         } else if (f.type === 'color-select') {
             var hiddenColor = document.getElementById('mf-' + f.key + '-val');
@@ -869,6 +944,11 @@ function confirmModal() {
             val = hiddenDate ? hiddenDate.value : '';
         } else {
             val = el ? el.value : '';
+        }
+        if ((f.type === 'number' || f.validate === 'amount' || f.validate === 'budget'
+                || f.validate === 'repeatMonths' || f.validate === 'installmentTotal'
+                || f.validate === 'dueDay') && val) {
+            val = normalizeNumber(val);
         }
         params[f.key] = val;
     });
@@ -883,10 +963,13 @@ function confirmModal() {
     });
     if (!valid) {
         errEl.textContent = 'لطفاً فیلدهای مشخص‌شده را به‌درستی پر کنید';
+        var modalBody = document.getElementById('modal-body');
+        if (modalBody) modalBody.scrollTop = modalBody.scrollHeight;
         return;
     }
-    action(_modal.cmd, params);
+    var cmd = _modal.cmd;
     closeModal();
+    action(cmd, params);
 }
 
 function closeModal() {
@@ -896,10 +979,10 @@ function closeModal() {
         active.blur();
     }
     modal.style.display = 'none';
-    modal.classList.remove('modal-viewport-sync');
-    unlockBodyFromModal();
+    modal.classList.remove('modal-viewport-sync', 'modal-center');
     _modal = null;
     _modalOpenVvHeight = null;
+    syncBodyScrollLock();
     setTimeout(syncKeyboardLayout, 150);
 }
 
@@ -908,14 +991,23 @@ document.addEventListener('click', function(e) {
 });
 
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        var modal = document.getElementById('modal');
-        if (modal && modal.style.display !== 'none') closeModal();
+    var modal = document.getElementById('modal');
+    var modalOpen = modal && modal.style.display !== 'none';
+    if (e.key === 'Escape' && modalOpen) {
+        closeModal();
+    } else if (e.key === 'Enter' && !e.shiftKey && modalOpen && _modal) {
+        var t = e.target;
+        if (!t || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON') return;
+        if (t.matches && t.matches('input:not([type="hidden"]), select') && modal.contains(t)) {
+            e.preventDefault();
+            confirmModal();
+        }
     }
 });
 
 (function initModalBox() {
     function bind() {
+        ensureModalStructure();
         var box = document.getElementById('modal-box');
         if (box && !box.dataset.bound) {
             box.dataset.bound = '1';
@@ -1448,6 +1540,10 @@ function toggleExportPreview() {
     ta.style.display = show ? 'block' : 'none';
     if (btn) btn.textContent = show ? 'پنهان کردن JSON' : 'نمایش محتوای JSON';
     if (copyBtn) copyBtn.style.display = show ? 'block' : 'none';
+    if (show) {
+        syncKeyboardLayout();
+        ensureFieldVisible(ta);
+    }
 }
 
 function copyExportJson() {
@@ -1865,11 +1961,11 @@ function showAddInstallment() {
             { label: 'مبلغ هر قسط (تومان)', key: 'amount',
               type: 'number', validate: 'amount' },
             { label: 'تعداد کل اقساط', key: 'total_count',
-              type: 'number', placeholder: '12', validate: 'required' },
+              type: 'number', placeholder: '12', validate: 'installmentTotal' },
             { label: 'تاریخ اولین قسط', key: 'start_date',
               type: 'jalali-date', value: todayIso, validate: 'required', clearable: false },
             { label: 'سررسید (چندم هر ماه)', key: 'due_day',
-              type: 'number', placeholder: '15', validate: 'required' },
+              type: 'number', placeholder: '15', validate: 'dueDay' },
         ]),
     });
 }
@@ -1885,11 +1981,11 @@ function showEditInstallment(i) {
             { label: 'مبلغ هر قسط (تومان)', key: 'amount',
               type: 'number', value: i.amount, validate: 'amount' },
             { label: 'تعداد کل اقساط', key: 'total_count',
-              type: 'number', value: i.total_count, validate: 'required' },
+              type: 'number', value: i.total_count, validate: 'installmentTotal' },
             { label: 'تاریخ اولین قسط', key: 'start_date',
               type: 'jalali-date', value: i.start_date, validate: 'required', clearable: false },
             { label: 'سررسید (چندم هر ماه)', key: 'due_day',
-              type: 'number', value: i.due_day, validate: 'required' },
+              type: 'number', value: i.due_day, validate: 'dueDay' },
         ]),
     });
 }
@@ -1904,6 +2000,8 @@ function getProjectById(id) {
 function closeProjectSheet() {
     var o = document.getElementById('proj-sheet');
     if (o) o.style.display = 'none';
+    syncBodyScrollLock();
+    setTimeout(syncKeyboardLayout, 150);
 }
 
 function showProjectSheet(id) {
@@ -1928,6 +2026,8 @@ function showProjectSheet(id) {
         '<button type="button" class="proj-sheet-btn cancel" onclick="closeProjectSheet()">انصراف</button></div>';
     overlay.style.display = 'flex';
     overlay.onclick = closeProjectSheet;
+    syncBodyScrollLock();
+    syncKeyboardLayout();
 }
 
 function projectProgressRing(pct, color, size) {
@@ -2156,7 +2256,7 @@ function renderNav(screen) {
 
 /* Main render */
 function renderApp(state) {
-    closeProjectSheet();
+    if (!isModalVisible()) closeProjectSheet();
     window._categories = state.finance_categories || [];
     window._investCategories = state.investment_categories || [];
     window._moodEmojis = state.mood_emojis || [];
@@ -2189,6 +2289,13 @@ function renderApp(state) {
     var searchCaret = restoreSearch ? focused.selectionStart : null;
     var restoreNote = focused && focused.id === 'daily-note';
     var noteCaret = restoreNote ? focused.selectionStart : null;
+    var restoreImport = focused && focused.id === 'import-ta';
+    var importCaret = restoreImport ? focused.selectionStart : null;
+    var restoreExport = focused && focused.id === 'export-ta';
+    var exportCaret = restoreExport ? focused.selectionStart : null;
+    var restoreModal = isModalVisible() && focused && focused.id && focused.id.indexOf('mf-') === 0;
+    var modalFocusId = restoreModal ? focused.id : null;
+    var modalCaret = restoreModal && focused.selectionStart != null ? focused.selectionStart : null;
 
     var screenChanged = window._renderedScreen !== state.screen;
     window._renderedScreen = state.screen;
@@ -2200,7 +2307,17 @@ function renderApp(state) {
         requestAnimationFrame(function() { root.classList.remove('screen-enter'); });
     }
 
-    if (restoreSearch) {
+    if (restoreModal && modalFocusId) {
+        var modalInput = document.getElementById(modalFocusId);
+        if (modalInput) {
+            modalInput.focus();
+            if (modalCaret != null) {
+                try { modalInput.setSelectionRange(modalCaret, modalCaret); } catch (e) {}
+            }
+            syncKeyboardLayout();
+            ensureFieldVisible(modalInput);
+        }
+    } else if (restoreSearch) {
         var searchInput = document.querySelector('.search-input');
         if (searchInput) {
             searchInput.focus();
@@ -2219,6 +2336,26 @@ function renderApp(state) {
             }
             syncKeyboardLayout();
             ensureFieldVisible(noteInput);
+        }
+    } else if (restoreImport) {
+        var importInput = document.getElementById('import-ta');
+        if (importInput) {
+            importInput.focus();
+            if (importCaret != null) {
+                try { importInput.setSelectionRange(importCaret, importCaret); } catch (e) {}
+            }
+            syncKeyboardLayout();
+            ensureFieldVisible(importInput);
+        }
+    } else if (restoreExport) {
+        var exportInput = document.getElementById('export-ta');
+        if (exportInput && exportInput.style.display !== 'none') {
+            exportInput.focus();
+            if (exportCaret != null) {
+                try { exportInput.setSelectionRange(exportCaret, exportCaret); } catch (e) {}
+            }
+            syncKeyboardLayout();
+            ensureFieldVisible(exportInput);
         }
     }
 
@@ -2242,6 +2379,12 @@ function renderApp(state) {
     }
 
     if (state.toast) showToast(state.toast.message, state.toast.type);
+
+    if (isModalVisible()) {
+        syncBodyScrollLock();
+        syncModalViewport();
+        syncKeyboardLayout();
+    }
 }
 
 /* Mobile keyboard — keep text fields visible above the virtual keyboard */
@@ -2258,26 +2401,50 @@ function unlockBodyFromModal() {
     document.body.classList.remove('modal-open');
 }
 
+function isModalVisible() {
+    var modal = document.getElementById('modal');
+    return !!(modal && modal.style.display !== 'none');
+}
+
+function isProjectSheetVisible() {
+    var sheet = document.getElementById('proj-sheet');
+    return !!(sheet && sheet.style.display !== 'none');
+}
+
+function syncBodyScrollLock() {
+    if (isModalVisible() || isProjectSheetVisible()) {
+        lockBodyForModal();
+    } else {
+        unlockBodyFromModal();
+    }
+}
+
+function getModalScrollContainer() {
+    return document.getElementById('modal-body') || document.getElementById('modal-fields');
+}
+
 function isMobileTouch() {
     return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 }
 
+function isTextInput(el) {
+    return !!(el && el.matches && el.matches('input:not([type="hidden"]), textarea, select'));
+}
+
 function keyboardHeight() {
     var vv = window.visualViewport;
+    var measured = 0;
     if (vv) {
         var baseline = _modalOpenVvHeight || window.innerHeight;
-        var h = Math.max(0, baseline - vv.height);
-        if (h >= KEYBOARD_THRESHOLD) return h;
-        h = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-        if (h >= KEYBOARD_THRESHOLD) return h;
-    }
-    if (isMobileTouch()) {
-        var active = document.activeElement;
-        if (active && active.matches && active.matches('input:not([type="hidden"]), textarea, select')) {
-            return Math.round(window.innerHeight * 0.42);
+        measured = Math.max(0, baseline - vv.height);
+        if (measured < KEYBOARD_THRESHOLD) {
+            measured = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
         }
     }
-    return 0;
+    if (measured >= KEYBOARD_THRESHOLD) return measured;
+
+    if (!isMobileTouch() || !isTextInput(document.activeElement)) return 0;
+    return Math.round(window.innerHeight * 0.42);
 }
 
 function visibleViewportHeight() {
@@ -2305,10 +2472,18 @@ function visibleViewportBounds() {
 }
 
 function syncModalViewport() {
-    var vv = window.visualViewport;
-    if (!vv) return;
-    var kb = keyboardHeight();
+    if (!isModalVisible()) return;
     var root = document.documentElement;
+    var vv = window.visualViewport;
+    var kb = keyboardHeight();
+    if (!vv) {
+        var fallbackH = window.innerHeight - (kb >= KEYBOARD_THRESHOLD ? kb : 0);
+        root.style.setProperty('--vv-top', '0px');
+        root.style.setProperty('--vv-left', '0px');
+        root.style.setProperty('--vv-width', window.innerWidth + 'px');
+        root.style.setProperty('--vv-height', fallbackH + 'px');
+        return;
+    }
     var height = vv.height;
     if (kb >= KEYBOARD_THRESHOLD && height >= window.innerHeight - kb - 20) {
         height = window.innerHeight - kb;
@@ -2344,24 +2519,31 @@ function scrollFieldInContainer(el, container) {
     }
 }
 
+function getScrollRoot() {
+    return document.scrollingElement || document.documentElement;
+}
+
 function scrollFieldIntoView(el) {
     var bounds = visibleViewportBounds();
     var rect = el.getBoundingClientRect();
+    var delta = 0;
     if (rect.bottom > bounds.bottom) {
-        window.scrollBy(0, rect.bottom - bounds.bottom + 24);
+        delta = rect.bottom - bounds.bottom + 24;
     } else if (rect.top < bounds.top) {
-        window.scrollBy(0, rect.top - bounds.top - 12);
+        delta = rect.top - bounds.top - 12;
     }
+    if (!delta) return;
+    getScrollRoot().scrollTop += delta;
 }
 
 function ensureFieldVisible(el) {
     if (!el || !document.contains(el)) return;
-    if (!el.matches || !el.matches('input:not([type="hidden"]), textarea, select')) return;
+    if (!isTextInput(el)) return;
     [0, 50, 180, 400, 700].forEach(function(ms) {
         setTimeout(function() {
             if (!document.contains(el)) return;
             syncKeyboardLayout();
-            var modalFields = document.getElementById('modal-fields');
+            var modalFields = getModalScrollContainer();
             if (modalFields && modalFields.contains(el)) {
                 scrollFieldInContainer(el, modalFields);
             } else {
@@ -2384,9 +2566,8 @@ function ensureFieldVisible(el) {
             ensureFieldVisible(e.target);
         });
         document.addEventListener('click', function(e) {
-            var t = e.target;
-            if (t && t.matches && t.matches('input:not([type="hidden"]), textarea, select')) {
-                setTimeout(function() { ensureFieldVisible(t); }, 120);
+            if (isTextInput(e.target)) {
+                setTimeout(function() { ensureFieldVisible(e.target); }, 120);
             }
         }, true);
         document.addEventListener('focusout', function() {

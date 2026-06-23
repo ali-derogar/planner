@@ -69,6 +69,13 @@ def _task_dict(
     }
 
 
+def _safe_jalali_label(date_str: str) -> str:
+    try:
+        return format_jalali(str_to_date(date_str))
+    except ValueError:
+        return date_str
+
+
 def _finance_dict(entry: FinanceEntry) -> dict:
     return {
         "id": entry.id,
@@ -83,7 +90,7 @@ def _finance_dict(entry: FinanceEntry) -> dict:
 def _finance_dict_with_date(entry: FinanceEntry) -> dict:
     d = _finance_dict(entry)
     d["date"] = entry.date
-    d["date_label"] = format_jalali(str_to_date(entry.date))
+    d["date_label"] = _safe_jalali_label(entry.date)
     return d
 
 
@@ -266,11 +273,15 @@ def _important_date_dict(item: ImportantDate, today: datetime.date) -> dict:
         else:
             countdown = to_persian_digits(f"{days} روز مانده")
         urgency = "ok"
+    try:
+        date_fmt = format_jalali(datetime.date.fromisoformat(item.date))
+    except ValueError:
+        date_fmt = item.date
     return {
         "id": item.id,
         "title": item.title,
         "date": item.date,
-        "date_fmt": format_jalali(datetime.date.fromisoformat(item.date)),
+        "date_fmt": date_fmt,
         "category": item.category,
         "notes": item.notes,
         "repeat_type": item.repeat_type,
@@ -378,10 +389,9 @@ def build_state(
             t_eff = int(t_useful / t_total * 100) if t_total > 0 else 0
             chart_points.append(t_eff)
             heatmap.append({"date": day_str, "eff": t_eff, "total": t_total})
-            gdate = str_to_date(day_str)
             w = next((x for x in wellness_data if x.date == day_str), None)
             day_cards.append({
-                "date_label": format_jalali(gdate),
+                "date_label": _safe_jalali_label(day_str),
                 "total_fmt": format_duration(t_total),
                 "useful_fmt": format_duration(t_useful),
                 "eff": t_eff,
@@ -462,13 +472,12 @@ def build_state(
 
         daily_series = []
         for row in reversed(db.get_finance_daily_series(fy, fm)):
-            g_date = str_to_date(row["date"])
             day_income = row["income"]
             day_expense = row["expense"]
             day_investment = row["investment"]
             net = day_income - day_expense - day_investment
             daily_series.append({
-                "date_label": format_jalali(g_date),
+                "date_label": _safe_jalali_label(row["date"]),
                 "income_fmt": format_money(day_income),
                 "expense_fmt": format_money(day_expense),
                 "investment_fmt": format_money(day_investment),

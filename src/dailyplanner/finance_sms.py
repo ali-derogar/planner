@@ -13,7 +13,7 @@ _DIGIT_MAP = str.maketrans(
 )
 
 _RIAL_TO_TOMAN = 10
-_AMOUNT_LINE = re.compile(r"^([+-])\s*([\d,]+)$")
+_AMOUNT_LINE = re.compile(r"^([+-])\s*([\d,\u060c]+)$")
 
 
 @dataclass(frozen=True)
@@ -22,8 +22,18 @@ class ParsedBankSms:
     direction: Optional[Literal["income", "expense"]] = None
 
 
+def normalize_digits(text) -> str:
+    if text is None:
+        return ""
+    return str(text).translate(_DIGIT_MAP)
+
+
+def _strip_group_separators(text: str) -> str:
+    return text.replace(",", "").replace("\u060c", "")
+
+
 def _parse_int(raw: str) -> Optional[int]:
-    cleaned = raw.replace(",", "").strip()
+    cleaned = _strip_group_separators(normalize_digits(raw)).strip()
     if not cleaned or not cleaned.lstrip("+-").isdigit():
         return None
     return abs(int(cleaned))
@@ -55,8 +65,9 @@ def parse_bank_sms(text: str) -> ParsedBankSms:
 
 
 def resolve_amount(amount_raw, sms_text: str = "") -> int:
+    cleaned = _strip_group_separators(normalize_digits(amount_raw)).strip()
     try:
-        amount = int(float(amount_raw or 0))
+        amount = int(float(cleaned or 0))
     except (TypeError, ValueError):
         amount = 0
     if amount > 0:
