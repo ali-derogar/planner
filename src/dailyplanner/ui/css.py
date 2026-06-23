@@ -1755,6 +1755,20 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
     justify-content: center;
     margin-top: 10px;
 }}
+.backup-summary {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}}
+.backup-summary-chip {{
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    border-radius: 20px;
+    padding: 4px 10px;
+}}
 .backup-file-badge {{
     display: inline-flex;
     align-items: center;

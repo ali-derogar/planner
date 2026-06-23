@@ -169,6 +169,48 @@ def test_export_json(db):
     data = db.export_json()
     assert "tasks" in data
     assert len(data["tasks"]) >= 1
+    assert "installments" in data
+    assert "installment_payments" in data
+
+
+def test_backup_roundtrip(db):
+    d = datetime.date.today()
+    db.add_task(d, "task-a")
+    db.add_finance_entry(d, "expense", "coffee", 50000, "عمومی")
+    db.add_finance_entry(d, "investment", "gold", 1000000, "سهام")
+    db.add_installment("loan", 500000, 12, d.isoformat(), 5)
+    db.add_important_date("birthday", d.isoformat(), "personal", "", "none", 0)
+
+    exported = db.export_json()
+    ok, err = db.validate_backup(exported)
+    assert ok, err
+
+    db.add_task(d, "task-b")
+    db.import_json(exported)
+
+    assert len(db.get_tasks_for_date(d)) == 1
+    assert db.get_tasks_for_date(d)[0].title == "task-a"
+    finance = db.get_finance_entries_for_month(d.year, d.month)
+    assert len(finance) == 2
+    assert db.get_all_installments()[0].title == "loan"
+    assert len(db.get_all_important_dates()) == 1
+
+
+def test_validate_backup_accepts_investment():
+    from dailyplanner.database import Database
+
+    db = Database(":memory:")
+    data = db.export_json()
+    data["finance"] = [{
+        "id": 1,
+        "date": "2026-06-22",
+        "entry_type": "investment",
+        "title": "gold",
+        "amount": 1000,
+        "category": "عمومی",
+    }]
+    ok, err = db.validate_backup(data)
+    assert ok, err
 
 
 def test_str_to_date():

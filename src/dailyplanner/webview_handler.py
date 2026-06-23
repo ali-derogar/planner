@@ -191,6 +191,33 @@ class WebViewHandler:
         screen = p.get("screen", "home")
         self.current_screen = screen
         await self.push_state()
+        if screen == "settings":
+            await self._sync_export_preview()
+
+    async def _inject_export_preview(self, payload: str) -> None:
+        b64 = base64.b64encode(payload.encode("utf-8")).decode("ascii")
+        js = (
+            "try{"
+            "var _b=atob('" + b64 + "');"
+            "var _u=new Uint8Array(_b.length);"
+            "for(var i=0;i<_b.length;i++)_u[i]=_b.charCodeAt(i);"
+            "var _s=new TextDecoder('utf-8').decode(_u);"
+            "window._exportData=_s;"
+            "var _ta=document.getElementById('export-ta');"
+            "if(_ta)_ta.value=_s;"
+            "var _tg=document.getElementById('export-toggle');"
+            "if(_tg)_tg.style.display='';"
+            "}catch(e){console.error(e);}"
+        )
+        try:
+            await self.app.webview.evaluate_javascript(js)
+        except Exception:
+            pass
+
+    async def _sync_export_preview(self) -> None:
+        data = self.db.export_json()
+        payload = json.dumps(data, ensure_ascii=False, indent=2)
+        await self._inject_export_preview(payload)
 
     async def _on_prev_day(self, p):
         self.current_date -= datetime.timedelta(days=1)
@@ -514,20 +541,7 @@ class WebViewHandler:
             print(f"[export] file write failed: {e}")
             saved_ok = False
 
-        b64 = base64.b64encode(payload.encode("utf-8")).decode("ascii")
-        js = (
-            "try{"
-            "var _b=atob('" + b64 + "');"
-            "var _u=new Uint8Array(_b.length);"
-            "for(var i=0;i<_b.length;i++)_u[i]=_b.charCodeAt(i);"
-            "var _s=new TextDecoder('utf-8').decode(_u);"
-            "window._exportData=_s;"
-            "}catch(e){console.error(e);}"
-        )
-        try:
-            await self.app.webview.evaluate_javascript(js)
-        except Exception:
-            pass
+        await self._inject_export_preview(payload)
 
         if saved_ok:
             self.toast(f"بکاپ ذخیره شد: {backup_path.name}")
@@ -556,9 +570,14 @@ class WebViewHandler:
             return
 
         task_count = len(data.get("tasks", []))
+        finance_count = len(data.get("finance", []))
+        inst_count = len(data.get("installments", []))
         msg = (
             f"این عملیات همه داده‌های فعلی را پاک می‌کند "
-            f"و {task_count} تسک از فایل بکاپ بازگردانی می‌شود.\n"
+            f"و از فایل بکاپ بازگردانی می‌شود:\n"
+            f"• {task_count} تسک\n"
+            f"• {finance_count} تراکنش مالی\n"
+            f"• {inst_count} قسط\n"
             f"آیا مطمئن هستید؟"
         )
         confirmed = await self.app.main_window.dialog(

@@ -1353,6 +1353,27 @@ function statCard(key, val, color) {
         '<div class="stat-val" style="color:' + (color || '') + '">' + esc(val) + '</div></div>';
 }
 
+function renderBackupSummary(summary) {
+    if (!summary) return '';
+    var items = [
+        ['تسک', summary.tasks],
+        ['تراکنش مالی', summary.finance],
+        ['یادداشت روزانه', summary.notes],
+        ['پروژه', summary.projects],
+        ['قسط', summary.installments],
+        ['تاریخ مهم', summary.important_dates],
+        ['تکرار روزانه', summary.recurring],
+    ];
+    var html = '<div class="backup-summary">';
+    items.forEach(function(item) {
+        if (item[1] > 0) {
+            html += '<span class="backup-summary-chip">' + item[1] + ' ' + item[0] + '</span>';
+        }
+    });
+    html += '</div>';
+    return html;
+}
+
 function renderSettings(s) {
     var dark = s.theme === 'dark';
     var fileName = 'dailyplanner_backup.json';
@@ -1362,6 +1383,7 @@ function renderSettings(s) {
     }
     var hasExport = !!window._exportData;
     var importDraft = window._importDraft || '';
+    var summaryHtml = renderBackupSummary(s.backup_summary);
 
     var html = '<div class="settings-page">';
     html += '<div class="page-header">⚙ تنظیمات</div>';
@@ -1382,6 +1404,7 @@ function renderSettings(s) {
           + '<div class="sec-title">پشتیبان‌گیری</div>'
           + '<p class="section-desc">تمام داده‌های شما در یک فایل JSON ذخیره می‌شود. '
           + 'می‌توانید آن را کپی کنید یا از فایل ذخیره‌شده در حافظه داخلی اپ استفاده کنید.</p>'
+          + summaryHtml
           + '<button type="button" class="section-btn section-btn-primary"'
           + ' onclick="action(\'export_data\')">'
           + '<span class="section-btn-icon">💾</span>ذخیره بکاپ</button>'

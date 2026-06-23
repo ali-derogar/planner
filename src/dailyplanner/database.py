@@ -729,13 +729,32 @@ class Database:
         self.delete_setting("active_timer_task_id")
         self.delete_setting("active_timer_started_at")
 
+    def get_backup_summary(self) -> dict:
+        def _count(table: str) -> int:
+            row = self.conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()
+            return int(row["c"])
+
+        return {
+            "tasks": _count("daily_tasks"),
+            "finance": _count("finance_entries"),
+            "wellness": _count("daily_wellness"),
+            "notes": _count("daily_notes"),
+            "recurring": _count("recurring_tasks"),
+            "projects": _count("projects"),
+            "project_tasks": _count("project_tasks"),
+            "budget_limits": _count("budget_limits"),
+            "important_dates": _count("important_dates"),
+            "installments": _count("installments"),
+            "installment_payments": _count("installment_payments"),
+        }
+
     def export_json(self) -> dict:
         tasks = self.conn.execute("SELECT * FROM daily_tasks ORDER BY date, sort_order").fetchall()
         finance = self.conn.execute("SELECT * FROM finance_entries ORDER BY date").fetchall()
         wellness = self.conn.execute("SELECT * FROM daily_wellness ORDER BY date").fetchall()
         notes = self.conn.execute("SELECT * FROM daily_notes ORDER BY date").fetchall()
         recurring = self.conn.execute("SELECT * FROM recurring_tasks ORDER BY id").fetchall()
-        settings = self.conn.execute("SELECT * FROM settings").fetchall()
+        settings_rows = self.conn.execute("SELECT * FROM settings").fetchall()
         projects = self.conn.execute("SELECT * FROM projects ORDER BY id").fetchall()
         proj_tasks = self.conn.execute(
             "SELECT * FROM project_tasks ORDER BY project_id, sort_order"
@@ -744,6 +763,18 @@ class Database:
         important_dates = self.conn.execute(
             "SELECT * FROM important_dates ORDER BY date"
         ).fetchall()
+        installments = self.conn.execute(
+            "SELECT * FROM installments ORDER BY id"
+        ).fetchall()
+        inst_payments = self.conn.execute(
+            "SELECT * FROM installment_payments ORDER BY installment_id, payment_date"
+        ).fetchall()
+        skip_settings = {"active_timer_task_id", "active_timer_started_at"}
+        settings = {
+            r["key"]: r["value"]
+            for r in settings_rows
+            if r["key"] not in skip_settings
+        }
         return {
             "version": 2,
             "tasks": [dict(r) for r in tasks],
@@ -751,11 +782,13 @@ class Database:
             "wellness": [dict(r) for r in wellness],
             "notes": [dict(r) for r in notes],
             "recurring": [dict(r) for r in recurring],
-            "settings": {r["key"]: r["value"] for r in settings},
+            "settings": settings,
             "projects": [dict(r) for r in projects],
             "project_tasks": [dict(r) for r in proj_tasks],
             "budget_limits": [dict(r) for r in budgets],
             "important_dates": [dict(r) for r in important_dates],
+            "installments": [dict(r) for r in installments],
+            "installment_payments": [dict(r) for r in inst_payments],
         }
 
     def validate_backup(self, data) -> tuple[bool, str]:
@@ -787,7 +820,7 @@ class Database:
                 return False, "ورودی‌های مالی خراب هستند"
             if not isinstance(f.get("date"), str):
                 return False, "ورودی‌های مالی خراب هستند"
-            if f.get("entry_type") not in ("income", "expense"):
+            if f.get("entry_type") not in ("income", "expense", "investment"):
                 return False, "ورودی‌های مالی خراب هستند"
             if not isinstance(f.get("title"), str):
                 return False, "ورودی‌های مالی خراب هستند"
@@ -818,6 +851,22 @@ class Database:
                 if not isinstance(pt.get("title"), str) or "project_id" not in pt:
                     return False, "پروژه‌ها خراب هستند"
 
+            installments = data.get("installments")
+            if installments is not None:
+                if not isinstance(installments, list):
+                    return False, "اقساط خراب هستند"
+                for inst in installments:
+                    if not isinstance(inst, dict) or not isinstance(inst.get("title"), str):
+                        return False, "اقساط خراب هستند"
+
+            inst_payments = data.get("installment_payments")
+            if inst_payments is not None:
+                if not isinstance(inst_payments, list):
+                    return False, "اقساط خراب هستند"
+                for pay in inst_payments:
+                    if not isinstance(pay, dict) or "installment_id" not in pay:
+                        return False, "اقساط خراب هستند"
+
         for t in tasks[:5]:
             try:
                 date.fromisoformat(t["date"])
@@ -844,6 +893,8 @@ class Database:
             self.conn.execute("DELETE FROM project_tasks")
             self.conn.execute("DELETE FROM budget_limits")
             self.conn.execute("DELETE FROM important_dates")
+            self.conn.execute("DELETE FROM installment_payments")
+            self.conn.execute("DELETE FROM installments")
             self.conn.execute("DELETE FROM settings")
 
             try:
@@ -854,6 +905,8 @@ class Database:
                     "projects",
                     "project_tasks",
                     "important_dates",
+                    "installments",
+                    "installment_payments",
                 ):
                     self.conn.execute(
                         "DELETE FROM sqlite_sequence WHERE name = ?", (tbl,)
@@ -968,6 +1021,35 @@ class Database:
                         d.get("repeat_type", "none"),
                         int(d.get("repeat_months", 0)),
                         d.get("created_at", ""),
+                    ),
+                )
+
+            for inst in data.get("installments", []):
+                self.conn.execute(
+                    "INSERT INTO installments"
+                    " (id, title, amount, total_count, paid_count, start_date, due_day, created_at)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        inst["id"],
+                        inst["title"],
+                        int(inst["amount"]),
+                        int(inst["total_count"]),
+                        int(inst.get("paid_count", 0)),
+                        inst["start_date"],
+                        int(inst.get("due_day", 1)),
+                        inst.get("created_at", ""),
+                    ),
+                )
+
+            for pay in data.get("installment_payments", []):
+                self.conn.execute(
+                    "INSERT INTO installment_payments (id, installment_id, payment_date, created_at)"
+                    " VALUES (?,?,?,?)",
+                    (
+                        pay["id"],
+                        pay["installment_id"],
+                        pay["payment_date"],
+                        pay.get("created_at", ""),
                     ),
                 )
 

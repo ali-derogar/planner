@@ -580,6 +580,7 @@ def build_state(
         state["settings"] = {
             "theme": theme,
             "export_path": export_path,
+            "backup_summary": db.get_backup_summary(),
         }
 
     elif screen == "recurring":
