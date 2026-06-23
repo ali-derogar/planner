@@ -347,6 +347,19 @@ def test_web_bundle_includes_app_js():
     assert "function action(" in bundle["app.js"]
 
 
+def test_bundle_fingerprint_changes_with_ui():
+    from dailyplanner.utils.platform import bundle_fingerprint
+
+    base = {"index.html": "<html></html>", "app.js": "v1", "app.css": "c1"}
+    changed = dict(base)
+    changed["app.js"] = "v2"
+    fp1 = bundle_fingerprint(base)
+    fp2 = bundle_fingerprint(changed)
+    assert fp1 != fp2
+    assert len(fp1) == 12
+    assert bundle_fingerprint(base) == fp1
+
+
 def test_frontend_action_handlers_exist():
     """Every JS action() cmd must have a Python _on_* handler."""
     import re
