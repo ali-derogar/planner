@@ -68,12 +68,20 @@ html, body {{
     line-height: 1.5;
     font-variant-numeric: tabular-nums;
 }}
+html.modal-open,
 body.modal-open {{
     overflow: hidden;
-    position: fixed;
-    width: 100%;
-    left: 0;
-    right: 0;
+}}
+body.modal-open .screen {{
+    overflow: hidden;
+    touch-action: none;
+}}
+body.modal-open .modal-overlay {{
+    touch-action: auto;
+}}
+body.kb-open:not(.modal-open) {{
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }}
 body.kb-open .content {{
     padding-bottom: calc(24px + var(--keyboard-inset));
@@ -991,10 +999,10 @@ textarea:focus-visible, select:focus-visible {{
     -webkit-backdrop-filter: blur(8px);
 }}
 .modal-overlay.modal-viewport-sync {{
-    top: var(--vv-top, 0);
-    left: var(--vv-left, 0);
-    width: var(--vv-width, 100%);
-    height: var(--vv-height, 100%);
+    top: var(--vv-top);
+    left: var(--vv-left);
+    width: var(--vv-width);
+    height: var(--vv-height);
     right: auto;
     bottom: auto;
 }}
@@ -1051,8 +1059,13 @@ body.kb-open .modal-overlay:not(.modal-viewport-sync) .modal-box {{
     flex: 1;
     min-height: 0;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
     padding-left: 2px;
     padding-right: 2px;
+}}
+body.kb-open #modal-fields {{
+    padding-bottom: 12px;
 }}
 .modal-title {{
     font-size: 16px;

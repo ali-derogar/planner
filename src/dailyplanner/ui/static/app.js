@@ -817,6 +817,8 @@ function showModal(config) {
     fc.scrollTop = 0;
     _modalOpenVvHeight = visibleViewportHeight();
     lockBodyForModal();
+    syncModalViewport();
+    syncKeyboardLayout();
     if ((config.fields || []).some(function(f) { return f.key === 'sms'; })) {
         var smsTarget = 'amount';
         (config.fields || []).some(function(f) {
@@ -889,6 +891,10 @@ function confirmModal() {
 
 function closeModal() {
     var modal = document.getElementById('modal');
+    var active = document.activeElement;
+    if (active && modal.contains(active) && active.blur) {
+        active.blur();
+    }
     modal.style.display = 'none';
     modal.classList.remove('modal-viewport-sync');
     unlockBodyFromModal();
@@ -2217,20 +2223,16 @@ function renderApp(state) {
 
 /* Mobile keyboard — keep text fields visible above the virtual keyboard */
 var KEYBOARD_THRESHOLD = 80;
-var _modalScrollY = 0;
 var _modalOpenVvHeight = null;
 
 function lockBodyForModal() {
-    _modalScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.add('modal-open');
     document.body.classList.add('modal-open');
-    document.body.style.top = (-_modalScrollY) + 'px';
 }
 
 function unlockBodyFromModal() {
+    document.documentElement.classList.remove('modal-open');
     document.body.classList.remove('modal-open');
-    document.body.style.top = '';
-    window.scrollTo(0, _modalScrollY);
-    _modalScrollY = 0;
 }
 
 function isMobileTouch() {
@@ -2268,10 +2270,6 @@ function syncModalViewport() {
     root.style.setProperty('--vv-left', vv.offsetLeft + 'px');
     root.style.setProperty('--vv-width', vv.width + 'px');
     root.style.setProperty('--vv-height', vv.height + 'px');
-    var modal = document.getElementById('modal');
-    if (modal && modal.style.display !== 'none') {
-        window.scrollTo(0, 0);
-    }
 }
 
 function syncKeyboardLayout() {
@@ -2302,9 +2300,11 @@ function scrollFieldInContainer(el, container) {
 }
 
 function ensureFieldVisible(el) {
-    if (!el || !el.matches || !el.matches('input:not([type="hidden"]), textarea, select')) return;
+    if (!el || !document.contains(el)) return;
+    if (!el.matches || !el.matches('input:not([type="hidden"]), textarea, select')) return;
     [50, 180, 400, 700].forEach(function(ms) {
         setTimeout(function() {
+            if (!document.contains(el)) return;
             syncKeyboardLayout();
             var modalFields = document.getElementById('modal-fields');
             if (modalFields && modalFields.contains(el)) {
@@ -2325,12 +2325,7 @@ function ensureFieldVisible(el) {
         syncKeyboardLayout();
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', syncKeyboardLayout);
-            window.visualViewport.addEventListener('scroll', function() {
-                syncKeyboardLayout();
-                if (document.body.classList.contains('modal-open')) {
-                    window.scrollTo(0, 0);
-                }
-            });
+            window.visualViewport.addEventListener('scroll', syncKeyboardLayout);
         }
         window.addEventListener('resize', syncKeyboardLayout);
         document.addEventListener('focusin', function(e) {

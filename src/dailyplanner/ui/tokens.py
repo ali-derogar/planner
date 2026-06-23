@@ -80,6 +80,10 @@ TOKENS_CSS = """
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --keyboard-inset: 0px;
     --visual-vh: 100dvh;
+    --vv-top: 0px;
+    --vv-left: 0px;
+    --vv-width: 100%;
+    --vv-height: 100dvh;
 }
 
 [data-theme="light"] {

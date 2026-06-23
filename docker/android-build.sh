@@ -23,7 +23,7 @@ sed -i 's/matplotlib>=3\.7\.0/matplotlib==3.6.0/g' \
 
 rm -rf /app/build/dailyplanner/android/gradle/app/src/main/res/values-v35
 
-find /app/build -name "*.gradle" | while read -r f; do
+find /app/build -type f -name "*.gradle" | while read -r f; do
     sed -i -E \
         -e 's|google\(\)|maven { url "https://maven.aliyun.com/repository/google" }|g' \
         -e 's|mavenCentral\(\)|maven { url "https://maven.aliyun.com/repository/central" }|g' \
