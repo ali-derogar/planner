@@ -384,6 +384,25 @@ def test_duration_hms_validator_allows_long_hours():
     assert ".replace(/\\n/g, '\\\\n')" in js, "escJs must escape newlines in onclick strings"
 
 
+def test_time_picker_logic():
+    import subprocess
+    from pathlib import Path
+
+    script = Path(__file__).parent / "time_picker_test.js"
+    subprocess.run(["node", str(script)], check=True, cwd=str(Path(__file__).parents[1]))
+
+
+def test_parse_hms_and_hm():
+    from dailyplanner.webview_handler import _parse_hm, _parse_hms
+
+    assert _parse_hms("1:30:45") == 5445
+    assert _parse_hms("25:00:00") == 90000
+    assert _parse_hm("22:30") == 22 * 60 + 30
+    assert _parse_hm("23:59") == 23 * 60 + 59
+    assert _parse_hms("not-a-time") is None
+    assert _parse_hm("") is None
+
+
 def test_frontend_render_smoke(db, tmp_path):
     """renderApp must not throw for any screen state."""
     import datetime

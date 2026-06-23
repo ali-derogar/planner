@@ -517,7 +517,7 @@ function syncTimePickerColDisplay(col) {
     input.value = pd(pad2(val));
 }
 
-function commitTimePickerCol(col, pickerWrap) {
+function commitTimePickerCol(col, pickerWrap, skipPreview) {
     var input = col.querySelector('.time-picker-val');
     if (!input) return;
     var max = parseInt(col.dataset.max, 10);
@@ -527,19 +527,18 @@ function commitTimePickerCol(col, pickerWrap) {
     val = Math.max(0, Math.min(max, val));
     col.dataset.val = String(val);
     syncTimePickerColDisplay(col);
-    updateTimePickerPreview(pickerWrap);
+    if (!skipPreview) updateTimePickerPreview(pickerWrap);
 }
 
 function commitTimePicker(picker) {
     if (!picker) return;
     picker.querySelectorAll('.time-picker-col').forEach(function(col) {
-        commitTimePickerCol(col, picker);
+        commitTimePickerCol(col, picker, true);
     });
+    updateTimePickerPreview(picker);
 }
 
-function getTimePickerValue(el) {
-    if (!el) return '';
-    commitTimePicker(el);
+function readTimePickerParts(el) {
     var h = 0, m = 0, s = 0;
     el.querySelectorAll('.time-picker-col').forEach(function(col) {
         var v = parseInt(col.dataset.val, 10) || 0;
@@ -547,21 +546,27 @@ function getTimePickerValue(el) {
         else if (col.dataset.unit === 'm') m = v;
         else if (col.dataset.unit === 's') s = v;
     });
+    return { h: h, m: m, s: s };
+}
+
+function getTimePickerValue(el) {
+    if (!el) return '';
+    commitTimePicker(el);
+    var parts = readTimePickerParts(el);
     if (el.dataset.mode === 'hms') {
-        return h + ':' + pad2(m) + ':' + pad2(s);
+        return parts.h + ':' + pad2(parts.m) + ':' + pad2(parts.s);
     }
-    return h + ':' + pad2(m);
+    return parts.h + ':' + pad2(parts.m);
 }
 
 function updateTimePickerPreview(picker) {
     var preview = picker.querySelector('.time-picker-preview');
     if (!preview) return;
-    var raw = getTimePickerValue(picker);
-    var parts = raw.split(':');
+    var parts = readTimePickerParts(picker);
     if (picker.dataset.mode === 'hms') {
-        preview.textContent = pd(parts[0]) + ':' + pd(parts[1]) + ':' + pd(parts[2]);
+        preview.textContent = pd(parts.h) + ':' + pd(pad2(parts.m)) + ':' + pd(pad2(parts.s));
     } else {
-        preview.textContent = pd(parts[0]) + ':' + pd(parts[1]);
+        preview.textContent = pd(parts.h) + ':' + pd(pad2(parts.m));
     }
 }
 
@@ -571,7 +576,7 @@ function setTimePickerValues(picker, h, m, s) {
         var max = parseInt(col.dataset.max, 10);
         var val = unit === 'h' ? h : (unit === 'm' ? m : s);
         val = Math.max(0, Math.min(max, val));
-        col.dataset.val = val;
+        col.dataset.val = String(val);
         syncTimePickerColDisplay(col);
     });
     updateTimePickerPreview(picker);
@@ -584,7 +589,7 @@ function stepTimeUnit(picker, unit, delta) {
     var val = (parseInt(col.dataset.val, 10) || 0) + delta;
     if (val > max) val = 0;
     if (val < 0) val = max;
-    col.dataset.val = val;
+    col.dataset.val = String(val);
     syncTimePickerColDisplay(col);
     updateTimePickerPreview(picker);
 }
