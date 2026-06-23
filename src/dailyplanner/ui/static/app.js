@@ -1006,6 +1006,11 @@ function finCatIconType(cat) {
     return 'expense';
 }
 
+function finEmoji(emoji, size) {
+    size = size || 'md';
+    return '<span class="fin-emoji fin-emoji-' + size + '" aria-hidden="true">' + emoji + '</span>';
+}
+
 function finIcon(type, content, size) {
     var cls = 'fin-icon fin-icon-' + (type || 'neutral');
     if (size === 'lg') cls += ' fin-icon-lg';
@@ -1104,22 +1109,22 @@ function taskCard(t) {
 /* Screens */
 function renderHome(h) {
     var taskCount = h.tasks ? h.tasks.length : 0;
-    var calBtn = '<button type="button" class="icon-btn home-tool-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">' + ico('calendar', 'ico') + '</button>';
+    var calBtn = '<button type="button" class="icon-btn home-tool-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">' + finEmoji('📅', 'xs') + '</button>';
     var recurBtn = '<button type="button" class="icon-btn home-tool-btn wide" onclick="action(\'navigate\',{screen:\'recurring\'})" aria-label="وظایف تکراری">' +
-        ico('star', 'ico') + ' ' + pd(h.recurring_count) + '</button>';
-    var settingsBtn = '<button type="button" class="icon-btn home-tool-btn" aria-label="تنظیمات" onclick="action(\'navigate\',{screen:\'settings\'})">' + ico('settings', 'ico') + '</button>';
+        finEmoji('⭐', 'xs') + ' ' + pd(h.recurring_count) + '</button>';
+    var settingsBtn = '<button type="button" class="icon-btn home-tool-btn" aria-label="تنظیمات" onclick="action(\'navigate\',{screen:\'settings\'})">' + finEmoji('⚙️', 'xs') + '</button>';
     var urgentCount = h.urgent_dates_count || 0;
     var badge = urgentCount > 0
         ? ' <span class="urgent-badge">' + pd(urgentCount) + '</span>'
         : '';
     var datesBtn = '<button type="button" class="icon-btn home-tool-btn dates-btn"'
         + ' onclick="action(\'navigate\',{screen:\'important_dates\'})"'
-        + ' aria-label="تاریخ\u200cهای مهم">' + ico('bell', 'ico') + badge + '</button>';
+        + ' aria-label="تاریخ\u200cهای مهم">' + finEmoji('🔔', 'xs') + badge + '</button>';
 
     var html = '<div class="home-page">' +
         '<div class="date-header home-header">' +
         '<div class="home-header-top">' +
-        finIconSvg('home', 'home') +
+        finEmoji('🏠', 'md') +
         '<span class="home-header-title">امروز</span>' +
         '</div>' +
         '<div class="date-header-row">' +
@@ -1132,10 +1137,10 @@ function renderHome(h) {
         calBtn + recurBtn + datesBtn + settingsBtn +
         '</div>' +
         '<div class="home-hero-in-header"><div class="home-hero-stats">' +
-        '<div class="home-hero-stat eff">' + finIcon('analytics', '◎') + '<div><span class="home-stat-lbl">بازده</span><span class="home-stat-val">' + pd(h.efficiency) + '٪</span></div></div>' +
-        '<div class="home-hero-stat useful">' + finIcon('income', '↑') + '<div><span class="home-stat-lbl">مفید</span><span class="home-stat-val">' + esc(h.useful_fmt) + '</span></div></div>' +
-        '<div class="home-hero-stat not">' + finIcon('expense', '↓') + '<div><span class="home-stat-lbl">نامفید</span><span class="home-stat-val">' + esc(h.not_useful_fmt) + '</span></div></div>' +
-        '<div class="home-hero-stat tasks">' + finIcon('home', '☑') + '<div><span class="home-stat-lbl">تسک</span><span class="home-stat-val">' + pd(taskCount) + '</span></div></div>' +
+        '<div class="home-hero-stat eff">' + finEmoji('🎯', 'sm') + '<div><span class="home-stat-lbl">بازده</span><span class="home-stat-val">' + pd(h.efficiency) + '٪</span></div></div>' +
+        '<div class="home-hero-stat useful">' + finEmoji('✅', 'sm') + '<div><span class="home-stat-lbl">مفید</span><span class="home-stat-val">' + esc(h.useful_fmt) + '</span></div></div>' +
+        '<div class="home-hero-stat not">' + finEmoji('⚠️', 'sm') + '<div><span class="home-stat-lbl">نامفید</span><span class="home-stat-val">' + esc(h.not_useful_fmt) + '</span></div></div>' +
+        '<div class="home-hero-stat tasks">' + finEmoji('📝', 'sm') + '<div><span class="home-stat-lbl">تسک</span><span class="home-stat-val">' + pd(taskCount) + '</span></div></div>' +
         '</div></div></div>';
 
     if (h.show_calendar && h.calendar) {
@@ -1272,7 +1277,7 @@ function renderAnalytics(a) {
     var html = '<div class="analytics-page">' +
         '<div class="analytics-header">' +
         '<div class="analytics-header-top">' +
-        finIconSvg('analytics', 'chart') +
+        finEmoji('📊', 'md') +
         '<span class="analytics-header-title">آمار کلی</span>' +
         '</div>' +
         '<div class="analytics-period analytics-period-in-header">' +
@@ -1282,9 +1287,9 @@ function renderAnalytics(a) {
         '<div class="analytics-period-label">' + esc(a.start_label) + ' تا ' + esc(a.end_label) + '</div>' +
         '<div class="analytics-hero-in-header">' +
         '<div class="analytics-summary">' +
-        '<div class="analytics-summary-item"><span class="analytics-summary-val">' + pd(s.streak) + '</span><span class="analytics-summary-lbl">🔥 استریک</span></div>' +
-        '<div class="analytics-summary-item"><span class="analytics-summary-val">' + pd(s.eff) + '٪</span><span class="analytics-summary-lbl">بازده</span></div>' +
-        '<div class="analytics-summary-item"><span class="analytics-summary-val">' + esc(s.total_fmt) + '</span><span class="analytics-summary-lbl">کل زمان</span></div>' +
+        analyticsSummaryItem('🔥', pd(s.streak), 'استریک') +
+        analyticsSummaryItem('🎯', pd(s.eff) + '٪', 'بازده') +
+        analyticsSummaryItem('⏱️', esc(s.total_fmt), 'کل زمان') +
         '</div></div></div>' +
         '<div class="chart-box">' + sparklineSvg(a.chart_points, 300, 60) + '</div>' +
         heatmapHtml(a.heatmap) +
@@ -1316,6 +1321,12 @@ function renderAnalytics(a) {
         });
     }
     return html + '</div>';
+}
+
+function analyticsSummaryItem(emoji, val, lbl) {
+    return '<div class="analytics-summary-item">' + finEmoji(emoji, 'sm') +
+        '<span class="analytics-summary-val">' + val + '</span>' +
+        '<span class="analytics-summary-lbl">' + lbl + '</span></div>';
 }
 
 function statCard(key, val, color) {
@@ -1494,7 +1505,7 @@ function renderFinanceScreen(f) {
     var html = '<div class="fin-page">' +
         '<div class="date-header fin-header">' +
         '<div class="fin-header-top">' +
-        finIconSvg('finance', 'wallet') +
+        finEmoji('💰', 'md') +
         '<span class="fin-header-title">مالی</span>' +
         '</div>' +
         '<div class="date-header-row">' +
@@ -1508,10 +1519,10 @@ function renderFinanceScreen(f) {
         '<div class="fin-hero-label">موجودی این ماه</div>' +
         '<div class="fin-hero-balance ' + balCls + '">' + esc(t.balance_fmt) + '<span class="fin-hero-unit">تومان</span></div>' +
         '<div class="fin-hero-stats">' +
-        '<div class="fin-hero-stat income">' + finIcon('income', '↑') + '<div><span class="fin-stat-lbl">درآمد</span><span class="fin-stat-val">' + esc(t.income_fmt) + '</span></div></div>' +
-        '<div class="fin-hero-stat expense">' + finIcon('expense', '↓') + '<div><span class="fin-stat-lbl">هزینه</span><span class="fin-stat-val">' + esc(t.expense_fmt) + '</span></div></div>' +
+        '<div class="fin-hero-stat income">' + finEmoji('📈', 'sm') + '<div><span class="fin-stat-lbl">درآمد</span><span class="fin-stat-val">' + esc(t.income_fmt) + '</span></div></div>' +
+        '<div class="fin-hero-stat expense">' + finEmoji('💸', 'sm') + '<div><span class="fin-stat-lbl">هزینه</span><span class="fin-stat-val">' + esc(t.expense_fmt) + '</span></div></div>' +
         '</div>' +
-        (t.investment > 0 ? '<div class="fin-hero-invest">' + finIcon('investment', '◆') + ' سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + ' <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
+        (t.investment > 0 ? '<div class="fin-hero-invest">' + finEmoji('💎', 'sm') + ' سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + ' <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
         '</div></div>';
 
     html += '<div class="fin-actions">' +
@@ -1933,8 +1944,8 @@ function showEditProject(id, colors) {
     });
 }
 
-function projSummaryItem(type, icon, val, lbl) {
-    return '<div class="proj-summary-item">' + finIcon(type, icon) +
+function projSummaryItem(emoji, val, lbl) {
+    return '<div class="proj-summary-item">' + finEmoji(emoji, 'sm') +
         '<span class="proj-summary-val">' + val + '</span>' +
         '<span class="proj-summary-lbl">' + lbl + '</span></div>';
 }
@@ -1982,15 +1993,15 @@ function renderProjects(data) {
     html += '<div class="proj-header">' +
         '<div class="proj-header-top">' +
         '<div class="proj-header-brand">' +
-        finIconSvg('projects', 'folder') +
+        finEmoji('📁', 'md') +
         '<span class="proj-header-title">پروژه\u200cها</span>' +
         '</div>' +
         '<button type="button" class="proj-header-add" onclick="showAddProject(window._projectColors)">+ پروژه جدید</button>' +
         '</div>' +
         '<div class="proj-hero-in-header"><div class="proj-summary">' +
-        projSummaryItem('projects', '◆', pd(active.length), 'فعال') +
-        projSummaryItem('receipt', '☑', pd(doneTasks) + '/' + pd(totalTasks), 'تسک') +
-        projSummaryItem('analytics', '◎', pd(overallPct) + '٪', 'پیشرفت') +
+        projSummaryItem('🚀', pd(active.length), 'فعال') +
+        projSummaryItem('✅', pd(doneTasks) + '/' + pd(totalTasks), 'تسک') +
+        projSummaryItem('📈', pd(overallPct) + '٪', 'پیشرفت') +
         '</div></div></div>';
 
     if (!data.list.length) {

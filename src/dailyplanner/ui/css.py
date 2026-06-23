@@ -384,6 +384,11 @@ textarea:focus-visible, select:focus-visible {{
     color: #E0F2FE;
 }}
 .home-header .home-tool-btn .ico {{ color: #7DD3FC; }}
+.home-header .home-tool-btn .fin-emoji {{
+    flex-shrink: 0;
+    color: unset;
+    -webkit-text-fill-color: initial;
+}}
 .home-header .urgent-badge {{
     background: #F97316;
     color: #fff;
@@ -414,9 +419,8 @@ textarea:focus-visible, select:focus-visible {{
     border-radius: 10px;
     padding: 7px 8px;
 }}
-.home-hero-stat .fin-icon {{
-    width: 26px; height: 26px; border-radius: 50%;
-    font-size: 12px; font-weight: bold; flex-shrink: 0;
+.home-hero-stat .fin-emoji {{
+    flex-shrink: 0;
 }}
 .home-stat-lbl {{
     display: block; font-size: 9px;
@@ -430,11 +434,33 @@ textarea:focus-visible, select:focus-visible {{
 .home-hero-stat.useful .home-stat-val {{ color: #6EE7B7; }}
 .home-hero-stat.not .home-stat-val {{ color: #FDBA74; }}
 .home-hero-stat.tasks .home-stat-val {{ color: #7DD3FC; }}
-.home-header-top .fin-icon,
-.home-header-top .fin-icon-svg .ico,
-.fin-header-top .fin-icon {{ width: 30px; height: 30px; border-radius: 9px; }}
-.home-header-top .fin-icon-svg .ico,
-.fin-header-top .fin-icon-svg .ico {{ width: 18px; height: 18px; }}
+.home-header-top .fin-emoji,
+.fin-header-top .fin-emoji,
+.proj-header-brand .fin-emoji,
+.analytics-header-top .fin-emoji {{
+    flex-shrink: 0;
+}}
+.home-header-top .fin-emoji-md,
+.fin-header-top .fin-emoji-md,
+.analytics-header-top .fin-emoji-md,
+.proj-header-brand .fin-emoji-md {{
+    font-size: 22px;
+    min-width: 26px;
+    min-height: 26px;
+}}
+.home-hero-stat .fin-emoji-sm,
+.fin-hero-in-header .fin-hero-stat .fin-emoji-sm,
+.fin-hero-invest .fin-emoji-sm {{
+    font-size: 18px;
+    min-width: 22px;
+    min-height: 22px;
+}}
+.analytics-summary-item .fin-emoji-sm,
+.proj-summary-item .fin-emoji-sm {{
+    font-size: 22px;
+    min-width: 26px;
+    min-height: 26px;
+}}
 .home-search-row {{
     padding: 10px 12px 4px;
 }}
@@ -1204,11 +1230,11 @@ body.kb-open .modal-box {{
     .analytics-header {{ padding-top: calc(14px + max(36px, var(--safe-top))); }}
 }}
 .analytics-header-top {{
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 8px;
     position: relative; z-index: 1; margin-bottom: 12px;
 }}
 .analytics-header-title {{
-    font-size: 18px; font-weight: bold; color: #fff;
+    font-size: 16px; font-weight: bold; color: #fff;
 }}
 .analytics-period-in-header {{
     padding: 0 0 8px; position: relative; z-index: 1;
@@ -1241,18 +1267,20 @@ body.kb-open .modal-box {{
     display: flex; gap: 8px; direction: rtl;
 }}
 .analytics-summary-item {{
-    flex: 1; text-align: center;
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    text-align: center;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(167, 139, 250, 0.14);
     border-radius: 10px; padding: 10px 6px;
 }}
+.analytics-summary-item .fin-emoji {{ flex-shrink: 0; }}
 .analytics-summary-val {{
     display: block; font-size: 15px; font-weight: bold;
-    color: #E9D5FF; font-variant-numeric: tabular-nums;
+    color: #E9D5FF; font-variant-numeric: tabular-nums; line-height: 1.1;
 }}
 .analytics-summary-lbl {{
     display: block; font-size: 10px;
-    color: rgba(255, 255, 255, 0.55); margin-top: 2px;
+    color: rgba(255, 255, 255, 0.55);
 }}
 .analytics-days-title {{ padding: 8px 12px; }}
 .day-extra {{ font-size: 11px; color: var(--text-muted); margin-top: 4px; }}
@@ -1927,6 +1955,13 @@ body.kb-open .modal-box {{
 .fin-hero-in-header .fin-hero-stat .fin-icon {{
     width: 24px; height: 24px; font-size: 12px;
 }}
+.fin-hero-in-header .fin-hero-stat .fin-emoji,
+.home-hero-stat .fin-emoji,
+.fin-hero-invest .fin-emoji {{
+    flex-shrink: 0;
+    color: unset;
+    -webkit-text-fill-color: initial;
+}}
 .fin-hero-stat.income .fin-stat-icon {{ background: #1A4028; color: #4DD980; }}
 .fin-hero-stat.expense .fin-stat-icon {{ background: #3D1818; color: #FF7359; }}
 .fin-stat-lbl {{ display: block; font-size: 10px; color: var(--text-muted); }}
@@ -1965,6 +2000,33 @@ body.kb-open .modal-box {{
     width: 28px; height: 28px; border-radius: 8px;
     display: inline-flex; align-items: center; justify-content: center;
     font-size: 14px; flex-shrink: 0; line-height: 1;
+}}
+.fin-emoji {{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+    font-style: normal;
+    line-height: 1;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: unset;
+    -webkit-text-fill-color: initial;
+    opacity: 1;
+    filter: none;
+}}
+.fin-emoji-xs {{ font-size: 17px; min-width: 20px; min-height: 20px; }}
+.fin-emoji-sm {{ font-size: 18px; min-width: 22px; min-height: 22px; }}
+.fin-emoji-md {{ font-size: 22px; min-width: 26px; min-height: 26px; }}
+.fin-emoji-lg {{ font-size: 32px; min-width: 40px; min-height: 40px; }}
+.home-header .fin-emoji,
+.fin-header .fin-emoji,
+.proj-header .fin-emoji,
+.analytics-header .fin-emoji {{
+    color: unset;
+    -webkit-text-fill-color: initial;
 }}
 .fin-icon-lg {{
     width: 44px; height: 44px; font-size: 22px; border-radius: 12px;
@@ -2193,9 +2255,9 @@ body.kb-open .modal-box {{
     margin-bottom: 0; position: relative; z-index: 1;
 }}
 .proj-header-brand {{
-    display: flex; align-items: center; gap: 10px; min-width: 0;
+    display: flex; align-items: center; gap: 8px; min-width: 0;
 }}
-.proj-header-title {{ font-size: 18px; font-weight: bold; color: #fff; }}
+.proj-header-title {{ font-size: 16px; font-weight: bold; color: #fff; }}
 .proj-header-add {{
     background: rgba(255, 255, 255, 0.14); color: #F8FAFC;
     border: 1px solid rgba(255, 255, 255, 0.28);
@@ -2221,8 +2283,8 @@ body.kb-open .modal-box {{
     text-align: center; background: rgba(255,255,255,0.07);
     border: 1px solid rgba(196, 181, 253, 0.2); border-radius: 12px; padding: 12px 6px;
 }}
-.proj-summary-item .fin-icon {{
-    width: 32px; height: 32px; border-radius: 10px; font-size: 14px;
+.proj-summary-item .fin-emoji {{
+    flex-shrink: 0;
 }}
 .proj-summary-val {{ display: block; font-size: 17px; font-weight: bold; color: #F8FAFC; font-variant-numeric: tabular-nums; line-height: 1.1; }}
 .proj-summary-lbl {{ display: block; font-size: 10px; color: rgba(255,255,255,0.62); }}
