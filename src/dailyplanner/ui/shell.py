@@ -37,7 +37,7 @@ def build_web_bundle() -> dict[str, str]:
       <div class="modal-error" id="modal-error"></div>
     </div>
     <div class="modal-btns">
-      <button type="button" class="modal-confirm" onclick="confirmModal()">تأیید</button>
+      <button type="button" class="modal-confirm" onpointerdown="handleModalConfirm(event)">تأیید</button>
       <button type="button" class="modal-cancel" onclick="closeModal()">انصراف</button>
     </div>
   </div>

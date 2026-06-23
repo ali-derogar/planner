@@ -1075,7 +1075,7 @@ body.kb-open .modal-body {{
     padding-bottom: 8px;
 }}
 body.kb-open .modal-overlay.modal-center {{
-    align-items: flex-start;
+    align-items: flex-end;
     padding-top: max(8px, env(safe-area-inset-top));
     padding-bottom: max(8px, env(safe-area-inset-bottom));
 }}

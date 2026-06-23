@@ -861,10 +861,8 @@ function modalHasTallFields(fields) {
 }
 
 function shouldUseCenterModal(config) {
-    var fields = modalLayoutFields(config.fields || []);
-    if (!isMobileTouch()) return true;
-    if (fields.length <= 2 && !modalHasTallFields(config.fields || [])) return true;
-    return false;
+    if (isMobileTouch()) return false;
+    return true;
 }
 
 function ensureModalStructure() {
@@ -989,8 +987,18 @@ function showModal(config) {
     }
 }
 
+var _modalConfirming = false;
+
+function handleModalConfirm(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    confirmModal();
+}
+
 function confirmModal() {
-    if (!_modal) return;
+    if (!_modal || _modalConfirming) return;
     var params = Object.assign({}, _modal.params || {});
     var valid = true;
     var errEl = document.getElementById('modal-error');
@@ -1036,8 +1044,10 @@ function confirmModal() {
         return;
     }
     var cmd = _modal.cmd;
+    _modalConfirming = true;
     closeModal();
     action(cmd, params);
+    setTimeout(function() { _modalConfirming = false; }, 400);
 }
 
 function closeModal() {
@@ -2514,24 +2524,34 @@ function isTextInput(el) {
     return !!(el && el.matches && el.matches('input:not([type="hidden"]), textarea, select'));
 }
 
+function viewportHandlesKeyboard() {
+    var vv = window.visualViewport;
+    if (!vv) return false;
+    return (window.innerHeight - vv.height - vv.offsetTop) >= KEYBOARD_THRESHOLD;
+}
+
 function keyboardHeight() {
     var vv = window.visualViewport;
-    var measured = 0;
     if (vv) {
+        var gap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        if (gap >= KEYBOARD_THRESHOLD) return gap;
         var baseline = _modalOpenVvHeight || window.innerHeight;
-        measured = Math.max(0, baseline - vv.height);
-        if (measured < KEYBOARD_THRESHOLD) {
-            measured = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-        }
+        var measured = Math.max(0, baseline - vv.height);
+        if (measured >= KEYBOARD_THRESHOLD) return measured;
+        return 0;
     }
-    if (measured >= KEYBOARD_THRESHOLD) return measured;
-
     if (!isMobileTouch() || !isTextInput(document.activeElement)) return 0;
     return Math.round(window.innerHeight * 0.42);
 }
 
+function layoutKeyboardInset(kb) {
+    if (viewportHandlesKeyboard()) return 0;
+    return kb;
+}
+
 function visibleViewportHeight() {
     var vv = window.visualViewport;
+    if (vv && viewportHandlesKeyboard()) return vv.height;
     var kb = keyboardHeight();
     if (vv) {
         if (kb >= KEYBOARD_THRESHOLD && vv.height >= window.innerHeight - kb - 20) {
@@ -2545,6 +2565,9 @@ function visibleViewportHeight() {
 
 function visibleViewportBounds() {
     var vv = window.visualViewport;
+    if (vv && viewportHandlesKeyboard()) {
+        return { top: vv.offsetTop + 12, bottom: vv.offsetTop + vv.height - 16 };
+    }
     var kb = keyboardHeight();
     var top = vv ? vv.offsetTop + 12 : 12;
     var bottom = vv ? vv.offsetTop + vv.height - 16 : window.innerHeight - 16;
@@ -2560,7 +2583,7 @@ function syncModalViewport() {
     var vv = window.visualViewport;
     var kb = keyboardHeight();
     if (!vv) {
-        var fallbackH = window.innerHeight - (kb >= KEYBOARD_THRESHOLD ? kb : 0);
+        var fallbackH = window.innerHeight - (kb >= KEYBOARD_THRESHOLD && !viewportHandlesKeyboard() ? kb : 0);
         root.style.setProperty('--vv-top', '0px');
         root.style.setProperty('--vv-left', '0px');
         root.style.setProperty('--vv-width', window.innerWidth + 'px');
@@ -2568,7 +2591,7 @@ function syncModalViewport() {
         return;
     }
     var height = vv.height;
-    if (kb >= KEYBOARD_THRESHOLD && height >= window.innerHeight - kb - 20) {
+    if (!viewportHandlesKeyboard() && kb >= KEYBOARD_THRESHOLD && height >= window.innerHeight - kb - 20) {
         height = window.innerHeight - kb;
     }
     root.style.setProperty('--vv-top', vv.offsetTop + 'px');
@@ -2581,7 +2604,7 @@ function syncKeyboardLayout() {
     var kb = keyboardHeight();
     var open = kb >= KEYBOARD_THRESHOLD;
     var root = document.documentElement;
-    root.style.setProperty('--keyboard-inset', open ? kb + 'px' : '0px');
+    root.style.setProperty('--keyboard-inset', open ? layoutKeyboardInset(kb) + 'px' : '0px');
     root.style.setProperty('--visual-vh', visibleViewportHeight() + 'px');
     document.body.classList.toggle('kb-open', open);
     if (document.body.classList.contains('modal-open')) {
