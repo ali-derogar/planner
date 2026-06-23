@@ -82,9 +82,14 @@ body.modal-open .modal-overlay {{
 body.kb-open:not(.modal-open) {{
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    max-height: var(--visual-vh, 100dvh);
 }}
 body.kb-open .content {{
     padding-bottom: calc(24px + var(--keyboard-inset));
+}}
+body.kb-open .screen {{
+    min-height: 0;
 }}
 body.kb-open.has-bottom-nav .content {{
     padding-bottom: calc(88px + max(48px, var(--safe-bottom)) + var(--keyboard-inset));
@@ -1066,6 +1071,11 @@ body.kb-open .modal-overlay:not(.modal-viewport-sync) .modal-box {{
 }}
 body.kb-open #modal-fields {{
     padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+}}
+body.modal-open.kb-open .modal-overlay.modal-viewport-sync {{
+    touch-action: pan-y;
 }}
 .modal-title {{
     font-size: 16px;

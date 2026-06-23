@@ -2259,17 +2259,41 @@ function keyboardHeight() {
 
 function visibleViewportHeight() {
     var vv = window.visualViewport;
-    return vv ? vv.height : window.innerHeight;
+    var kb = keyboardHeight();
+    if (vv) {
+        if (kb >= KEYBOARD_THRESHOLD && vv.height >= window.innerHeight - kb - 20) {
+            return window.innerHeight - kb;
+        }
+        return vv.height;
+    }
+    if (kb >= KEYBOARD_THRESHOLD) return window.innerHeight - kb;
+    return window.innerHeight;
+}
+
+function visibleViewportBounds() {
+    var vv = window.visualViewport;
+    var kb = keyboardHeight();
+    var top = vv ? vv.offsetTop + 12 : 12;
+    var bottom = vv ? vv.offsetTop + vv.height - 16 : window.innerHeight - 16;
+    if (kb >= KEYBOARD_THRESHOLD && (!vv || vv.height >= window.innerHeight - kb - 20)) {
+        bottom = Math.min(bottom, window.innerHeight - kb - 16);
+    }
+    return { top: top, bottom: bottom };
 }
 
 function syncModalViewport() {
     var vv = window.visualViewport;
     if (!vv) return;
+    var kb = keyboardHeight();
     var root = document.documentElement;
+    var height = vv.height;
+    if (kb >= KEYBOARD_THRESHOLD && height >= window.innerHeight - kb - 20) {
+        height = window.innerHeight - kb;
+    }
     root.style.setProperty('--vv-top', vv.offsetTop + 'px');
     root.style.setProperty('--vv-left', vv.offsetLeft + 'px');
     root.style.setProperty('--vv-width', vv.width + 'px');
-    root.style.setProperty('--vv-height', vv.height + 'px');
+    root.style.setProperty('--vv-height', height + 'px');
 }
 
 function syncKeyboardLayout() {
@@ -2285,13 +2309,11 @@ function syncKeyboardLayout() {
 }
 
 function scrollFieldInContainer(el, container) {
-    var vv = window.visualViewport;
-    var visibleTop = vv ? vv.offsetTop + 12 : 12;
-    var visibleBottom = vv ? vv.offsetTop + vv.height - 16 : window.innerHeight - 16;
+    var bounds = visibleViewportBounds();
     var elRect = el.getBoundingClientRect();
     var contRect = container.getBoundingClientRect();
-    var limitBottom = Math.min(contRect.bottom, visibleBottom);
-    var limitTop = Math.max(contRect.top, visibleTop);
+    var limitBottom = Math.min(contRect.bottom, bounds.bottom);
+    var limitTop = Math.max(contRect.top, bounds.top);
     if (elRect.bottom > limitBottom) {
         container.scrollTop += elRect.bottom - limitBottom + 24;
     } else if (elRect.top < limitTop) {
@@ -2299,10 +2321,20 @@ function scrollFieldInContainer(el, container) {
     }
 }
 
+function scrollFieldIntoView(el) {
+    var bounds = visibleViewportBounds();
+    var rect = el.getBoundingClientRect();
+    if (rect.bottom > bounds.bottom) {
+        window.scrollBy(0, rect.bottom - bounds.bottom + 24);
+    } else if (rect.top < bounds.top) {
+        window.scrollBy(0, rect.top - bounds.top - 12);
+    }
+}
+
 function ensureFieldVisible(el) {
     if (!el || !document.contains(el)) return;
     if (!el.matches || !el.matches('input:not([type="hidden"]), textarea, select')) return;
-    [50, 180, 400, 700].forEach(function(ms) {
+    [0, 50, 180, 400, 700].forEach(function(ms) {
         setTimeout(function() {
             if (!document.contains(el)) return;
             syncKeyboardLayout();
@@ -2310,11 +2342,7 @@ function ensureFieldVisible(el) {
             if (modalFields && modalFields.contains(el)) {
                 scrollFieldInContainer(el, modalFields);
             } else {
-                try {
-                    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                } catch (e) {
-                    el.scrollIntoView(false);
-                }
+                scrollFieldIntoView(el);
             }
         }, ms);
     });
@@ -2329,6 +2357,7 @@ function ensureFieldVisible(el) {
         }
         window.addEventListener('resize', syncKeyboardLayout);
         document.addEventListener('focusin', function(e) {
+            syncKeyboardLayout();
             ensureFieldVisible(e.target);
         });
         document.addEventListener('click', function(e) {
