@@ -55,6 +55,7 @@ class WebViewHandler:
         self.finance_year: int = datetime.date.today().year
         self.managing_installments: bool = False
         self.current_project_id: Optional[int] = None
+        self._shell_requested: bool = False
         self._shell_loaded: bool = False
         self._pending_toast: Optional[dict] = None
         self._restore_active_timer()
@@ -88,6 +89,9 @@ class WebViewHandler:
     # ── SPA loading ───────────────────────────────────────────────────────────
 
     def load_shell(self):
+        if self._shell_requested:
+            return
+        self._shell_requested = True
         bundle = build_web_bundle()
         set_webview_bundle(self.app.webview, bundle, window=self.app.main_window)
         self._shell_loaded = True

@@ -12,7 +12,7 @@ class DailyPlannerApp(toga.App):
     def startup(self):
         self.db = Database(str(self.paths.data / "tasks.db"))
         self.handler = WebViewHandler(self)
-        self._ui_loaded = False
+        self._poll_started = False
 
         self.webview = toga.WebView(style=Pack(flex=1))
         self.webview.on_webview_load = self._on_webview_load
@@ -26,26 +26,44 @@ class DailyPlannerApp(toga.App):
 
         self.on_running = self._on_running
 
+    def _ensure_shell(self):
+        if self.handler._shell_requested:
+            return
+        print("[app] loading shell")
+        self.handler.load_shell()
+
+    def _start_background_loops(self):
+        if self._poll_started:
+            return
+        self._poll_started = True
+        print("[app] starting JS bridge loops")
+        asyncio.create_task(self.handler.poll_loop(self))
+        asyncio.create_task(self.handler.timer_update_loop(self))
+
     def _on_webview_load(self, webview, **kwargs):
-        asyncio.create_task(self.handler.push_state())
+        # Ignore the blank page that fires before load_shell() navigates to the SPA.
+        if not self.handler._shell_loaded:
+            return
+        asyncio.create_task(self._on_webview_ready())
+
+    async def _on_webview_ready(self):
+        await self.handler.push_state()
+        self._start_background_loops()
 
     def _on_main_window_show(self, window, **kwargs):
         hide_android_action_bar(self.main_window)
-        if self._ui_loaded:
-            return
-        self._ui_loaded = True
-        print("[app] loading shell")
-        self.handler.load_shell()
-        asyncio.create_task(self.handler.push_state())
+        self._ensure_shell()
 
     def _on_running(self, app, **kwargs):
-        if not self._ui_loaded:
-            print("[app] on_running fallback load")
-            self._ui_loaded = True
-            self.handler.load_shell()
-            asyncio.create_task(self.handler.push_state())
-        asyncio.create_task(self.handler.poll_loop(self))
-        asyncio.create_task(self.handler.timer_update_loop(self))
+        self._ensure_shell()
+        asyncio.create_task(self._startup_fallback())
+
+    async def _startup_fallback(self):
+        """Android sometimes skips on_webview_load — don't leave buttons dead."""
+        await asyncio.sleep(3.0)
+        self._start_background_loops()
+        if self.handler._shell_loaded:
+            await self.handler.push_state()
 
     def on_exit(self, widget=None, **kwargs):
         self.db.close()
