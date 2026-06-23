@@ -68,6 +68,13 @@ html, body {{
     line-height: 1.5;
     font-variant-numeric: tabular-nums;
 }}
+body.modal-open {{
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    left: 0;
+    right: 0;
+}}
 body.kb-open .content {{
     padding-bottom: calc(24px + var(--keyboard-inset));
 }}
@@ -983,6 +990,14 @@ textarea:focus-visible, select:focus-visible {{
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }}
+.modal-overlay.modal-viewport-sync {{
+    top: var(--vv-top, 0);
+    left: var(--vv-left, 0);
+    width: var(--vv-width, 100%);
+    height: var(--vv-height, 100%);
+    right: auto;
+    bottom: auto;
+}}
 .modal-overlay.modal-center {{
     align-items: center;
     padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
@@ -993,7 +1008,7 @@ textarea:focus-visible, select:focus-visible {{
     padding: 8px 16px calc(16px + var(--safe-bottom));
     width: 100%;
     max-width: 520px;
-    max-height: calc(92dvh - var(--safe-bottom));
+    max-height: min(92dvh, calc(var(--visual-vh, 100dvh) - 16px));
     border: 1px solid var(--border-subtle);
     border-bottom: none;
     display: flex;
@@ -1004,11 +1019,15 @@ textarea:focus-visible, select:focus-visible {{
     animation: sheetUp var(--duration-normal) var(--ease-out);
     transition: max-height 0.15s ease-out;
 }}
-body.kb-open .modal-overlay {{
+.modal-viewport-sync .modal-box {{
+    max-height: calc(100% - 8px);
+    padding-bottom: 16px;
+}}
+body.kb-open .modal-overlay:not(.modal-viewport-sync) {{
     padding-bottom: var(--keyboard-inset);
     align-items: flex-end;
 }}
-body.kb-open .modal-box {{
+body.kb-open .modal-overlay:not(.modal-viewport-sync) .modal-box {{
     max-height: calc(var(--visual-vh) - 16px);
     padding-bottom: 16px;
 }}

@@ -813,7 +813,10 @@ function showModal(config) {
     var modalEl = document.getElementById('modal');
     modalEl.style.display = 'flex';
     modalEl.classList.remove('modal-center');
+    modalEl.classList.add('modal-viewport-sync');
     fc.scrollTop = 0;
+    _modalOpenVvHeight = visibleViewportHeight();
+    lockBodyForModal();
     if ((config.fields || []).some(function(f) { return f.key === 'sms'; })) {
         var smsTarget = 'amount';
         (config.fields || []).some(function(f) {
@@ -829,11 +832,17 @@ function showModal(config) {
     if (!first) first = fc.querySelector('button.color-swatch');
     if (first) {
         setTimeout(function() {
-            if (first.focus) first.focus();
-            ensureFieldVisible(first);
-        }, 80);
+            syncModalViewport();
+            syncKeyboardLayout();
+            if (first.focus) {
+                try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); }
+                ensureFieldVisible(first);
+            }
+        }, 100);
+    } else {
+        syncModalViewport();
+        syncKeyboardLayout();
     }
-    syncKeyboardLayout();
 }
 
 function confirmModal() {
@@ -879,8 +888,12 @@ function confirmModal() {
 }
 
 function closeModal() {
-    document.getElementById('modal').style.display = 'none';
+    var modal = document.getElementById('modal');
+    modal.style.display = 'none';
+    modal.classList.remove('modal-viewport-sync');
+    unlockBodyFromModal();
     _modal = null;
+    _modalOpenVvHeight = null;
     setTimeout(syncKeyboardLayout, 150);
 }
 
@@ -2204,6 +2217,21 @@ function renderApp(state) {
 
 /* Mobile keyboard — keep text fields visible above the virtual keyboard */
 var KEYBOARD_THRESHOLD = 80;
+var _modalScrollY = 0;
+var _modalOpenVvHeight = null;
+
+function lockBodyForModal() {
+    _modalScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.body.classList.add('modal-open');
+    document.body.style.top = (-_modalScrollY) + 'px';
+}
+
+function unlockBodyFromModal() {
+    document.body.classList.remove('modal-open');
+    document.body.style.top = '';
+    window.scrollTo(0, _modalScrollY);
+    _modalScrollY = 0;
+}
 
 function isMobileTouch() {
     return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
@@ -2212,7 +2240,10 @@ function isMobileTouch() {
 function keyboardHeight() {
     var vv = window.visualViewport;
     if (vv) {
-        var h = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        var baseline = _modalOpenVvHeight || window.innerHeight;
+        var h = Math.max(0, baseline - vv.height);
+        if (h >= KEYBOARD_THRESHOLD) return h;
+        h = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
         if (h >= KEYBOARD_THRESHOLD) return h;
     }
     if (isMobileTouch()) {
@@ -2229,6 +2260,20 @@ function visibleViewportHeight() {
     return vv ? vv.height : window.innerHeight;
 }
 
+function syncModalViewport() {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    var root = document.documentElement;
+    root.style.setProperty('--vv-top', vv.offsetTop + 'px');
+    root.style.setProperty('--vv-left', vv.offsetLeft + 'px');
+    root.style.setProperty('--vv-width', vv.width + 'px');
+    root.style.setProperty('--vv-height', vv.height + 'px');
+    var modal = document.getElementById('modal');
+    if (modal && modal.style.display !== 'none') {
+        window.scrollTo(0, 0);
+    }
+}
+
 function syncKeyboardLayout() {
     var kb = keyboardHeight();
     var open = kb >= KEYBOARD_THRESHOLD;
@@ -2236,21 +2281,29 @@ function syncKeyboardLayout() {
     root.style.setProperty('--keyboard-inset', open ? kb + 'px' : '0px');
     root.style.setProperty('--visual-vh', visibleViewportHeight() + 'px');
     document.body.classList.toggle('kb-open', open);
+    if (document.body.classList.contains('modal-open')) {
+        syncModalViewport();
+    }
 }
 
 function scrollFieldInContainer(el, container) {
+    var vv = window.visualViewport;
+    var visibleTop = vv ? vv.offsetTop + 12 : 12;
+    var visibleBottom = vv ? vv.offsetTop + vv.height - 16 : window.innerHeight - 16;
     var elRect = el.getBoundingClientRect();
     var contRect = container.getBoundingClientRect();
-    if (elRect.bottom > contRect.bottom - 16) {
-        container.scrollTop += elRect.bottom - contRect.bottom + 32;
-    } else if (elRect.top < contRect.top + 12) {
-        container.scrollTop -= contRect.top - elRect.top + 32;
+    var limitBottom = Math.min(contRect.bottom, visibleBottom);
+    var limitTop = Math.max(contRect.top, visibleTop);
+    if (elRect.bottom > limitBottom) {
+        container.scrollTop += elRect.bottom - limitBottom + 24;
+    } else if (elRect.top < limitTop) {
+        container.scrollTop -= limitTop - elRect.top + 12;
     }
 }
 
 function ensureFieldVisible(el) {
     if (!el || !el.matches || !el.matches('input:not([type="hidden"]), textarea, select')) return;
-    [50, 200, 450].forEach(function(ms) {
+    [50, 180, 400, 700].forEach(function(ms) {
         setTimeout(function() {
             syncKeyboardLayout();
             var modalFields = document.getElementById('modal-fields');
@@ -2258,7 +2311,7 @@ function ensureFieldVisible(el) {
                 scrollFieldInContainer(el, modalFields);
             } else {
                 try {
-                    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                 } catch (e) {
                     el.scrollIntoView(false);
                 }
@@ -2272,7 +2325,12 @@ function ensureFieldVisible(el) {
         syncKeyboardLayout();
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', syncKeyboardLayout);
-            window.visualViewport.addEventListener('scroll', syncKeyboardLayout);
+            window.visualViewport.addEventListener('scroll', function() {
+                syncKeyboardLayout();
+                if (document.body.classList.contains('modal-open')) {
+                    window.scrollTo(0, 0);
+                }
+            });
         }
         window.addEventListener('resize', syncKeyboardLayout);
         document.addEventListener('focusin', function(e) {

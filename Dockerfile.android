@@ -36,7 +36,6 @@ RUN cp -r /opt/android-sdk-linux/build-tools/33.0.1 \
         /opt/android-sdk-linux/build-tools/35.0.0/package.xml
 
 # Fake platforms/android-35 from android-33 (needed when compileSdk=35).
-# Patch package.xml (primary) and source.properties (legacy).
 RUN cp -r /opt/android-sdk-linux/platforms/android-33 \
           /opt/android-sdk-linux/platforms/android-35 && \
     sed -i 's/^AndroidVersion\.ApiLevel=.*/AndroidVersion.ApiLevel=35/' \
@@ -50,17 +49,15 @@ RUN cp -r /opt/android-sdk-linux/platforms/android-33 \
 ENV ANDROID_HOME=/opt/android-sdk-linux
 ENV ANDROID_SDK_ROOT=/opt/android-sdk-linux
 
-# Point ALL pip invocations (briefcase + Chaquopy's installDebugPythonRequirements) to Aliyun
+# Point ALL pip invocations (briefcase + Chaquopy) to Aliyun mirror
 ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
 RUN printf '[global]\nindex-url = https://mirrors.aliyun.com/pypi/simple/\ntrusted-host = mirrors.aliyun.com\n' \
     > /etc/pip.conf
 
-# Gradle init.d: replaces Google Maven / mavenCentral with Aliyun mirrors
 RUN mkdir -p /root/.gradle/init.d
 COPY docker/aliyun-mirror.gradle /root/.gradle/init.d/aliyun-mirror.gradle
 
-# Install briefcase and app Python dependencies
 RUN python3 -m pip install \
     -i https://mirrors.aliyun.com/pypi/simple/ \
     --trusted-host mirrors.aliyun.com \
@@ -72,34 +69,7 @@ RUN python3 -m pip install \
     socksio
 
 WORKDIR /app
-COPY . /app
+COPY docker/android-build.sh /usr/local/bin/android-build.sh
+RUN chmod +x /usr/local/bin/android-build.sh
 
-# Stage 1: generate Android Gradle project
-RUN JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
-    briefcase create android --no-input
-
-# Stage 2: patch requirements + Gradle files for Android/Chaquopy constraints
-RUN sed -i 's/matplotlib>=3\.7\.0/matplotlib==3.6.0/g' \
-        /app/build/dailyplanner/android/gradle/app/requirements.txt 2>/dev/null || true
-
-# values-v35 uses API-35-only attrs missing from our mirrored SDK platform
-RUN rm -rf /app/build/dailyplanner/android/gradle/app/src/main/res/values-v35
-
-RUN find /app/build -name "*.gradle" | while read f; do \
-    sed -i -E \
-        -e 's|google\(\)|maven { url "https://maven.aliyun.com/repository/google" }|g' \
-        -e 's|mavenCentral\(\)|maven { url "https://maven.aliyun.com/repository/central" }|g' \
-        -e 's|gradlePluginPortal\(\)|maven { url "https://maven.aliyun.com/repository/gradle-plugin" }|g' \
-        -e 's|https://dl.google.com/dl/android/maven2|https://maven.aliyun.com/repository/google|g' \
-        -e 's|https://maven.google.com|https://maven.aliyun.com/repository/google|g' \
-        "$f"; \
-done && echo "Gradle files patched."
-
-# Stage 3: sync sources, resources (icons), and build the APK
-RUN JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
-    briefcase update android --no-input --update-resources
-
-RUN JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
-    briefcase build android --no-input
-
-CMD ["sh", "-c", "cp /app/build/dailyplanner/android/gradle/app/build/outputs/apk/debug/app-debug.apk /output/app-debug.apk"]
+ENTRYPOINT ["/usr/local/bin/android-build.sh"]

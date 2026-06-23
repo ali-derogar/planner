@@ -65,6 +65,8 @@ desktop.ini
 # Android SDK / tools (large binary installer)
 *.deb
 android-sdk/
+android-keystore/
+.docker-gradle/
 cmdline-tools/
 .refact
 .github
