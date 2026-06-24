@@ -170,7 +170,7 @@ function collapseChevron(open) {
 
 function themeColorForScreen(screen, theme) {
     if (theme === 'light') return '#FAFAFC';
-    var map = { home: '#0369A1', finance: '#0F2E28', projects: '#6366F1', analytics: '#1A1A24', tracking: '#0F2A2E' };
+    var map = { home: '#0C4A6E', finance: '#0F2E28', projects: '#6366F1', analytics: '#1A1A24', tracking: '#0F2A2E' };
     return map[screen] || '#0A0A0F';
 }
 
@@ -1287,9 +1287,65 @@ function heatmapHtml(heatmap) {
     return html + '</div>';
 }
 
+/* Home helpers */
+function homeGreeting(isToday) {
+    if (!isToday) return '';
+    var hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'صبح بخیر ☀️';
+    if (hour >= 12 && hour < 17) return 'ظهر بخیر 🌤';
+    if (hour >= 17 && hour < 21) return 'عصر بخیر 🌅';
+    return 'شب بخیر 🌙';
+}
+
+function homeEffRing(eff, classified) {
+    var pct = classified > 0 ? Math.min(100, Math.max(0, eff)) : 0;
+    var r = 36;
+    var circ = 2 * Math.PI * r;
+    var dash = (pct / 100) * circ;
+    var gap = circ - dash;
+    var stroke = pct >= 70 ? '#6EE7B7' : pct >= 40 ? '#FDE68A' : pct > 0 ? '#FDBA74' : 'rgba(125, 211, 252, 0.28)';
+    return '<div class="home-eff-ring" aria-hidden="true">' +
+        '<div class="home-eff-glow"></div>' +
+        '<svg viewBox="0 0 80 80" class="home-eff-svg">' +
+        '<circle cx="40" cy="40" r="' + r + '" fill="none" stroke="rgba(125,211,252,0.14)" stroke-width="5.5"/>' +
+        '<circle cx="40" cy="40" r="' + r + '" fill="none" stroke="' + stroke + '" stroke-width="5.5" ' +
+        'stroke-linecap="round" stroke-dasharray="' + dash.toFixed(2) + ' ' + gap.toFixed(2) + '" ' +
+        'transform="rotate(-90 40 40)" class="home-eff-arc"/>' +
+        '</svg>' +
+        '<div class="home-eff-center">' +
+        '<span class="home-eff-val">' + pd(eff) + '<small>٪</small></span>' +
+        '<span class="home-eff-lbl">بازده</span></div></div>';
+}
+
+function homeTimeBar(useful, notUseful) {
+    var total = (useful || 0) + (notUseful || 0);
+    if (total <= 0) return '';
+    var uPct = Math.round(useful / total * 100);
+    return '<div class="home-time-bar" role="presentation" aria-hidden="true">' +
+        '<div class="home-time-seg useful" style="width:' + uPct + '%" title="مفید"></div>' +
+        '<div class="home-time-seg not" style="width:' + (100 - uPct) + '%" title="نامفید"></div>' +
+        '</div>';
+}
+
+function homeFmtSecs(secs) {
+    if (!secs || secs <= 0) return '—';
+    var h = Math.floor(secs / 3600);
+    var m = Math.floor((secs % 3600) / 60);
+    if (h > 0) return pd(h) + 'س ' + pd(m) + 'د';
+    if (m > 0) return pd(m) + ' دقیقه';
+    return pd(secs) + ' ثانیه';
+}
+
+function homeStatCard(cls, emoji, lbl, val) {
+    return '<div class="home-hero-stat ' + cls + '">' +
+        '<div class="home-stat-icon">' + finEmoji(emoji, 'sm') + '</div>' +
+        '<div class="home-stat-body"><span class="home-stat-lbl">' + lbl + '</span>' +
+        '<span class="home-stat-val">' + val + '</span></div></div>';
+}
+
 /* Task card */
-function taskCard(t) {
-    var cardCls = 'task-card';
+function taskCard(t, index) {
+    var cardCls = 'task-card home-task-card';
     if (t.is_running) cardCls += ' is-running';
     else if (t.is_useful === true) cardCls += ' is-useful';
     else if (t.is_useful === false) cardCls += ' is-not-useful';
@@ -1335,12 +1391,16 @@ function taskCard(t) {
             '<a href="javascript:void(0)" onclick="action(\'delete_task\',{id:' + t.id + '})" class="chip chip-delete">حذف</a>' +
             '</div></div>';
     }
-    return '<div class="' + cardCls + '">' + header + detail + '</div>';
+    var stagger = typeof index === 'number' ? ' style="--home-stagger:' + Math.min(index, 14) + '"' : '';
+    return '<div class="' + cardCls + '"' + stagger + '>' + header + detail + '</div>';
 }
 
 /* Screens */
 function renderHome(h) {
     var taskCount = h.tasks ? h.tasks.length : 0;
+    var runningCount = (h.tasks || []).filter(function(t) { return t.is_running; }).length;
+    var classified = (h.useful || 0) + (h.not_useful || 0);
+    var greeting = homeGreeting(h.is_today);
     var calBtn = '<button type="button" class="icon-btn home-tool-btn" aria-label="تقویم" onclick="action(\'toggle_calendar\')">' + finEmoji('📅', 'xs') + '</button>';
     var recurBtn = '<button type="button" class="icon-btn home-tool-btn wide" onclick="action(\'navigate\',{screen:\'recurring\'})" aria-label="وظایف تکراری">' +
         finEmoji('⭐', 'xs') + ' ' + pd(h.recurring_count) + '</button>';
@@ -1352,14 +1412,24 @@ function renderHome(h) {
     var datesBtn = '<button type="button" class="icon-btn home-tool-btn dates-btn"'
         + ' onclick="action(\'navigate\',{screen:\'important_dates\'})"'
         + ' aria-label="تاریخ\u200cهای مهم">' + finEmoji('🔔', 'xs') + badge + '</button>';
+    var addTaskModal = 'showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})';
 
     var html = '<div class="home-page">' +
         '<div class="date-header home-header">' +
+        '<div class="home-header-orbs" aria-hidden="true">' +
+        '<div class="home-orb home-orb-1"></div>' +
+        '<div class="home-orb home-orb-2"></div>' +
+        '<div class="home-orb home-orb-3"></div></div>' +
+        '<div class="home-header-brand">' +
         '<div class="home-header-top">' +
-        finEmoji('🏠', 'md') +
+        '<div class="home-brand-mark">' + finEmoji('🏠', 'md') + '</div>' +
+        '<div class="home-header-titles">' +
         '<span class="home-header-title">امروز</span>' +
+        (greeting ? '<span class="home-greeting">' + greeting + '</span>' : '') +
         '</div>' +
-        '<div class="date-header-row">' +
+        (h.is_today ? '<span class="home-today-pill"><span class="home-today-dot"></span>امروز</span>' : '') +
+        '</div>' +
+        '<div class="date-header-row home-date-row">' +
         navArrowBtn('prev', 'action(\'prev_day\')', 'روز قبل') +
         '<span class="date-title home-date-title">' + esc(h.date_label) + '</span>' +
         navArrowBtn('next', 'action(\'next_day\')', 'روز بعد') +
@@ -1367,38 +1437,59 @@ function renderHome(h) {
         '<div class="date-header-tools home-header-tools">' +
         (h.is_today ? '' : '<button type="button" onclick="action(\'today\')" class="today-btn home-today-btn">امروز</button>') +
         calBtn + recurBtn + datesBtn + settingsBtn +
-        '</div>' +
-        '<div class="home-hero-in-header"><div class="home-hero-stats">' +
-        '<div class="home-hero-stat eff">' + finEmoji('🎯', 'sm') + '<div><span class="home-stat-lbl">بازده</span><span class="home-stat-val">' + pd(h.efficiency) + '٪</span></div></div>' +
-        '<div class="home-hero-stat useful">' + finEmoji('✅', 'sm') + '<div><span class="home-stat-lbl">مفید</span><span class="home-stat-val">' + esc(h.useful_fmt) + '</span></div></div>' +
-        '<div class="home-hero-stat not">' + finEmoji('⚠️', 'sm') + '<div><span class="home-stat-lbl">نامفید</span><span class="home-stat-val">' + esc(h.not_useful_fmt) + '</span></div></div>' +
-        '<div class="home-hero-stat tasks">' + finEmoji('📝', 'sm') + '<div><span class="home-stat-lbl">تسک</span><span class="home-stat-val">' + pd(taskCount) + '</span></div></div>' +
-        '</div></div></div>';
+        '</div></div>' +
+        '<div class="home-hero-panel">' +
+        '<div class="home-hero-main">' +
+        homeEffRing(h.efficiency, classified) +
+        '<div class="home-hero-side">' +
+        homeTimeBar(h.useful, h.not_useful) +
+        '<div class="home-hero-stats">' +
+        homeStatCard('useful', '✅', 'مفید', esc(h.useful_fmt)) +
+        homeStatCard('not', '⚠️', 'نامفید', esc(h.not_useful_fmt)) +
+        homeStatCard('tasks', '📝', 'تسک', pd(taskCount)) +
+        homeStatCard('tracked', '⏱', 'کل زمان', homeFmtSecs(classified)) +
+        '</div></div></div></div></div>';
 
     if (h.show_calendar && h.calendar) {
-        html += renderCalendar(h.calendar, h.date);
+        html += '<div class="home-calendar-wrap">' + renderCalendar(h.calendar, h.date) + '</div>';
     }
 
-    html += '<div class="search-row home-search-row"><div class="search-wrap">' + ico('search', 'ico-search') +
-        '<input class="search-input" placeholder="جستجو در تسک\u200cها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" aria-label="جستجو در تسک\u200cها" /></div></div>';
+    html += '<div class="home-body">';
+    if (taskCount > 0 || h.search) {
+        html += '<div class="home-sec-head">' +
+            '<div class="home-sec-title">' + finEmoji('📋', 'sm') + '<span>تسک\u200cها</span>' +
+            '<span class="home-sec-badge">' + pd(taskCount) + '</span></div>' +
+            (runningCount > 0
+                ? '<span class="home-running-badge"><span class="home-running-dot"></span>' + pd(runningCount) + ' فعال</span>'
+                : '') +
+            '</div>';
+    }
 
-    html += '<div class="task-list">';
+    html += '<div class="search-row home-search-row"><div class="search-wrap home-search-wrap">' + ico('search', 'ico-search') +
+        '<input class="search-input home-search-input" placeholder="جستجو در تسک\u200cها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" aria-label="جستجو در تسک\u200cها" /></div></div>';
+
+    html += '<div class="task-list home-task-list">';
     if (!(h.tasks && h.tasks.length)) {
-        html += '<div class="empty-state">' + finIcon('home', '☑', 'lg') +
+        html += '<div class="empty-state home-empty">' +
+            '<div class="home-empty-visual" aria-hidden="true">' +
+            '<div class="home-empty-ring home-empty-ring-1"></div>' +
+            '<div class="home-empty-ring home-empty-ring-2"></div>' +
+            '<div class="home-empty-icon">' + finIcon('home', '☑', 'lg') + '</div></div>' +
             '<div class="empty-title">هیچ تسکی وجود ندارد</div>' +
             '<div class="empty-sub">اولین تسک امروز را اضافه کنید و زمان خود را مدیریت کنید</div>' +
-            '<button type="button" class="empty-btn" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">' + ico('plus', 'ico') + ' افزودن تسک</button></div>';
+            '<button type="button" class="empty-btn home-empty-btn" onclick="' + addTaskModal + '">' + ico('plus', 'ico') + ' افزودن تسک</button></div>';
     } else {
-        (h.tasks || []).forEach(function(t) { html += taskCard(t); });
+        (h.tasks || []).forEach(function(t, i) { html += taskCard(t, i); });
     }
-    html += '</div>';
+    html += '</div></div>';
 
-    html += renderWellness(h.wellness);
-    html += '<div class="section note-section"><div class="sec-title">یادداشت روز من</div>' +
-        '<textarea class="note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
+    html += '<div class="home-wellness-wrap">' + renderWellness(h.wellness) + '</div>';
+    html += '<div class="section note-section home-note-section">' +
+        '<div class="sec-title home-note-title">' + finEmoji('✍️', 'sm') + ' یادداشت روز من</div>' +
+        '<textarea class="note-input home-note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
         '<div class="note-saved" id="note-saved" aria-live="polite">ذخیره شد ✓</div></div>';
-    if (h.tasks && h.tasks.length > 0) {
-        html += '<button type="button" onclick="showModal({title:\'افزودن تسک\',cmd:\'add_task\',fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})" class="add-btn">' + ico('plus', 'ico') + ' افزودن تسک</button>';
+    if (taskCount > 0) {
+        html += '<button type="button" class="home-fab" onclick="' + addTaskModal + '" aria-label="افزودن تسک">' + ico('plus', 'ico') + '</button>';
     }
     return html + '</div>';
 }

@@ -331,52 +331,112 @@ textarea:focus-visible, select:focus-visible {{
 }}
 
 /* ── Home (Today) screen ── */
-.home-page {{ padding-bottom: 8px; }}
+.home-page {{ padding-bottom: 24px; }}
 
 .home-header,
 .fin-header {{
-    padding: calc(10px + var(--safe-top)) 14px 10px;
-    gap: 8px;
+    padding: calc(10px + var(--safe-top)) 14px 14px;
+    gap: 10px;
 }}
 
 .home-header {{
-    background: linear-gradient(160deg, #0F172A 0%, #0C4A6E 22%, #0369A1 48%, #2563EB 72%, #C2410C 100%);
+    background:
+        linear-gradient(165deg, #020617 0%, #0C4A6E 28%, #0369A1 52%, #1D4ED8 78%, #7C2D12 100%);
+    border-bottom: 1px solid rgba(125, 211, 252, 0.12);
 }}
 .home-header::after {{
     content: '';
     position: absolute;
-    top: 6px;
-    left: 16px;
-    width: 44px;
-    height: 44px;
+    top: 8px;
+    left: 20px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(251, 191, 36, 0.55) 0%, rgba(251, 191, 36, 0.12) 45%, transparent 70%);
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.5) 0%, rgba(251, 191, 36, 0.1) 42%, transparent 72%);
     pointer-events: none;
     z-index: 0;
-    filter: blur(1px);
+    filter: blur(2px);
+    animation: homeSunPulse 4s ease-in-out infinite;
 }}
 .home-header::before {{
     background:
-        radial-gradient(ellipse at 92% 12%, rgba(251, 191, 36, 0.32), transparent 42%),
-        radial-gradient(ellipse at 12% 88%, rgba(56, 189, 248, 0.2), transparent 52%);
+        radial-gradient(ellipse 80% 60% at 88% 8%, rgba(251, 191, 36, 0.28), transparent 48%),
+        radial-gradient(ellipse 55% 45% at 8% 92%, rgba(56, 189, 248, 0.22), transparent 55%),
+        radial-gradient(ellipse 40% 30% at 50% 100%, rgba(99, 102, 241, 0.15), transparent 60%);
 }}
+
+.home-header-orbs {{
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+}}
+.home-orb {{
+    position: absolute; border-radius: 50%; filter: blur(42px); opacity: 0.5;
+    animation: homeOrbFloat 9s ease-in-out infinite;
+}}
+.home-orb-1 {{
+    width: 130px; height: 130px; top: -36px; right: -24px;
+    background: rgba(56, 189, 248, 0.38);
+}}
+.home-orb-2 {{
+    width: 100px; height: 100px; bottom: 8px; left: -16px;
+    background: rgba(251, 191, 36, 0.28); animation-delay: -3.5s;
+}}
+.home-orb-3 {{
+    width: 70px; height: 70px; top: 42%; left: 42%;
+    background: rgba(129, 140, 248, 0.22); animation-delay: -6s;
+}}
+
+.home-header-brand {{ position: relative; z-index: 1; }}
 .home-header-top {{
-    display: flex; align-items: center; gap: 8px; direction: rtl;
-    position: relative; z-index: 1; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px; direction: rtl;
+    margin-bottom: 6px;
+}}
+.home-brand-mark {{
+    width: 40px; height: 40px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    flex-shrink: 0;
+}}
+.home-header-titles {{
+    flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
 }}
 .home-header-title {{
-    font-size: 16px; font-weight: bold; color: #fff; letter-spacing: 0.01em;
-    text-shadow: 0 1px 12px rgba(56, 189, 248, 0.35);
+    font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0.01em;
+    text-shadow: 0 2px 16px rgba(56, 189, 248, 0.35);
+    line-height: 1.2;
 }}
-.home-date-title {{ font-size: var(--text-sm); opacity: 0.95; color: #E0F2FE; }}
+.home-greeting {{
+    font-size: 11px; color: rgba(224, 242, 254, 0.78); font-weight: 500;
+}}
+.home-today-pill {{
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 600; color: #FEF3C7;
+    background: rgba(251, 191, 36, 0.16);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    border-radius: 999px; padding: 4px 10px 4px 8px;
+    flex-shrink: 0;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.12);
+}}
+.home-today-dot {{
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #FBBF24; box-shadow: 0 0 8px #FBBF24;
+    animation: homeLivePulse 1.6s ease-in-out infinite;
+}}
+.home-date-row {{ margin-top: 2px; }}
+.home-date-title {{
+    font-size: var(--text-sm); opacity: 0.95; color: #E0F2FE;
+    font-weight: var(--font-medium);
+}}
 .home-header .date-nav-btn,
 .fin-header .date-nav-btn {{
-    width: 32px; height: 32px;
+    width: 34px; height: 34px;
 }}
 .home-header .date-nav-btn {{
-    background: rgba(56, 189, 248, 0.14);
-    border-color: rgba(56, 189, 248, 0.32);
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.28);
     color: #BAE6FD;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }}
 .home-header .date-nav-btn .ico {{ color: #7DD3FC; }}
 .home-header .home-today-btn,
@@ -385,29 +445,31 @@ textarea:focus-visible, select:focus-visible {{
     font-size: 12px;
 }}
 .home-header .home-today-btn {{
-    background: rgba(251, 191, 36, 0.2);
+    background: rgba(251, 191, 36, 0.18);
     border-color: rgba(251, 191, 36, 0.42);
     color: #FEF3C7;
-    box-shadow: 0 0 18px rgba(251, 191, 36, 0.15);
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.14);
 }}
 .home-header-tools {{
-    gap: 4px !important;
+    gap: 5px !important;
 }}
 .home-header .home-tool-btn,
 .home-header .icon-btn.home-tool-btn {{
-    width: 32px; height: 32px;
+    width: 34px; height: 34px;
+    border-radius: 12px;
 }}
 .home-header .home-tool-btn.wide {{
-    height: 32px; padding: 0 8px; font-size: 12px;
+    height: 34px; padding: 0 10px; font-size: 12px; width: auto;
 }}
 .home-header .home-tool-btn {{
-    background: rgba(56, 189, 248, 0.1);
-    border: 1px solid rgba(125, 211, 252, 0.28);
+    background: rgba(15, 23, 42, 0.35);
+    border: 1px solid rgba(125, 211, 252, 0.22);
     color: #E0F2FE;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: background var(--duration-fast), transform var(--duration-fast), border-color var(--duration-fast);
 }}
-.home-header .home-tool-btn.wide {{
-    color: #E0F2FE;
-}}
+.home-header .home-tool-btn:active {{ transform: scale(0.94); background: rgba(56, 189, 248, 0.18); }}
 .home-header .home-tool-btn .ico {{ color: #7DD3FC; }}
 .home-header .home-tool-btn .fin-emoji {{
     flex-shrink: 0;
@@ -415,22 +477,75 @@ textarea:focus-visible, select:focus-visible {{
     -webkit-text-fill-color: initial;
 }}
 .home-header .urgent-badge {{
-    background: #F97316;
+    background: linear-gradient(135deg, #F97316, #EA580C);
     color: #fff;
-    box-shadow: 0 0 10px rgba(249, 115, 22, 0.45);
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.5);
 }}
-.home-hero-in-header {{
-    margin-top: 6px;
-    padding: 10px;
-    background: rgba(15, 23, 42, 0.35);
-    border: 1px solid rgba(56, 189, 248, 0.24);
-    border-radius: 14px;
+
+/* hero panel */
+.home-hero-panel {{
+    margin-top: 4px;
+    padding: 12px;
+    background: rgba(2, 6, 23, 0.42);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 18px;
     position: relative;
     z-index: 1;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    animation: homePanelIn 0.45s var(--ease-out) both;
 }}
+.home-hero-main {{
+    display: flex; align-items: center; gap: 14px; direction: rtl;
+}}
+.home-hero-side {{ flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }}
+
+.home-eff-ring {{
+    position: relative; width: 88px; height: 88px; flex-shrink: 0;
+}}
+.home-eff-glow {{
+    position: absolute; inset: -8px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.25), transparent 70%);
+    animation: homeEffGlow 3s ease-in-out infinite;
+}}
+.home-eff-svg {{
+    position: absolute; inset: 0; width: 100%; height: 100%;
+}}
+.home-eff-arc {{
+    transition: stroke-dasharray 0.6s var(--ease-out);
+    filter: drop-shadow(0 0 6px rgba(110, 231, 183, 0.35));
+}}
+.home-eff-center {{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1px;
+}}
+.home-eff-val {{
+    font-size: 20px; font-weight: 800; color: #F8FAFC;
+    font-variant-numeric: tabular-nums; line-height: 1;
+}}
+.home-eff-val small {{ font-size: 11px; font-weight: 600; opacity: 0.75; }}
+.home-eff-lbl {{
+    font-size: 9px; color: rgba(224, 242, 254, 0.62); font-weight: 500;
+}}
+
+.home-time-bar {{
+    display: flex; height: 5px; border-radius: 999px; overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(125, 211, 252, 0.12);
+}}
+.home-time-seg {{ height: 100%; transition: width 0.5s var(--ease-out); }}
+.home-time-seg.useful {{
+    background: linear-gradient(90deg, #059669, #6EE7B7);
+    box-shadow: 0 0 8px rgba(110, 231, 183, 0.35);
+}}
+.home-time-seg.not {{
+    background: linear-gradient(90deg, #EA580C, #FDBA74);
+}}
+
 .home-hero-stats {{
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -438,27 +553,41 @@ textarea:focus-visible, select:focus-visible {{
     direction: rtl;
 }}
 .home-hero-stat {{
-    display: flex; align-items: center; gap: 6px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(125, 211, 252, 0.16);
-    border-radius: 10px;
-    padding: 7px 8px;
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(125, 211, 252, 0.14);
+    border-radius: 12px;
+    padding: 8px 9px;
+    transition: border-color var(--duration-fast), background var(--duration-fast);
 }}
-.home-hero-stat .fin-emoji {{
+.home-stat-icon {{
+    width: 30px; height: 30px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
     flex-shrink: 0;
 }}
+.home-stat-body {{ min-width: 0; flex: 1; }}
+.home-hero-stat .fin-emoji {{ flex-shrink: 0; }}
 .home-stat-lbl {{
     display: block; font-size: 9px;
-    color: rgba(224, 242, 254, 0.62);
+    color: rgba(224, 242, 254, 0.58);
+    line-height: 1.2;
 }}
 .home-stat-val {{
-    display: block; font-size: 13px; font-weight: bold;
+    display: block; font-size: 12px; font-weight: 700;
     color: #F8FAFC; font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }}
-.home-hero-stat.eff .home-stat-val {{ color: #FDE68A; }}
 .home-hero-stat.useful .home-stat-val {{ color: #6EE7B7; }}
 .home-hero-stat.not .home-stat-val {{ color: #FDBA74; }}
 .home-hero-stat.tasks .home-stat-val {{ color: #7DD3FC; }}
+.home-hero-stat.tracked .home-stat-val {{ color: #C4B5FD; }}
+.home-hero-stat.useful .home-stat-icon {{ background: rgba(110, 231, 183, 0.12); }}
+.home-hero-stat.not .home-stat-icon {{ background: rgba(253, 186, 116, 0.12); }}
+.home-hero-stat.tasks .home-stat-icon {{ background: rgba(125, 211, 252, 0.12); }}
+.home-hero-stat.tracked .home-stat-icon {{ background: rgba(196, 181, 253, 0.12); }}
+
 .home-header-top .fin-emoji,
 .fin-header-top .fin-emoji,
 .proj-header-brand .fin-emoji,
@@ -476,9 +605,9 @@ textarea:focus-visible, select:focus-visible {{
 .home-hero-stat .fin-emoji-sm,
 .fin-hero-in-header .fin-hero-stat .fin-emoji-sm,
 .fin-hero-invest .fin-emoji-sm {{
-    font-size: 18px;
-    min-width: 22px;
-    min-height: 22px;
+    font-size: 16px;
+    min-width: 20px;
+    min-height: 20px;
 }}
 .analytics-summary-item .fin-emoji-sm,
 .proj-summary-item .fin-emoji-sm {{
@@ -486,47 +615,228 @@ textarea:focus-visible, select:focus-visible {{
     min-width: 26px;
     min-height: 26px;
 }}
+
+/* home body */
+.home-body {{
+    padding: 0 4px;
+    animation: homeBodyIn 0.4s var(--ease-out) 0.08s both;
+}}
+.home-sec-head {{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 10px 6px; direction: rtl; gap: 8px;
+}}
+.home-sec-title {{
+    display: flex; align-items: center; gap: 8px;
+    font-size: var(--text-base); font-weight: var(--font-bold); color: var(--text);
+}}
+.home-sec-title .fin-emoji-sm {{ opacity: 0.9; }}
+.home-sec-badge {{
+    font-size: 11px; font-weight: 700; color: #7DD3FC;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 999px; padding: 2px 8px;
+    font-variant-numeric: tabular-nums;
+}}
+.home-running-badge {{
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 600; color: #5EEAD4;
+    background: rgba(45, 212, 191, 0.1);
+    border: 1px solid rgba(45, 212, 191, 0.28);
+    border-radius: 999px; padding: 4px 10px;
+}}
+.home-running-dot {{
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #2DD4BF; box-shadow: 0 0 8px #2DD4BF;
+    animation: homeLivePulse 1.4s ease-in-out infinite;
+}}
+
 .home-search-row {{
-    padding: 10px 12px 4px;
+    padding: 6px 8px 8px;
 }}
-.home-search-row .search-wrap {{
+.home-search-wrap {{
     background: var(--surface);
-    border: 1px solid rgba(56, 189, 248, 0.18);
-    border-radius: 14px;
-    box-shadow: 0 4px 16px rgba(14, 116, 144, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.16);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(14, 116, 144, 0.1);
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
 }}
-.home-page .add-btn {{
+.home-search-wrap:focus-within {{
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow: 0 4px 24px rgba(37, 99, 235, 0.16), 0 0 0 3px rgba(56, 189, 248, 0.1);
+}}
+.home-search-input {{
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 16px;
+}}
+.home-search-input:focus {{
+    box-shadow: none !important;
+}}
+
+.home-task-list {{ padding: 4px 6px 8px; }}
+.home-task-card {{
+    animation: homeTaskIn 0.38s var(--ease-out) both;
+    animation-delay: calc(var(--home-stagger, 0) * 45ms);
+    border-radius: 18px;
+    transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+}}
+.home-task-card:active {{ transform: scale(0.985); }}
+.home-task-card.is-running {{
+    border-color: rgba(45, 212, 191, 0.35);
+    box-shadow: var(--elevation-1), inset -4px 0 0 0 var(--running), 0 0 24px rgba(45, 212, 191, 0.08);
+}}
+.home-task-card .task-header {{ padding: 13px 14px; }}
+.home-task-card .task-title-wrap {{ font-weight: var(--font-medium); }}
+
+/* empty state */
+.home-empty {{
+    padding: var(--space-8) var(--space-4) var(--space-6);
+    animation: homePanelIn 0.5s var(--ease-out) both;
+}}
+.home-empty-visual {{
+    position: relative; width: 120px; height: 120px; margin: 0 auto 16px;
+}}
+.home-empty-ring {{
+    position: absolute; border-radius: 50%;
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    animation: homeEmptyRing 3s ease-in-out infinite;
+}}
+.home-empty-ring-1 {{
+    inset: 0;
+    border-color: rgba(56, 189, 248, 0.25);
+}}
+.home-empty-ring-2 {{
+    inset: 12px;
+    border-color: rgba(129, 140, 248, 0.2);
+    animation-delay: -1.5s;
+}}
+.home-empty-icon {{
+    position: absolute; inset: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(145deg, rgba(56, 189, 248, 0.12), rgba(99, 102, 241, 0.1));
+    border-radius: 50%;
+    border: 1px solid rgba(125, 211, 252, 0.2);
+    box-shadow: 0 8px 24px rgba(14, 116, 144, 0.15);
+}}
+.home-empty-btn {{
     background: linear-gradient(135deg, #0284C7, #2563EB);
     border-color: transparent;
-    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.28);
+    border-radius: 14px;
+    padding: 12px 24px;
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.32);
 }}
-.home-page .empty-btn {{
-    background: linear-gradient(135deg, #0284C7, #0891B2);
-    border-color: transparent;
+
+/* wellness + notes */
+.home-wellness-wrap {{ padding: 0 6px; }}
+.home-wellness-wrap .section {{
+    margin: 8px 6px;
+    border-radius: 18px;
+    background: linear-gradient(160deg, var(--surface) 0%, var(--surface-deep) 100%);
+    border-color: rgba(56, 189, 248, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
 }}
+.home-wellness-wrap .sec-title::before {{ display: none; }}
+.home-wellness-wrap .well-btn {{
+    border-radius: 14px;
+    transition: border-color var(--duration-fast), background var(--duration-fast);
+}}
+.home-wellness-wrap .mood-btn {{
+    border-radius: 14px;
+    transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+}}
+.home-wellness-wrap .mood-btn.sel {{
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25);
+}}
+
+.home-note-section {{
+    margin: 8px 12px 16px !important;
+    border-radius: 18px !important;
+    background: linear-gradient(160deg, var(--surface) 0%, var(--surface-deep) 100%) !important;
+    border-color: rgba(56, 189, 248, 0.1) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+}}
+.home-note-title {{
+    gap: 8px;
+}}
+.home-note-title::before {{ display: none; }}
+.home-note-input {{
+    min-height: 88px;
+    border-radius: 14px;
+    background: var(--surface-muted);
+    border-color: var(--divider);
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}}
+.home-note-input:focus {{
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}}
+
+/* FAB */
+.home-fab {{
+    position: fixed;
+    bottom: calc(96px + var(--safe-bottom));
+    left: max(20px, calc(50% - 240px));
+    z-index: 150;
+    width: 56px; height: 56px;
+    border-radius: 18px;
+    border: none;
+    background: linear-gradient(145deg, #0284C7, #2563EB);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow:
+        0 8px 28px rgba(37, 99, 235, 0.42),
+        0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+    transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+    animation: homeFabIn 0.4s var(--ease-out) 0.2s both;
+}}
+.home-fab .ico {{ width: 24px; height: 24px; }}
+.home-fab:active {{ transform: scale(0.92); }}
+body.kb-open .home-fab {{ display: none; }}
+
+.home-calendar-wrap {{
+    padding: 8px 10px 0;
+    animation: homePanelIn 0.35s var(--ease-out) both;
+}}
+.home-calendar-wrap .calendar-panel {{
+    margin: 0;
+    border-radius: 18px;
+    border-color: rgba(56, 189, 248, 0.14);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}}
+
 .home-page .empty-state .fin-icon-lg {{
-    display: flex; margin: 0 auto 10px;
-}}
-.home-page .section {{
-    margin-left: 12px; margin-right: 12px;
-    border-radius: 16px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    display: flex; margin: 0 auto;
 }}
 
 [data-theme="light"] .home-header {{
-    background: linear-gradient(155deg, #FFF7ED 0%, #FFEDD5 30%, #E0F2FE 62%, #F0F9FF 100%);
+    background: linear-gradient(155deg, #FFF7ED 0%, #FFEDD5 28%, #E0F2FE 58%, #DBEAFE 82%, #F0F9FF 100%);
+    border-bottom-color: rgba(3, 105, 161, 0.1);
 }}
 [data-theme="light"] .home-header::after {{
-    background: radial-gradient(circle, rgba(251, 191, 36, 0.65) 0%, rgba(251, 191, 36, 0.15) 50%, transparent 72%);
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.55) 0%, rgba(251, 191, 36, 0.12) 48%, transparent 72%);
 }}
 [data-theme="light"] .home-header::before {{
     background:
-        radial-gradient(ellipse at 90% 10%, rgba(251, 191, 36, 0.35), transparent 40%),
-        radial-gradient(ellipse at 10% 90%, rgba(56, 189, 248, 0.22), transparent 50%);
+        radial-gradient(ellipse at 90% 10%, rgba(251, 191, 36, 0.32), transparent 42%),
+        radial-gradient(ellipse at 10% 90%, rgba(56, 189, 248, 0.2), transparent 50%);
+}}
+[data-theme="light"] .home-brand-mark {{
+    background: rgba(255, 255, 255, 0.75);
+    border-color: rgba(3, 105, 161, 0.14);
+    box-shadow: 0 4px 14px rgba(14, 116, 144, 0.1);
 }}
 [data-theme="light"] .home-header-title {{
     color: #0C4A6E;
     text-shadow: none;
+}}
+[data-theme="light"] .home-greeting {{ color: #0369A1; }}
+[data-theme="light"] .home-today-pill {{
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #B45309;
 }}
 [data-theme="light"] .home-date-title {{ color: #0369A1; opacity: 1; }}
 [data-theme="light"] .home-header .date-nav-btn {{
@@ -544,29 +854,42 @@ textarea:focus-visible, select:focus-visible {{
     color: #0369A1; border-color: rgba(3, 105, 161, 0.14);
 }}
 [data-theme="light"] .home-header .home-tool-btn .ico {{ color: #0284C7; }}
-[data-theme="light"] .home-hero-in-header {{
-    background: rgba(255, 255, 255, 0.82);
+[data-theme="light"] .home-hero-panel {{
+    background: rgba(255, 255, 255, 0.78);
     border-color: rgba(3, 105, 161, 0.14);
-    box-shadow: 0 4px 18px rgba(14, 116, 144, 0.1);
+    box-shadow: 0 6px 24px rgba(14, 116, 144, 0.1);
 }}
+[data-theme="light"] .home-eff-val {{ color: #0C4A6E; }}
+[data-theme="light"] .home-eff-lbl {{ color: var(--text-muted); }}
+[data-theme="light"] .home-time-bar {{ background: rgba(3, 105, 161, 0.08); }}
 [data-theme="light"] .home-hero-stat {{
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.9);
     border-color: rgba(3, 105, 161, 0.1);
 }}
 [data-theme="light"] .home-stat-lbl {{ color: var(--text-muted); }}
 [data-theme="light"] .home-stat-val {{ color: var(--text); }}
-[data-theme="light"] .home-hero-stat.eff .home-stat-val {{ color: #D97706; }}
 [data-theme="light"] .home-hero-stat.useful .home-stat-val {{ color: var(--success); }}
 [data-theme="light"] .home-hero-stat.not .home-stat-val {{ color: var(--warning); }}
 [data-theme="light"] .home-hero-stat.tasks .home-stat-val {{ color: #0284C7; }}
-[data-theme="light"] .home-search-row .search-wrap {{
+[data-theme="light"] .home-hero-stat.tracked .home-stat-val {{ color: #7C3AED; }}
+[data-theme="light"] .home-sec-badge {{
+    color: #0284C7;
+    background: rgba(2, 132, 199, 0.1);
+    border-color: rgba(2, 132, 199, 0.18);
+}}
+[data-theme="light"] .home-search-wrap {{
     border-color: rgba(3, 105, 161, 0.12);
     box-shadow: 0 2px 12px rgba(14, 116, 144, 0.08);
 }}
-[data-theme="light"] .home-page .add-btn,
-[data-theme="light"] .home-page .empty-btn {{
+[data-theme="light"] .home-empty-btn,
+[data-theme="light"] .home-fab {{
     background: linear-gradient(135deg, #0284C7, #0369A1);
-    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.25);
+    box-shadow: 0 6px 20px rgba(2, 132, 199, 0.28);
+}}
+[data-theme="light"] .home-wellness-wrap .section,
+[data-theme="light"] .home-note-section {{
+    box-shadow: var(--elevation-1) !important;
+    border-color: var(--border-subtle) !important;
 }}
 
 /* ── Hero stats (legacy fallback) ── */
@@ -2783,6 +3106,42 @@ body.kb-open .proj-sheet-overlay {{
     0% {{ background-position: 200% 0; }}
     100% {{ background-position: -200% 0; }}
 }}
+@keyframes homeOrbFloat {{
+    0%, 100% {{ transform: translate(0, 0) scale(1); }}
+    50% {{ transform: translate(8px, -10px) scale(1.05); }}
+}}
+@keyframes homeSunPulse {{
+    0%, 100% {{ opacity: 1; transform: scale(1); }}
+    50% {{ opacity: 0.75; transform: scale(1.08); }}
+}}
+@keyframes homeLivePulse {{
+    0%, 100% {{ opacity: 1; transform: scale(1); }}
+    50% {{ opacity: 0.55; transform: scale(0.85); }}
+}}
+@keyframes homeEffGlow {{
+    0%, 100% {{ opacity: 0.6; transform: scale(1); }}
+    50% {{ opacity: 1; transform: scale(1.06); }}
+}}
+@keyframes homePanelIn {{
+    from {{ opacity: 0; transform: translateY(10px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
+@keyframes homeBodyIn {{
+    from {{ opacity: 0; transform: translateY(6px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
+@keyframes homeTaskIn {{
+    from {{ opacity: 0; transform: translateY(12px) scale(0.98); }}
+    to {{ opacity: 1; transform: translateY(0) scale(1); }}
+}}
+@keyframes homeFabIn {{
+    from {{ opacity: 0; transform: scale(0.7); }}
+    to {{ opacity: 1; transform: scale(1); }}
+}}
+@keyframes homeEmptyRing {{
+    0%, 100% {{ transform: scale(1); opacity: 0.6; }}
+    50% {{ transform: scale(1.04); opacity: 1; }}
+}}
 
 @media (prefers-reduced-motion: reduce) {{
     *, *::before, *::after {{
@@ -2793,6 +3152,9 @@ body.kb-open .proj-sheet-overlay {{
     .screen-enter {{ animation: none; }}
     .task-card.is-running .task-progress-fill {{ animation: none; }}
     .task-dur.running, .task-card.is-running .timer-big {{ animation: none; }}
+    .home-orb, .home-today-dot, .home-running-dot, .home-eff-glow,
+    .home-empty-ring, .home-header::after {{ animation: none; }}
+    .home-hero-panel, .home-body, .home-task-card, .home-fab, .home-empty {{ animation: none; }}
 }}
 
 /* ── Light theme extras ── */
