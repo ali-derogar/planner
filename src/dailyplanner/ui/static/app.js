@@ -2745,8 +2745,8 @@ function trackingHeader(t, heroInner, opts) {
     if (opts.live) {
         html += '<span class="track-live-badge"><span class="track-live-dot"></span>در حال ثبت</span>';
     }
+    html += '<span class="track-date-label track-date-inline">' + esc(t.date_label) + '</span>';
     html += '</div>';
-    html += '<div class="track-date-label">' + esc(t.date_label) + '</div>';
     if (heroInner) html += heroInner;
     html += '</div>';
     return html;
@@ -2829,13 +2829,15 @@ function trackingIntervalCard(iv, totalSecs, opts) {
     return html;
 }
 
-function trackingActivePanel(iv) {
+function trackingActivePanel(iv, opts) {
+    opts = opts || {};
     if (!iv) return '';
     var label = (iv.label || '').trim();
     var emoji = trackEmojiForLabel(label);
     var color = trackColorForLabel(label || 'فعالیت');
     var displayLabel = label || 'عنوان فعالیت را وارد کنید';
-    var html = '<div class="track-active-panel">';
+    var panelCls = 'track-active-panel' + (opts.inHeader ? ' track-active-in-header' : '');
+    var html = '<div class="' + panelCls + '">';
     html += '<div class="track-active-panel-head">';
     html += '<span class="track-active-emoji" style="--avatar-color:' + color + '">' + emoji + '</span>';
     html += '<div class="track-active-meta">';
@@ -2868,7 +2870,8 @@ function trackingUsefulChips(intervalId, isUseful) {
         '</div>';
 }
 
-function trackingEfficiencyRow(t) {
+function trackingEfficiencyRow(t, opts) {
+    opts = opts || {};
     if (!t.useful_label && !t.not_useful_label && t.efficiency == null) return '';
     var segments = [];
     if (t.efficiency != null) {
@@ -2877,7 +2880,8 @@ function trackingEfficiencyRow(t) {
             segments.push({ color: '#FB923C', pct: 100 - t.efficiency });
         }
     }
-    var html = '<div class="track-stats-panel">';
+    var panelCls = 'track-stats-panel' + (opts.inHeader ? ' track-stats-in-header' : '');
+    var html = '<div class="' + panelCls + '">';
     if (t.efficiency != null && segments.length) {
         html += '<div class="track-eff-gauge">';
         html += trackDonutSvg(segments, 88, 10);
@@ -2983,10 +2987,10 @@ function renderTracking(t) {
         heroHtml += '<div class="track-hero-stat">' + finEmoji('📋', 'sm') + '<div><span class="track-stat-lbl">بازه\u200cها</span><span class="track-stat-val">' + pd(completedCount) + '</span></div></div>';
         heroHtml += '<div class="track-hero-stat">' + finEmoji('⏳', 'sm') + '<div><span class="track-stat-lbl">کل امروز</span><span class="track-stat-val">' + esc(dayTotalLabel) + '</span></div></div>';
         heroHtml += '</div></div>';
+        heroHtml += trackingActivePanel(activeInterval, { inHeader: true });
+        heroHtml += trackingEfficiencyRow(t, { inHeader: true });
 
         html += trackingHeader(t, heroHtml, { live: true });
-
-        html += trackingActivePanel(activeInterval);
 
         html += '<div class="track-actions">';
         html += '<button type="button" class="track-btn track-btn-switch" onclick="action(\'switch_tracking\',{session_id:' + sid + '})">';
@@ -3015,8 +3019,6 @@ function renderTracking(t) {
             }
             html += '</div></div>';
         }
-
-        html += trackingEfficiencyRow(t);
     } else {
         var sessionNote = sessionCount > 1
             ? '<div class="track-hero-range">' + pd(sessionCount) + ' دور ردیابی</div>' : '';
@@ -3025,9 +3027,9 @@ function renderTracking(t) {
             '<div class="track-hero-total">' + esc(dayTotalLabel) + '</div>' +
             sessionNote +
             '</div>';
+        summaryHero += trackingEfficiencyRow(t, { inHeader: true });
         html += trackingHeader(t, summaryHero);
 
-        html += trackingEfficiencyRow(t);
         html += trackingBreakdownSection(t.breakdown, dayTotalSecs);
 
         html += '<div class="track-section"><div class="track-timeline">';

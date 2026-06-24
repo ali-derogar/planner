@@ -260,8 +260,11 @@ textarea:focus-visible, select:focus-visible {{
 }}
 
 @media (hover: none) and (pointer: coarse) {{
-    .date-header:not(.home-header):not(.fin-header) {{
+    .date-header:not(.home-header):not(.fin-header):not(.track-header) {{
         padding-top: calc(14px + max(36px, var(--safe-top)));
+    }}
+    .date-header.track-header {{
+        padding-top: calc(10px + max(36px, var(--safe-top)));
     }}
     .home-header,
     .fin-header {{
@@ -3220,6 +3223,8 @@ body.kb-open .proj-sheet-overlay {{
 .track-header {{
     background: linear-gradient(155deg, #0A1F22 0%, #0F2A2E 35%, #134E4A 70%, #0C2328 100%);
     overflow: hidden;
+    gap: 0;
+    padding: calc(10px + var(--safe-top)) var(--space-4) 8px;
 }}
 .track-header::before {{
     background:
@@ -3277,40 +3282,39 @@ body.kb-open .proj-sheet-overlay {{
     color: rgba(255, 255, 255, 0.55);
     padding: 0 0 8px; position: relative; z-index: 1;
 }}
+.track-date-inline {{
+    text-align: unset; font-size: 11px;
+    padding: 0; margin-right: auto; flex-shrink: 0;
+}}
 .track-hero-in-header {{
     margin: 4px 0 0;
-    padding: 14px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(45, 212, 191, 0.2);
-    border-radius: 16px;
+    padding: 0;
     position: relative; z-index: 1;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }}
 .track-hero-summary {{ text-align: center; }}
 .track-hero-label {{
-    font-size: 11px; color: rgba(255, 255, 255, 0.6); margin-bottom: 4px;
+    font-size: 11px; color: rgba(255, 255, 255, 0.6); margin-bottom: 2px;
     letter-spacing: 0.3px;
 }}
 .track-hero-total {{
-    font-size: 36px; font-weight: 800; color: #5EEAD4;
-    font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.1;
+    font-size: 30px; font-weight: 800; color: #5EEAD4;
+    font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.05;
     text-shadow: 0 0 24px rgba(45, 212, 191, 0.35);
 }}
 .track-hero-range {{
-    font-size: 12px; color: rgba(255, 255, 255, 0.5); margin-top: 8px;
+    font-size: 11px; color: rgba(255, 255, 255, 0.5); margin-top: 4px;
 }}
 .track-timer-wrap {{
-    display: flex; justify-content: center; padding: 4px 0 14px;
+    display: flex; justify-content: center; padding: 0 0 6px;
     position: relative;
 }}
 .track-timer-glow {{
-    position: absolute; width: 180px; height: 180px; border-radius: 50%;
+    position: absolute; width: 154px; height: 154px; border-radius: 50%;
     background: radial-gradient(circle, rgba(45, 212, 191, 0.2), transparent 70%);
     animation: trackPulse 2.4s ease-in-out infinite;
 }}
 .track-timer-ring {{
-    width: 176px; height: 176px; border-radius: 50%;
+    width: 150px; height: 150px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     position: relative;
 }}
@@ -3334,29 +3338,29 @@ body.kb-open .proj-sheet-overlay {{
     50% {{ transform: scale(1.05); opacity: 0.85; }}
 }}
 .track-timer-inner {{
-    width: 148px; height: 148px; border-radius: 50%;
+    width: 124px; height: 124px; border-radius: 50%;
     background: rgba(8, 12, 14, 0.88);
     border: 1px solid rgba(45, 212, 191, 0.22);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px; position: relative; z-index: 1;
+    gap: 2px; position: relative; z-index: 1;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.05);
 }}
 .track-timer-lbl {{
-    font-size: 11px; color: rgba(255, 255, 255, 0.5);
+    font-size: 10px; color: rgba(255, 255, 255, 0.5);
 }}
 .track-timer-val {{
-    font-size: 30px; font-weight: 800; color: #5EEAD4;
-    font-variant-numeric: tabular-nums; letter-spacing: 2px;
+    font-size: 26px; font-weight: 800; color: #5EEAD4;
+    font-variant-numeric: tabular-nums; letter-spacing: 1px;
     text-shadow: 0 0 16px rgba(45, 212, 191, 0.3);
 }}
 .track-hero-stats {{
-    display: flex; gap: 6px; direction: rtl;
+    display: flex; gap: 5px; direction: rtl;
 }}
 .track-hero-stat {{
-    flex: 1; display: flex; align-items: center; gap: 8px;
+    flex: 1; display: flex; align-items: center; gap: 6px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(45, 212, 191, 0.12);
-    border-radius: 12px; padding: 9px 10px;
+    border-radius: 10px; padding: 7px 8px;
     transition: border-color var(--duration-fast);
 }}
 .track-hero-stat .fin-emoji {{ flex-shrink: 0; }}
@@ -3376,6 +3380,61 @@ body.kb-open .proj-sheet-overlay {{
     border-radius: 16px; direction: rtl;
     animation: trackSlideUp 0.35s ease both;
     box-shadow: 0 4px 20px rgba(45, 212, 191, 0.08);
+}}
+.track-header .track-active-panel.track-active-in-header {{
+    margin: 10px 0 0; padding: 10px 0 0;
+    background: none; border: none; border-radius: 0;
+    border-top: 1px solid rgba(45, 212, 191, 0.2);
+    box-shadow: none; animation: none;
+}}
+.track-header .track-stats-panel.track-stats-in-header {{
+    margin: 8px 0 0; padding: 8px 0 0;
+    background: none; border: none; border-radius: 0;
+    border-top: 1px solid rgba(45, 212, 191, 0.2);
+    box-shadow: none; animation: none;
+    gap: 10px;
+}}
+.track-header .track-eff-gauge {{
+    width: 76px; height: 76px;
+}}
+.track-header .track-eff-gauge .track-donut {{
+    width: 100%; height: 100%;
+}}
+.track-header .track-eff-gauge-val {{ font-size: 16px; }}
+.track-header .track-stat-card {{
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(45, 212, 191, 0.15);
+    padding: 6px 8px;
+}}
+.track-header .track-stats-grid {{ gap: 4px; }}
+.track-header .track-active-panel-head {{
+    margin-bottom: 8px; gap: 10px;
+}}
+.track-header .track-active-emoji {{
+    width: 38px; height: 38px; border-radius: 12px; font-size: 18px;
+}}
+.track-header .track-label-input-prominent {{
+    padding: 10px 12px !important;
+}}
+.track-header .track-pick-btn-lg {{ min-height: 40px !important; }}
+.track-header .track-stat-card-lbl {{ color: rgba(255, 255, 255, 0.55); }}
+.track-header .track-stat-card-val {{ color: #fff; }}
+.track-header .track-stat-card.useful .track-stat-card-val {{ color: #6EE7B7; }}
+.track-header .track-stat-card.not .track-stat-card-val {{ color: #FDBA74; }}
+.track-header .track-eff-gauge-val {{ color: #6EE7B7; }}
+.track-header .track-eff-gauge-lbl {{ color: rgba(255, 255, 255, 0.55); }}
+.track-header .track-active-title {{ color: #fff; }}
+.track-header .track-active-since {{ color: rgba(255, 255, 255, 0.55); }}
+.track-header .track-label-input-prominent {{
+    background: rgba(8, 12, 14, 0.55) !important;
+    border-color: rgba(45, 212, 191, 0.28) !important;
+    color: #fff !important;
+}}
+.track-header .track-label-input-prominent::placeholder {{ color: rgba(255, 255, 255, 0.4); }}
+.track-header .track-pick-btn-lg {{
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(45, 212, 191, 0.25);
+    color: #5EEAD4;
 }}
 @keyframes trackSlideUp {{
     from {{ opacity: 0; transform: translateY(8px); }}
@@ -3952,10 +4011,6 @@ body.kb-open .track-act-overlay {{
 [data-theme="light"] .track-live-badge {{
     color: #0D9488; background: rgba(13, 148, 136, 0.1); border-color: rgba(13, 148, 136, 0.25);
 }}
-[data-theme="light"] .track-hero-in-header {{
-    background: rgba(255, 255, 255, 0.82);
-    border-color: rgba(13, 148, 136, 0.18);
-}}
 [data-theme="light"] .track-hero-label {{ color: var(--text-muted); }}
 [data-theme="light"] .track-hero-total {{ color: #0D9488; text-shadow: none; }}
 [data-theme="light"] .track-hero-range {{ color: var(--text-muted); }}
@@ -3975,6 +4030,35 @@ body.kb-open .track-act-overlay {{
     background: linear-gradient(145deg, rgba(13, 148, 136, 0.06), rgba(99, 102, 241, 0.04));
     border-color: rgba(13, 148, 136, 0.18);
     box-shadow: 0 4px 16px rgba(13, 148, 136, 0.06);
+}}
+[data-theme="light"] .track-date-inline {{ color: var(--text-muted); }}
+[data-theme="light"] .track-header .track-active-panel.track-active-in-header {{
+    border-top-color: rgba(13, 148, 136, 0.18);
+}}
+[data-theme="light"] .track-header .track-stats-panel.track-stats-in-header {{
+    border-top-color: rgba(13, 148, 136, 0.18);
+}}
+[data-theme="light"] .track-header .track-stat-card {{
+    background: rgba(255, 255, 255, 0.72);
+    border-color: rgba(13, 148, 136, 0.12);
+}}
+[data-theme="light"] .track-header .track-stat-card-lbl {{ color: var(--text-muted); }}
+[data-theme="light"] .track-header .track-stat-card-val {{ color: var(--text); }}
+[data-theme="light"] .track-header .track-stat-card.useful .track-stat-card-val {{ color: #059669; }}
+[data-theme="light"] .track-header .track-stat-card.not .track-stat-card-val {{ color: #EA580C; }}
+[data-theme="light"] .track-header .track-eff-gauge-val {{ color: #059669; }}
+[data-theme="light"] .track-header .track-eff-gauge-lbl {{ color: var(--text-muted); }}
+[data-theme="light"] .track-header .track-active-since {{ color: var(--text-muted); }}
+[data-theme="light"] .track-header .track-label-input-prominent {{
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(13, 148, 136, 0.22) !important;
+    color: var(--text) !important;
+}}
+[data-theme="light"] .track-header .track-label-input-prominent::placeholder {{ color: var(--text-muted); }}
+[data-theme="light"] .track-header .track-pick-btn-lg {{
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(13, 148, 136, 0.2);
+    color: #0D9488;
 }}
 [data-theme="light"] .track-btn-switch {{
     background: linear-gradient(135deg, #0D9488, #14B8A6);
