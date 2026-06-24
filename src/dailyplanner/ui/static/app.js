@@ -28,6 +28,9 @@ function action(cmd, params) {
     if (cmd !== 'set_search') {
         flushPendingSearch();
     }
+    if (cmd !== 'set_tracking_label') {
+        flushPendingTrackLabels();
+    }
     window._actions.push({ cmd: cmd, params: params || {} });
 }
 
@@ -39,6 +42,25 @@ function debounceSearch(q) {
 
 var _noteTimer = null;
 var _noteSavedTimer = null;
+var _trackLabelTimers = {};
+
+function debounceTrackLabel(intervalId, val) {
+    clearTimeout(_trackLabelTimers[intervalId]);
+    _trackLabelTimers[intervalId] = setTimeout(function() {
+        delete _trackLabelTimers[intervalId];
+        setTrackLabel(intervalId, val);
+    }, 600);
+}
+
+function flushPendingTrackLabels() {
+    Object.keys(_trackLabelTimers).forEach(function(id) {
+        clearTimeout(_trackLabelTimers[id]);
+        delete _trackLabelTimers[id];
+        var el = document.querySelector('.track-label-input[data-interval-id="' + id + '"]');
+        if (el) setTrackLabel(+id, el.value);
+    });
+}
+
 function debounceNote(val) {
     clearTimeout(_noteTimer);
     _noteTimer = setTimeout(function() {
@@ -84,6 +106,7 @@ function pd(n) {
 }
 
 function fmtElapsed(secs) {
+    secs = Math.max(0, Math.floor(secs));
     var h = Math.floor(secs / 3600);
     var m = Math.floor((secs % 3600) / 60);
     var s = secs % 60;
@@ -672,13 +695,25 @@ function setTimePickerValues(picker, h, m, s) {
     updateTimePickerPreview(picker);
 }
 
+function carryTimeUnit(picker, unit, delta) {
+    var order = picker.dataset.mode === 'hms' ? ['s', 'm', 'h'] : ['m', 'h'];
+    var idx = order.indexOf(unit);
+    if (idx < 0 || idx >= order.length - 1) return;
+    stepTimeUnit(picker, order[idx + 1], delta);
+}
+
 function stepTimeUnit(picker, unit, delta) {
     var col = picker.querySelector('.time-picker-col[data-unit="' + unit + '"]');
     if (!col) return;
     var max = parseInt(col.dataset.max, 10);
     var val = (parseInt(col.dataset.val, 10) || 0) + delta;
-    if (val > max) val = 0;
-    if (val < 0) val = max;
+    if (val > max) {
+        val = 0;
+        carryTimeUnit(picker, unit, 1);
+    } else if (val < 0) {
+        val = max;
+        carryTimeUnit(picker, unit, -1);
+    }
     col.dataset.val = String(val);
     syncTimePickerColDisplay(col);
     updateTimePickerPreview(picker);
@@ -718,6 +753,7 @@ function buildTimeCol(key, label, val, max, pickerWrap) {
     num.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
+            e.stopPropagation();
             commitTimePickerCol(col, pickerWrap);
             num.blur();
             return;
@@ -1072,7 +1108,7 @@ function showModal(config) {
     }
     var first = fc.querySelector('input:not([type="hidden"]), textarea, select');
     if (!first) first = fc.querySelector('button.color-swatch');
-    if (first && useCenter) {
+    if (first) {
         setTimeout(function() {
             syncModalViewport();
             syncKeyboardLayout();
@@ -1080,7 +1116,7 @@ function showModal(config) {
                 try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); }
                 ensureFieldVisible(first);
             }
-        }, 100);
+        }, useCenter ? 100 : 150);
     } else {
         syncModalViewport();
         syncKeyboardLayout();
@@ -1170,13 +1206,27 @@ document.addEventListener('click', function(e) {
 });
 
 document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        if (isActivityPickerVisible()) {
+            closeActivityPicker();
+            return;
+        }
+        if (isProjectSheetVisible()) {
+            closeProjectSheet();
+            return;
+        }
+        var modal = document.getElementById('modal');
+        if (modal && modal.style.display !== 'none') {
+            closeModal();
+        }
+        return;
+    }
     var modal = document.getElementById('modal');
     var modalOpen = modal && modal.style.display !== 'none';
-    if (e.key === 'Escape' && modalOpen) {
-        closeModal();
-    } else if (e.key === 'Enter' && !e.shiftKey && modalOpen && _modal) {
+    if (e.key === 'Enter' && !e.shiftKey && modalOpen && _modal) {
         var t = e.target;
         if (!t || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON') return;
+        if (t.matches && t.matches('.time-picker-val')) return;
         if (t.matches && t.matches('input:not([type="hidden"]), select') && modal.contains(t)) {
             e.preventDefault();
             confirmModal();
@@ -1468,6 +1518,20 @@ function homeStatCard(cls, emoji, lbl, val) {
         '<span class="home-stat-val">' + val + '</span></div></div>';
 }
 
+function onRoleButtonKey(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.currentTarget.click();
+    }
+}
+
+function flushTrackLabelOnBlur(intervalId, input) {
+    clearTimeout(_trackLabelTimers[intervalId]);
+    delete _trackLabelTimers[intervalId];
+    setTrackLabel(intervalId, input.value);
+    hideTrackLabelSuggestionsDelayed(intervalId);
+}
+
 /* Task card */
 function taskCard(t, index) {
     var cardCls = 'task-card home-task-card';
@@ -1487,7 +1551,7 @@ function taskCard(t, index) {
         }
     }
 
-    var header = '<div class="task-header" role="button" tabindex="0" onclick="action(\'toggle_task\',{id:' + t.id + '})">' +
+    var header = '<div class="task-header" role="button" tabindex="0" onclick="action(\'toggle_task\',{id:' + t.id + '})" onkeydown="onRoleButtonKey(event)">' +
         '<button type="button" class="task-star-wrap" aria-label="' + (t.is_starred ? 'حذف ستاره' : 'ستاره‌دار کردن') + '" onclick="event.stopPropagation();action(\'toggle_star\',{id:' + t.id + '})">' + starIcon + '</button>' +
         '<span class="task-title-wrap" title="' + esc(t.title) + '">' + esc(t.title) + '</span>' +
         '<span class="task-header-end">' +
@@ -3135,6 +3199,7 @@ function pickTrackLabelSuggestion(intervalId, label) {
 }
 
 function onTrackLabelInput(intervalId, input) {
+    debounceTrackLabel(intervalId, input.value);
     var trimmed = (input.value || '').trim();
     var query = trackLabelQuery(trimmed);
     var box = document.getElementById('track-label-sug-' + intervalId);
@@ -3234,7 +3299,7 @@ function trackingIntervalCard(iv, totalSecs, opts) {
     }
     html += collapseChevron(isExpanded);
     if (!iv.is_active) {
-        html += '<span role="button" tabindex="0" class="track-interval-del" onclick="event.stopPropagation();action(\'delete_tracking_interval\',{interval_id:' + iv.id + '})" title="حذف" aria-label="حذف بازه">×</span>';
+        html += '<span role="button" tabindex="0" class="track-interval-del" onclick="event.stopPropagation();action(\'delete_tracking_interval\',{interval_id:' + iv.id + '})" onkeydown="onRoleButtonKey(event)" title="حذف" aria-label="حذف بازه">×</span>';
     }
     html += '</span></button>';
 
@@ -3255,7 +3320,7 @@ function trackingIntervalCard(iv, totalSecs, opts) {
         html += '<input type="text" class="track-label-input" data-interval-id="' + iv.id + '" ' +
             'placeholder="عنوان فعالیت..." value="' + esc(label) + '" autocomplete="off" ' +
             'oninput="onTrackLabelInput(' + iv.id + ', this)" onfocus="onTrackLabelInput(' + iv.id + ', this)" ' +
-            'onblur="hideTrackLabelSuggestionsDelayed(' + iv.id + ')" ' +
+            'onblur="flushTrackLabelOnBlur(' + iv.id + ', this)" ' +
             'onchange="action(\'set_tracking_label\',{interval_id:' + iv.id + ',label:this.value})">';
         html += '<div class="track-label-suggestions" id="track-label-sug-' + iv.id + '"></div>';
         html += '</div>';
@@ -3290,7 +3355,7 @@ function trackingActivePanel(iv, opts) {
     html += '<input type="text" class="track-label-input track-label-input-prominent" data-interval-id="' + iv.id + '" ' +
         'placeholder="چه کاری انجام می\u200cدهید؟" value="' + esc(label) + '" autocomplete="off" ' +
         'oninput="onTrackLabelInput(' + iv.id + ', this)" onfocus="onTrackLabelInput(' + iv.id + ', this)" ' +
-        'onblur="hideTrackLabelSuggestionsDelayed(' + iv.id + ')" ' +
+        'onblur="flushTrackLabelOnBlur(' + iv.id + ', this)" ' +
         'onchange="action(\'set_tracking_label\',{interval_id:' + iv.id + ',label:this.value})">';
     html += '<div class="track-label-suggestions" id="track-label-sug-' + iv.id + '"></div>';
     html += '</div>';
@@ -3510,6 +3575,16 @@ function renderApp(state) {
         closeProjectSheet();
         closeActivityPicker();
     }
+
+    flushPendingNote();
+    flushPendingSearch();
+    flushPendingTrackLabels();
+
+    var trackLabelDrafts = {};
+    document.querySelectorAll('.track-label-input').forEach(function(el) {
+        if (el.dataset.intervalId) trackLabelDrafts[el.dataset.intervalId] = el.value;
+    });
+
     window._categories = state.finance_categories || [];
     window._investCategories = state.investment_categories || [];
     window._moodEmojis = state.mood_emojis || [];
@@ -3547,6 +3622,9 @@ function renderApp(state) {
     var importCaret = restoreImport ? focused.selectionStart : null;
     var restoreExport = focused && focused.id === 'export-ta';
     var exportCaret = restoreExport ? focused.selectionStart : null;
+    var restoreTrackLabel = focused && focused.classList && focused.classList.contains('track-label-input');
+    var trackLabelIntervalId = restoreTrackLabel ? focused.dataset.intervalId : null;
+    var trackLabelCaret = restoreTrackLabel ? focused.selectionStart : null;
     var restoreModal = isModalVisible() && focused && focused.id && focused.id.indexOf('mf-') === 0;
     var modalFocusId = restoreModal ? focused.id : null;
     var modalCaret = restoreModal && focused.selectionStart != null ? focused.selectionStart : null;
@@ -3554,6 +3632,11 @@ function renderApp(state) {
     window._renderedScreen = state.screen;
 
     root.innerHTML = html;
+
+    Object.keys(trackLabelDrafts).forEach(function(id) {
+        var el = document.querySelector('.track-label-input[data-interval-id="' + id + '"]');
+        if (el) el.value = trackLabelDrafts[id];
+    });
 
     if (screenChanged) {
         root.classList.add('screen-enter');
@@ -3609,6 +3692,16 @@ function renderApp(state) {
             }
             syncKeyboardLayout();
             ensureFieldVisible(exportInput);
+        }
+    } else if (restoreTrackLabel && trackLabelIntervalId) {
+        var trackInput = document.querySelector('.track-label-input[data-interval-id="' + trackLabelIntervalId + '"]');
+        if (trackInput) {
+            trackInput.focus();
+            if (trackLabelCaret != null) {
+                try { trackInput.setSelectionRange(trackLabelCaret, trackLabelCaret); } catch (e) {}
+            }
+            syncKeyboardLayout();
+            ensureFieldVisible(trackInput);
         }
     }
 
@@ -3856,5 +3949,6 @@ function ensureFieldVisible(el) {
     window.addEventListener('pagehide', function() {
         if (typeof flushPendingNote === 'function') flushPendingNote();
         if (typeof flushPendingSearch === 'function') flushPendingSearch();
+        if (typeof flushPendingTrackLabels === 'function') flushPendingTrackLabels();
     });
 })();

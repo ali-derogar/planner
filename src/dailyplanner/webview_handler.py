@@ -206,6 +206,7 @@ class WebViewHandler:
             raw = await self.app.webview.evaluate_javascript(
                 "if(typeof flushPendingNote==='function')flushPendingNote();"
                 "if(typeof flushPendingSearch==='function')flushPendingSearch();"
+                "if(typeof flushPendingTrackLabels==='function')flushPendingTrackLabels();"
                 "var a=window._actions||[];window._actions=[];JSON.stringify(a);"
             )
             if raw and raw not in (None, "null", "[]", '""'):
@@ -1104,7 +1105,13 @@ class WebViewHandler:
     # ── tracking ──────────────────────────────────────────────────────────────
 
     async def _on_start_tracking(self, p):
-        self.db.start_tracking_session(datetime.date.today())
+        today = datetime.date.today()
+        self.db.close_stale_tracking_sessions(today)
+        active = self.db.get_active_tracking_session(today)
+        if active:
+            await self.push_state()
+            return
+        self.db.start_tracking_session(today)
         self.toast("ردیابی شروع شد")
         await self.push_state()
 

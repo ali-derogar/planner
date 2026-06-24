@@ -165,9 +165,12 @@ try {
 try {
     const picker = ctx.buildTimePickerEl({ key: 'value', type: 'time-hm', value: '23:59' });
     ctx.stepTimeUnit(picker, 'm', 1);
-    assertEq(ctx.getTimePickerValue(picker), '23:00', 'minute wrap at 59');
+    assertEq(ctx.getTimePickerValue(picker), '0:00', 'minute carry at 59');
     ctx.stepTimeUnit(picker, 'h', 1);
-    assertEq(ctx.getTimePickerValue(picker), '0:00', 'hour wrap at 23');
+    assertEq(ctx.getTimePickerValue(picker), '1:00', 'step hour from midnight');
+    const picker2 = ctx.buildTimePickerEl({ key: 'value', type: 'time-hm', value: '23:00' });
+    ctx.stepTimeUnit(picker2, 'h', 1);
+    assertEq(ctx.getTimePickerValue(picker2), '0:00', 'hour wrap at 23');
 } catch (e) {
     errors.push(`wrap: ${e.message}`);
 }
@@ -215,6 +218,15 @@ try {
     assertEq(ctx.getTimePickerValue(picker), '2:00:00', 'preset 2h');
 } catch (e) {
     errors.push(`presets: ${e.message}`);
+}
+
+/* hms minute carry */
+try {
+    const picker = ctx.buildTimePickerEl({ key: 'value', type: 'time-hms', value: '1:59:00' });
+    ctx.stepTimeUnit(picker, 'm', 1);
+    assertEq(ctx.getTimePickerValue(picker), '2:00:00', 'hms minute carry to hour');
+} catch (e) {
+    errors.push(`hms carry: ${e.message}`);
 }
 
 /* validator compatibility with picker output */

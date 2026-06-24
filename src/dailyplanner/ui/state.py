@@ -659,6 +659,7 @@ def build_state(
             return to_persian_digits(f"{m:02d}:{s:02d}")
 
         track_date = today
+        db.close_stale_tracking_sessions(track_date)
         sessions = db.get_tracking_sessions_for_date(track_date)
         active_row = db.get_active_tracking_session(track_date)
 

@@ -718,3 +718,62 @@ def test_day_activity_seconds_includes_unclassified_tracking(db):
     assert db.get_day_activity_seconds(d) == 300
     useful, not_useful = db.get_useful_totals(d)
     assert useful == 0 and not_useful == 0
+
+
+def test_import_json_clears_tracking(db):
+    import datetime
+
+    d = datetime.date.today()
+    db.start_tracking_session(d)
+    assert db.get_tracking_sessions_for_date(d)
+
+    exported = db.export_json()
+    db.import_json(exported)
+    assert db.get_tracking_sessions_for_date(d) == []
+
+
+def test_start_tracking_reuses_active_session(db):
+    import datetime
+
+    d = datetime.date.today()
+    sid1 = db.start_tracking_session(d)
+    sid2 = db.start_tracking_session(d)
+    assert sid1 == sid2
+    assert len(db.get_tracking_sessions_for_date(d)) == 1
+
+
+def test_close_stale_tracking_sessions(db):
+    import datetime
+    import time
+
+    yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    now = time.time()
+    cur = db.conn.execute(
+        "INSERT INTO tracking_sessions (date, started_at, created_at) VALUES (?,?,?)",
+        (yesterday.isoformat(), now - 3600, datetime.datetime.now().isoformat()),
+    )
+    session_id = cur.lastrowid
+    db.conn.execute(
+        "INSERT INTO tracking_intervals (session_id, started_at) VALUES (?,?)",
+        (session_id, now - 3600),
+    )
+    db.conn.commit()
+
+    db.close_stale_tracking_sessions(datetime.date.today())
+    row = db.conn.execute(
+        "SELECT ended_at FROM tracking_sessions WHERE id=?", (session_id,)
+    ).fetchone()
+    assert row["ended_at"] is not None
+
+
+def test_recurring_instance_sort_order(db):
+    import datetime
+
+    d = datetime.date.today()
+    db.add_task(d, "manual")
+    db.create_recurring("daily habit")
+    RecurringService(db).ensure_daily_tasks(d)
+    tasks = db.get_tasks_for_date(d)
+    assert len(tasks) == 2
+    assert tasks[0].title == "manual"
+    assert tasks[1].title == "daily habit"

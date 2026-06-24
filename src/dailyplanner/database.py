@@ -432,9 +432,14 @@ class Database:
         return {row["recurring_id"] for row in rows}
 
     def create_recurring_instance(self, recurring_id: int, title: str, d: date) -> DailyTask:
+        row = self.conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM daily_tasks WHERE date = ?",
+            (date_to_str(d),),
+        ).fetchone()
+        sort_order = int(row["n"])
         cursor = self.conn.execute(
-            "INSERT INTO daily_tasks (date, title, recurring_id) VALUES (?, ?, ?)",
-            (date_to_str(d), title, recurring_id),
+            "INSERT INTO daily_tasks (date, title, recurring_id, sort_order) VALUES (?, ?, ?, ?)",
+            (date_to_str(d), title, recurring_id, sort_order),
         )
         self.conn.commit()
         return self.get_task_by_id(cursor.lastrowid)
@@ -1094,6 +1099,8 @@ class Database:
             self.conn.execute("DELETE FROM important_dates")
             self.conn.execute("DELETE FROM installment_payments")
             self.conn.execute("DELETE FROM installments")
+            self.conn.execute("DELETE FROM tracking_intervals")
+            self.conn.execute("DELETE FROM tracking_sessions")
             self.conn.execute("DELETE FROM settings")
 
             try:
@@ -1106,6 +1113,8 @@ class Database:
                     "important_dates",
                     "installments",
                     "installment_payments",
+                    "tracking_sessions",
+                    "tracking_intervals",
                 ):
                     self.conn.execute(
                         "DELETE FROM sqlite_sequence WHERE name = ?", (tbl,)
@@ -1626,6 +1635,10 @@ class Database:
 
     def start_tracking_session(self, d: date) -> int:
         """Create a new session and its first interval. Returns session id."""
+        self.close_stale_tracking_sessions(d)
+        active = self.get_active_tracking_session(d)
+        if active:
+            return active["id"]
         now_epoch = time.time()
         now_str = datetime.now().isoformat()
         cur = self.conn.execute(
@@ -1639,6 +1652,16 @@ class Database:
         )
         self.conn.commit()
         return session_id
+
+    def close_stale_tracking_sessions(self, today: date) -> None:
+        """Auto-stop tracking sessions left active from previous days."""
+        today_str = date_to_str(today)
+        rows = self.conn.execute(
+            "SELECT id FROM tracking_sessions WHERE date < ? AND ended_at IS NULL",
+            (today_str,),
+        ).fetchall()
+        for row in rows:
+            self.stop_tracking(row["id"])
 
     def switch_tracking(self, session_id: int) -> None:
         """Close active interval and open a new one."""
