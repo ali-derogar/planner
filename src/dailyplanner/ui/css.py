@@ -2285,37 +2285,124 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 .fin-page {{ padding-bottom: 8px; }}
 
 .fin-header {{
-    background: linear-gradient(145deg, #0F2E28 0%, #1A4034 45%, #162016 100%);
+    background: linear-gradient(155deg, #061510 0%, #0F2E28 28%, #1A4034 55%, #0D2818 82%, #162016 100%);
+    border-bottom: 1px solid rgba(77, 217, 128, 0.14);
+    overflow: hidden;
 }}
 .fin-header::before {{
-    background: radial-gradient(ellipse at 85% 15%, rgba(77, 217, 128, 0.18), transparent 55%);
+    background:
+        radial-gradient(ellipse 75% 55% at 88% 10%, rgba(77, 217, 128, 0.22), transparent 52%),
+        radial-gradient(ellipse 50% 45% at 10% 90%, rgba(45, 212, 191, 0.14), transparent 55%),
+        radial-gradient(ellipse 40% 30% at 50% 100%, rgba(255, 176, 32, 0.08), transparent 60%);
 }}
+.fin-header::after {{
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 24px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(77, 217, 128, 0.35) 0%, rgba(77, 217, 128, 0.08) 45%, transparent 72%);
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(2px);
+    animation: finGlowPulse 4s ease-in-out infinite;
+}}
+.fin-header-orbs {{
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+}}
+.fin-orb {{
+    position: absolute; border-radius: 50%; filter: blur(40px); opacity: 0.45;
+    animation: finOrbFloat 10s ease-in-out infinite;
+}}
+.fin-orb-1 {{
+    width: 120px; height: 120px; top: -30px; right: -20px;
+    background: rgba(77, 217, 128, 0.32);
+}}
+.fin-orb-2 {{
+    width: 90px; height: 90px; bottom: 10px; left: -10px;
+    background: rgba(45, 212, 191, 0.22); animation-delay: -3.5s;
+}}
+.fin-orb-3 {{
+    width: 60px; height: 60px; top: 45%; left: 40%;
+    background: rgba(255, 176, 32, 0.18); animation-delay: -6.5s;
+}}
+.fin-header-brand {{ position: relative; z-index: 1; }}
 .fin-header-top {{
-    display: flex; align-items: center; gap: 8px; direction: rtl;
-    position: relative; z-index: 1; margin-bottom: 2px;
+    display: flex; align-items: center; gap: 10px; direction: rtl;
+    margin-bottom: 4px;
+}}
+.fin-brand-mark {{
+    width: 40px; height: 40px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(77, 217, 128, 0.28);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}}
+.fin-header-titles {{
+    flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
 }}
 .fin-header-title {{
-    font-size: 16px; font-weight: bold; color: #fff; letter-spacing: 0.01em;
+    font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0.01em;
+    text-shadow: 0 2px 14px rgba(77, 217, 128, 0.3);
+    line-height: 1.2;
 }}
-.fin-month-title {{ font-size: var(--text-sm); opacity: 0.92; }}
-.fin-header .date-nav-btn {{
+.fin-header-sub {{
+    font-size: 11px; color: rgba(167, 243, 208, 0.72); font-weight: 500;
+}}
+.fin-month-pill {{
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 600; color: #A7F3D0;
     background: rgba(77, 217, 128, 0.14);
+    border: 1px solid rgba(77, 217, 128, 0.32);
+    border-radius: 999px; padding: 4px 10px 4px 8px;
+    flex-shrink: 0;
+    box-shadow: 0 0 18px rgba(77, 217, 128, 0.1);
+}}
+.fin-month-dot {{
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #4DD980; box-shadow: 0 0 8px #4DD980;
+    animation: finLivePulse 1.6s ease-in-out infinite;
+}}
+.fin-date-row {{ margin-top: 2px; }}
+.fin-month-title {{ font-size: var(--text-sm); opacity: 0.95; color: #D1FAE5; font-weight: var(--font-medium); }}
+.fin-header .date-nav-btn {{
+    background: rgba(77, 217, 128, 0.12);
     border-color: rgba(77, 217, 128, 0.28);
     color: #4DD980;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }}
-.fin-header .date-nav-btn .ico {{ color: #4DD980; }}
+.fin-header .date-nav-btn .ico {{ color: #6EE7B7; }}
 .fin-header .fin-today-btn {{
-    background: rgba(77, 217, 128, 0.18);
-    border-color: rgba(77, 217, 128, 0.35);
-    color: #4DD980;
+    background: rgba(77, 217, 128, 0.16);
+    border-color: rgba(77, 217, 128, 0.38);
+    color: #A7F3D0;
+    box-shadow: 0 0 18px rgba(77, 217, 128, 0.12);
 }}
 [data-theme="light"] .fin-header {{
-    background: linear-gradient(145deg, #E8F5EE 0%, #F0FAF4 50%, #EAF6F0 100%);
+    background: linear-gradient(155deg, #ECFDF5 0%, #D1FAE5 35%, #E8F5EE 65%, #F0FAF4 100%);
+    border-bottom-color: rgba(15, 46, 40, 0.08);
 }}
-[data-theme="light"] .fin-header-title {{ color: #0F2E28; }}
+[data-theme="light"] .fin-header::after {{
+    background: radial-gradient(circle, rgba(77, 217, 128, 0.4) 0%, rgba(77, 217, 128, 0.1) 48%, transparent 72%);
+}}
+[data-theme="light"] .fin-header-title {{ color: #0F2E28; text-shadow: none; }}
+[data-theme="light"] .fin-header-sub {{ color: #1A4034; opacity: 0.75; }}
 [data-theme="light"] .fin-month-title {{ color: #1A4034; opacity: 1; }}
-[data-theme="light"] .fin-header .date-nav-btn {{
+[data-theme="light"] .fin-month-pill {{
     background: rgba(15, 46, 40, 0.08);
+    border-color: rgba(15, 46, 40, 0.14);
+    color: #0F2E28;
+}}
+[data-theme="light"] .fin-brand-mark {{
+    background: rgba(255, 255, 255, 0.75);
+    border-color: rgba(15, 46, 40, 0.12);
+    box-shadow: 0 4px 14px rgba(15, 46, 40, 0.08);
+}}
+[data-theme="light"] .fin-header .date-nav-btn {{
+    background: rgba(15, 46, 40, 0.06);
     border-color: rgba(15, 46, 40, 0.12);
     color: #0F2E28;
 }}
@@ -2324,6 +2411,194 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     background: #0F2E28; color: #fff; border-color: transparent;
 }}
 
+/* hero panel */
+.fin-hero-panel {{
+    margin-top: 6px;
+    padding: 12px;
+    background: rgba(6, 21, 16, 0.55);
+    border: 1px solid rgba(77, 217, 128, 0.22);
+    border-radius: 18px;
+    position: relative;
+    z-index: 1;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    animation: finPanelIn 0.45s var(--ease-out) both;
+}}
+.fin-hero-main {{
+    display: flex; align-items: center; gap: 14px; direction: rtl;
+}}
+.fin-hero-side {{ flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }}
+
+.fin-balance-ring {{
+    position: relative; width: 84px; height: 84px; flex-shrink: 0;
+}}
+.fin-ring-glow {{
+    position: absolute; inset: -6px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(77, 217, 128, 0.2), transparent 70%);
+    animation: finRingGlow 3s ease-in-out infinite;
+}}
+.fin-ring-svg {{ position: absolute; inset: 0; width: 100%; height: 100%; }}
+.fin-ring-track {{
+    fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 7;
+}}
+.fin-ring-arc {{
+    fill: none; stroke-linecap: round;
+    transition: stroke-dashoffset 0.7s var(--ease-out);
+    filter: drop-shadow(0 0 4px rgba(77, 217, 128, 0.4));
+}}
+.fin-ring-center {{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1px;
+}}
+.fin-ring-pct {{
+    font-size: 17px; font-weight: 800; color: #F8FAFC;
+    font-variant-numeric: tabular-nums; line-height: 1;
+}}
+.fin-ring-lbl {{
+    font-size: 8px; color: rgba(209, 250, 229, 0.62); font-weight: 500;
+}}
+
+.fin-hero-label {{ font-size: 11px; color: rgba(209, 250, 229, 0.65); margin-bottom: 0; }}
+.fin-hero-balance {{
+    font-size: 26px; font-weight: 800; letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums; line-height: 1.15;
+}}
+.fin-hero-balance.positive {{ color: #4DD980; text-shadow: 0 0 20px rgba(77, 217, 128, 0.25); }}
+.fin-hero-balance.negative {{ color: #FF7359; text-shadow: 0 0 20px rgba(255, 115, 89, 0.25); }}
+.fin-hero-unit {{ font-size: 11px; font-weight: normal; color: rgba(209, 250, 229, 0.55); margin-right: 4px; }}
+
+.fin-cashflow {{ margin-top: 2px; }}
+.fin-cashflow-bar {{
+    display: flex; height: 5px; border-radius: 999px; overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(77, 217, 128, 0.12);
+}}
+.fin-cashflow-inc {{
+    height: 100%; background: linear-gradient(90deg, #059669, #4DD980);
+    box-shadow: 0 0 8px rgba(77, 217, 128, 0.35);
+    transition: width 0.5s var(--ease-out);
+}}
+.fin-cashflow-exp {{
+    height: 100%; background: linear-gradient(90deg, #EA580C, #FF7359);
+    transition: width 0.5s var(--ease-out);
+}}
+.fin-cashflow-labels {{
+    display: flex; justify-content: space-between; margin-top: 4px;
+    font-size: 9px; font-weight: 600;
+}}
+.fin-cf-inc {{ color: #6EE7B7; }}
+.fin-cf-exp {{ color: #FDBA74; }}
+
+.fin-hero-stats {{
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px; margin-top: 4px; direction: rtl;
+}}
+.fin-hero-stat {{
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(77, 217, 128, 0.14);
+    border-radius: 11px; padding: 7px 8px;
+    transition: border-color var(--duration-fast), background var(--duration-fast);
+}}
+.fin-hero-stat.income {{ border-color: rgba(77, 217, 128, 0.18); }}
+.fin-hero-stat.expense {{ border-color: rgba(255, 115, 89, 0.18); }}
+.fin-stat-lbl {{ display: block; font-size: 9px; color: rgba(209, 250, 229, 0.58); line-height: 1.2; }}
+.fin-stat-val {{
+    display: block; font-size: 12px; font-weight: 700;
+    color: #F8FAFC; font-variant-numeric: tabular-nums; line-height: 1.3;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}}
+.fin-hero-stat.income .fin-stat-val {{ color: #6EE7B7; }}
+.fin-hero-stat.expense .fin-stat-val {{ color: #FDBA74; }}
+
+.fin-hero-invest {{
+    margin-top: 4px; padding: 6px 10px; border-radius: 10px;
+    background: rgba(255, 176, 32, 0.1); border: 1px solid rgba(255, 176, 32, 0.22);
+    font-size: 11px; color: #FFB020; display: flex; align-items: center; gap: 6px;
+    justify-content: center;
+}}
+.fin-hero-invest-note {{ font-size: 10px; color: rgba(209, 250, 229, 0.45); }}
+
+[data-theme="light"] .fin-hero-panel {{
+    background: rgba(255, 255, 255, 0.72);
+    border-color: rgba(15, 46, 40, 0.1);
+    box-shadow: 0 8px 28px rgba(15, 46, 40, 0.08);
+}}
+[data-theme="light"] .fin-ring-pct {{ color: #0F2E28; }}
+[data-theme="light"] .fin-ring-lbl {{ color: var(--text-muted); }}
+[data-theme="light"] .fin-ring-track {{ stroke: rgba(15, 46, 40, 0.08); }}
+[data-theme="light"] .fin-hero-label {{ color: var(--text-muted); }}
+[data-theme="light"] .fin-hero-unit {{ color: var(--text-muted); }}
+[data-theme="light"] .fin-stat-lbl {{ color: var(--text-muted); }}
+[data-theme="light"] .fin-stat-val {{ color: var(--text); }}
+[data-theme="light"] .fin-hero-stat {{ background: rgba(15, 46, 40, 0.03); }}
+
+/* body + actions */
+.fin-body {{
+    padding: 0 2px;
+    animation: finBodyIn 0.4s var(--ease-out) 0.06s both;
+}}
+.fin-actions {{
+    display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 10px 6px; direction: rtl;
+}}
+.fin-action-btn {{
+    position: relative; overflow: hidden;
+    flex: 1 1 calc(33.333% - 6px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 12px 6px 10px; border-radius: 14px; border: 1px solid transparent;
+    cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+    transition: transform var(--duration-fast), box-shadow var(--duration-fast), border-color var(--duration-fast);
+}}
+.fin-action-btn:active {{ transform: scale(0.94); }}
+.fin-action-glow {{
+    position: absolute; inset: 0; opacity: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.12), transparent 70%);
+    transition: opacity var(--duration-fast);
+    pointer-events: none;
+}}
+.fin-action-btn:active .fin-action-glow {{ opacity: 1; }}
+.fin-action-icon {{
+    font-size: 18px; line-height: 1; font-weight: bold;
+    width: 32px; height: 32px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+}}
+.fin-action-lbl {{ font-size: 11px; font-weight: 700; line-height: 1.2; }}
+.fin-action-btn.income {{
+    background: linear-gradient(145deg, rgba(26,64,40,0.9), rgba(20,50,32,0.95));
+    color: #4DD980; border-color: rgba(77,217,128,0.25);
+    box-shadow: 0 4px 16px rgba(77,217,128,0.12);
+}}
+.fin-action-btn.income .fin-action-icon {{ background: rgba(77,217,128,0.15); }}
+.fin-action-btn.expense {{
+    background: linear-gradient(145deg, rgba(61,24,24,0.9), rgba(50,18,18,0.95));
+    color: #FF7359; border-color: rgba(255,115,89,0.25);
+    box-shadow: 0 4px 16px rgba(255,115,89,0.1);
+}}
+.fin-action-btn.expense .fin-action-icon {{ background: rgba(255,115,89,0.15); }}
+.fin-action-btn.invest {{
+    background: linear-gradient(145deg, rgba(61,48,24,0.9), rgba(50,38,16,0.95));
+    color: #FFB020; border-color: rgba(255,176,32,0.25);
+    box-shadow: 0 4px 16px rgba(255,176,32,0.1);
+}}
+.fin-action-btn.invest .fin-action-icon {{ background: rgba(255,176,32,0.15); }}
+.fin-action-btn.budget {{
+    background: linear-gradient(145deg, rgba(26,26,64,0.9), rgba(20,20,50,0.95));
+    color: #818CF8; border-color: rgba(129,140,248,0.25);
+    box-shadow: 0 4px 16px rgba(129,140,248,0.1);
+}}
+.fin-action-btn.budget .fin-action-icon {{ background: rgba(129,140,248,0.15); }}
+.fin-action-btn.inst {{
+    background: linear-gradient(145deg, rgba(26,48,40,0.9), rgba(18,38,32,0.95));
+    color: #5ECFAB; border-color: rgba(94,207,171,0.25);
+    box-shadow: 0 4px 16px rgba(94,207,171,0.1);
+}}
+.fin-action-btn.inst .fin-action-icon {{ background: rgba(94,207,171,0.15); font-size: 14px; font-weight: normal; }}
+
+/* legacy hero (standalone) */
 .fin-hero {{
     margin: 12px 12px 0;
     padding: 20px 18px 16px;
@@ -2333,98 +2608,35 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     text-align: center;
 }}
-.fin-hero-in-header {{
-    margin: 6px 0 0;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(77, 217, 128, 0.18);
-    border-radius: 14px;
-    box-shadow: none;
-    position: relative;
-    z-index: 1;
-}}
-[data-theme="light"] .fin-hero-in-header {{
-    background: rgba(255, 255, 255, 0.72);
-    border-color: rgba(15, 46, 40, 0.12);
-}}
-.fin-hero-label {{ font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }}
-.fin-hero-in-header .fin-hero-label {{ color: rgba(255,255,255,0.65); }}
-[data-theme="light"] .fin-hero-in-header .fin-hero-label {{ color: var(--text-muted); }}
-.fin-hero-balance {{
-    font-size: 28px; font-weight: bold; letter-spacing: -0.5px;
-    font-variant-numeric: tabular-nums; line-height: 1.2;
-}}
-.fin-hero-in-header .fin-hero-balance {{
-    font-size: 24px; line-height: 1.15;
-}}
-.fin-hero-balance.positive {{ color: #4DD980; }}
-.fin-hero-balance.negative {{ color: #FF7359; }}
-.fin-hero-unit {{ font-size: 11px; font-weight: normal; color: var(--text-muted); margin-right: 4px; }}
-.fin-hero-stats {{
-    display: flex; gap: 10px; margin-top: 16px; direction: rtl;
-}}
-.fin-hero-in-header .fin-hero-stats {{
-    margin-top: 8px; gap: 6px;
-}}
-.fin-hero-stat {{
-    flex: 1; display: flex; align-items: center; gap: 8px;
-    background: rgba(255,255,255,0.04); border-radius: 12px;
-    padding: 10px 12px; border: 1px solid #ffffff0a;
-}}
-.fin-hero-in-header .fin-hero-stat {{
-    padding: 7px 8px; border-radius: 10px; gap: 6px;
-}}
-.fin-stat-icon {{
-    width: 28px; height: 28px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; font-weight: bold; flex-shrink: 0;
-}}
-.fin-hero-stat .fin-icon {{
-    width: 28px; height: 28px; border-radius: 50%; font-size: 14px; font-weight: bold;
-}}
-.fin-hero-in-header .fin-hero-stat .fin-icon {{
-    width: 24px; height: 24px; font-size: 12px;
-}}
-.fin-hero-in-header .fin-hero-stat .fin-emoji,
-.home-hero-stat .fin-emoji,
+.fin-hero-in-header {{ display: none; }}
+.fin-hero-panel .fin-hero-stat .fin-emoji,
 .fin-hero-invest .fin-emoji {{
     flex-shrink: 0;
     color: unset;
     -webkit-text-fill-color: initial;
 }}
-.fin-hero-stat.income .fin-stat-icon {{ background: #1A4028; color: #4DD980; }}
-.fin-hero-stat.expense .fin-stat-icon {{ background: #3D1818; color: #FF7359; }}
-.fin-stat-lbl {{ display: block; font-size: 10px; color: var(--text-muted); }}
-.fin-hero-in-header .fin-stat-lbl {{ color: rgba(255,255,255,0.6); }}
-.fin-hero-in-header .fin-stat-val {{ color: #fff; font-size: 12px; }}
-[data-theme="light"] .fin-hero-in-header .fin-stat-lbl {{ color: var(--text-muted); }}
-[data-theme="light"] .fin-hero-in-header .fin-stat-val {{ color: var(--text); }}
 .fin-stat-val {{ display: block; font-size: 13px; font-weight: bold; font-variant-numeric: tabular-nums; }}
-
-.fin-actions {{
-    display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 12px 4px; direction: rtl;
-}}
-.fin-action-btn {{
-    flex: 1 1 calc(33.333% - 6px); display: flex; align-items: center; justify-content: center; gap: 6px;
-    padding: 11px 8px; border-radius: 12px; border: none; cursor: pointer;
-    font-family: 'Vazirmatn', sans-serif; font-size: 13px; font-weight: bold;
-    transition: opacity 0.15s;
-}}
-.fin-action-btn:active {{ opacity: 0.75; }}
-.fin-action-icon {{ font-size: 16px; line-height: 1; }}
-.fin-action-btn.income {{ background: #1A4028; color: #4DD980; border: 1px solid #4DD98033; }}
-.fin-action-btn.expense {{ background: #3D1818; color: #FF7359; border: 1px solid #FF595933; }}
-.fin-action-btn.invest {{ background: #3D3018; color: #FFB020; border: 1px solid #FFB02033; }}
-.fin-action-btn.budget {{ background: #1A1A40; color: #7B8CDE; border: 1px solid #5E5CE633; }}
-.fin-action-btn.inst {{ background: #1A3028; color: #5ECFAB; border: 1px solid #5ECFAB33; }}
-.fin-inst-card {{ margin: 8px 12px 0; }}
-.fin-hero-invest {{
-    margin-top: 8px; padding: 6px 10px; border-radius: 10px;
-    background: rgba(255,176,32,0.1); border: 1px solid rgba(255,176,32,0.2);
-    font-size: 12px; color: #FFB020; display: flex; align-items: center; gap: 6px; justify-content: center;
-}}
 .fin-hero-invest .fin-icon {{ width: 24px; height: 24px; font-size: 12px; border-radius: 50%; }}
-.fin-hero-invest-note {{ font-size: 10px; color: var(--text-muted); }}
+.fin-inst-card {{ margin-top: 4px; }}
+.fin-inst-empty {{
+    font-size: 12px; color: var(--text-muted); text-align: center; padding: 8px 0;
+}}
+.fin-inst-empty a {{ color: var(--primary); }}
+.fin-inst-row {{
+    display: flex; align-items: center; gap: 8px; direction: rtl;
+    padding: 10px 12px; margin: 6px 0;
+    background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    border-radius: 12px;
+    animation: finTxnIn 0.35s var(--ease-out) both;
+    animation-delay: calc(var(--fin-stagger, 0) * 40ms);
+}}
+.fin-inst-footer {{
+    margin-top: 8px; padding-top: 10px;
+    border-top: 1px solid var(--divider);
+    font-size: 12px; color: var(--text-muted); text-align: center;
+}}
+.fin-inst-footer strong {{ color: var(--error); font-weight: 700; }}
 
 .fin-icon {{
     width: 28px; height: 28px; border-radius: 8px;
@@ -2482,13 +2694,21 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 .analytics-header-top .fin-icon-svg .ico {{ width: 20px; height: 20px; }}
 
 .fin-card {{
-    background: var(--surface); border-radius: 16px;
-    margin: 10px 12px; padding: 14px 14px 12px;
+    background: linear-gradient(160deg, var(--surface) 0%, var(--surface-deep) 100%);
+    border-radius: 18px;
+    margin: 10px 10px;
+    padding: 14px 14px 12px;
     border: 1px solid var(--divider);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.14);
+    transition: box-shadow var(--duration-fast);
+}}
+.fin-card-animate {{
+    animation: finCardIn 0.42s var(--ease-out) both;
+    animation-delay: calc(var(--fin-card-delay, 0) * 60ms + 80ms);
 }}
 .fin-card-head {{
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 12px; direction: rtl;
+    margin-bottom: 12px; direction: rtl; gap: 8px;
 }}
 .fin-card-collapsible:not(.open) .fin-card-head {{ margin-bottom: 0; }}
 .fin-card-toggle {{
@@ -2508,124 +2728,235 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     font-size: 14px; font-weight: bold;
 }}
 .fin-card-badge {{
-    background: var(--surface-muted); color: var(--text-muted);
-    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: rgba(77, 217, 128, 0.1); color: #4DD980;
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    border: 1px solid rgba(77, 217, 128, 0.18);
+    font-variant-numeric: tabular-nums;
 }}
-.fin-card-actions {{ display: flex; gap: 6px; }}
+.fin-card-actions {{ display: flex; gap: 6px; flex-shrink: 0; }}
 
 .fin-chip-btn {{
     background: var(--surface-muted); border: 1px solid var(--divider);
     color: var(--text-muted); padding: 4px 10px; border-radius: 14px;
     font-size: 11px; cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+    transition: background var(--duration-fast), border-color var(--duration-fast);
 }}
-.fin-chip-btn.primary {{ background: rgba(94,92,230,0.15); color: var(--primary); border-color: #5E5CE644; }}
+.fin-chip-btn.primary {{
+    background: rgba(77, 217, 128, 0.12); color: #4DD980;
+    border-color: rgba(77, 217, 128, 0.28);
+}}
 
 .fin-empty {{
-    text-align: center; padding: 20px 12px; color: var(--text-muted);
+    text-align: center; padding: 24px 12px; color: var(--text-muted);
 }}
-.fin-empty .fin-icon-lg {{ display: flex; }}
-.fin-empty p {{ font-size: 12px; margin-bottom: 12px; line-height: 1.6; }}
+.fin-empty .fin-icon-lg {{ display: flex; margin: 0 auto 12px; }}
+.fin-empty p {{ font-size: 12px; margin-bottom: 14px; line-height: 1.7; }}
 .fin-empty-btn {{
-    background: var(--primary); color: #fff; border: none;
-    padding: 8px 18px; border-radius: 20px; font-size: 12px;
+    background: linear-gradient(135deg, #059669, #4DD980);
+    color: #fff; border: none;
+    padding: 10px 20px; border-radius: 14px; font-size: 12px; font-weight: 600;
     cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+    box-shadow: 0 4px 16px rgba(77, 217, 128, 0.28);
+    transition: transform var(--duration-fast);
 }}
+.fin-empty-btn:active {{ transform: scale(0.96); }}
 
-.finance-line-chart {{ width: 100%; height: 130px; display: block; }}
-.fin-chart-wrap {{ margin: 0 -4px; }}
-.fin-chart-legend {{
-    display: flex; justify-content: center; gap: 14px;
-    font-size: 11px; color: var(--text-muted); margin-bottom: 8px; flex-wrap: wrap;
+/* donut chart */
+.fin-donut-wrap {{
+    display: flex; align-items: center; gap: 16px; direction: rtl;
+    padding: 4px 0;
 }}
-.fin-legend-item {{ display: flex; align-items: center; gap: 4px; }}
+.fin-donut-chart {{
+    width: 96px; height: 96px; border-radius: 50%; flex-shrink: 0;
+    position: relative;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    animation: finDonutIn 0.6s var(--ease-out) both;
+}}
+.fin-donut-hole {{
+    position: absolute; inset: 22%;
+    background: var(--surface);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.12);
+}}
+.fin-donut-total-lbl {{
+    font-size: 8px; color: var(--text-muted); font-weight: 600; text-align: center;
+}}
+.fin-donut-legend {{ flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }}
+.fin-donut-legend-item {{
+    display: flex; align-items: center; gap: 6px; font-size: 11px;
+}}
+.fin-donut-dot {{
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+}}
+.fin-donut-cat {{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+.fin-donut-amt {{ font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-muted); }}
+
+/* line chart */
+.finance-line-chart {{ width: 100%; height: 140px; display: block; }}
+.fin-chart-wrap {{
+    margin: 0 -4px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    padding: 8px 4px 4px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}}
+.fin-chart-grid {{ stroke: rgba(255, 255, 255, 0.06); stroke-width: 0.5; }}
+.fin-chart-zero {{ stroke: rgba(129, 140, 248, 0.4); stroke-width: 1; stroke-dasharray: 4,3; }}
+.fin-chart-area {{ opacity: 0.3; }}
+.fin-chart-line {{ transition: opacity 0.3s; }}
+.fin-chart-legend {{
+    display: flex; justify-content: center; gap: 12px;
+    font-size: 10px; color: var(--text-muted); margin-bottom: 10px; flex-wrap: wrap;
+}}
+.fin-legend-item {{ display: flex; align-items: center; gap: 4px; font-weight: 500; }}
 .fin-legend-dot {{ width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }}
+[data-theme="light"] .fin-chart-wrap {{ background: rgba(15, 46, 40, 0.03); border-color: rgba(15, 46, 40, 0.06); }}
+[data-theme="light"] .fin-chart-grid {{ stroke: rgba(15, 46, 40, 0.08); }}
 
 .fin-date-chip {{
-    font-size: 11px; color: var(--primary); background: rgba(94,92,230,0.12);
-    padding: 3px 10px; border-radius: 10px; display: inline-block;
-    margin: 8px 0 4px; font-weight: bold;
+    font-size: 11px; color: #4DD980; font-weight: 700;
+    background: rgba(77, 217, 128, 0.1);
+    border: 1px solid rgba(77, 217, 128, 0.18);
+    padding: 4px 12px; border-radius: 999px; display: inline-block;
+    margin: 10px 0 6px; direction: rtl;
 }}
+.fin-txn-list {{ padding-top: 4px; }}
 .fin-txn {{
     display: flex; align-items: center; gap: 10px;
-    padding: 10px 0; border-bottom: 1px solid var(--surface-muted);
+    padding: 11px 12px; margin-bottom: 6px;
+    background: var(--surface-muted);
+    border: 1px solid var(--divider);
+    border-radius: 14px;
     direction: rtl;
+    animation: finTxnIn 0.35s var(--ease-out) both;
+    animation-delay: calc(var(--fin-stagger, 0) * 35ms);
+    transition: transform var(--duration-fast), border-color var(--duration-fast);
 }}
-.fin-txn:last-child {{ border-bottom: none; }}
+.fin-txn:active {{ transform: scale(0.985); }}
 .fin-txn-icon {{
-    width: 36px; height: 36px; border-radius: 50%;
+    width: 38px; height: 38px; border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
     font-size: 16px; font-weight: bold; flex-shrink: 0;
 }}
-.fin-txn.income .fin-txn-icon {{ background: #1A4028; color: #4DD980; }}
-.fin-txn.expense .fin-txn-icon {{ background: #3D1818; color: #FF7359; }}
-.fin-txn.income {{ border-right: 3px solid #4DD980; padding-right: 8px; margin-right: -3px; }}
-.fin-txn.expense {{ border-right: 3px solid #FF7359; padding-right: 8px; margin-right: -3px; }}
+.fin-txn.income .fin-txn-icon {{ background: rgba(77,217,128,0.15); color: #4DD980; border: 1px solid rgba(77,217,128,0.25); }}
+.fin-txn.expense .fin-txn-icon {{ background: rgba(255,115,89,0.15); color: #FF7359; border: 1px solid rgba(255,115,89,0.25); }}
+.fin-txn.investment .fin-txn-icon {{ background: rgba(255,176,32,0.15); color: #FFB020; border: 1px solid rgba(255,176,32,0.25); }}
+.fin-txn.income {{ border-right: 3px solid #4DD980; }}
+.fin-txn.expense {{ border-right: 3px solid #FF7359; }}
+.fin-txn.investment {{ border-right: 3px solid #FFB020; }}
 .fin-txn-body {{ flex: 1; min-width: 0; }}
-.fin-txn-title {{ font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-.fin-txn-meta {{ font-size: 11px; color: var(--text-muted); margin-top: 2px; }}
+.fin-txn-title {{ font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+.fin-txn-meta {{ font-size: 11px; color: var(--text-muted); margin-top: 3px; }}
 .fin-txn-cat {{ display: inline-flex; align-items: center; gap: 4px; opacity: 0.95; }}
 .fin-txn-cat .fin-icon {{ width: 20px; height: 20px; font-size: 11px; border-radius: 6px; }}
 .fin-txn-right {{ text-align: left; flex-shrink: 0; }}
-.fin-txn-amount {{ font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; }}
+.fin-txn-amount {{ font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }}
 .fin-txn.income .fin-txn-amount {{ color: #4DD980; }}
 .fin-txn.expense .fin-txn-amount {{ color: #FF7359; }}
-.fin-txn.investment .fin-txn-icon {{ background: #3D3018; color: #FFB020; }}
-.fin-txn.investment {{ border-right: 3px solid #FFB020; padding-right: 8px; margin-right: -3px; }}
 .fin-txn.investment .fin-txn-amount {{ color: #FFB020; }}
 .fin-txn-tag {{
     font-size: 10px; background: rgba(255,176,32,0.15); color: #FFB020;
     padding: 1px 6px; border-radius: 8px;
 }}
-.fin-txn-btns {{ display: flex; gap: 2px; justify-content: flex-end; margin-top: 2px; }}
+.fin-txn-btns {{ display: flex; gap: 2px; justify-content: flex-end; margin-top: 3px; }}
 .fin-txn-btn {{
     background: none; border: none; color: var(--text-muted);
-    font-size: 14px; cursor: pointer; padding: 2px 5px; border-radius: 6px;
+    font-size: 14px; cursor: pointer; padding: 3px 6px; border-radius: 8px;
+    transition: background var(--duration-fast), color var(--duration-fast);
 }}
 .fin-txn-btn.del {{ color: #FF595988; }}
-.fin-txn-btn:active {{ background: var(--surface-muted); }}
+.fin-txn-btn:active {{ background: var(--surface); }}
 
 .fin-budget-item {{
-    padding: 10px 0; border-bottom: 1px solid var(--surface-muted);
+    padding: 12px 0; border-bottom: 1px solid var(--surface-muted);
+    animation: finTxnIn 0.35s var(--ease-out) both;
+    animation-delay: calc(var(--fin-stagger, 0) * 40ms);
 }}
 .fin-budget-item:last-child {{ border-bottom: none; }}
-.fin-budget-item.over {{ background: rgba(255,89,89,0.04); margin: 0 -8px; padding: 10px 8px; border-radius: 10px; }}
+.fin-budget-item.over {{
+    background: rgba(255,89,89,0.05); margin: 0 -8px; padding: 12px 8px;
+    border-radius: 12px; border: 1px solid rgba(255,89,89,0.12);
+}}
 .fin-budget-top {{ display: flex; align-items: center; gap: 8px; direction: rtl; }}
 .fin-budget-icon {{ flex-shrink: 0; line-height: 0; }}
-.fin-budget-icon .fin-icon {{ width: 32px; height: 32px; font-size: 16px; border-radius: 10px; }}
+.fin-budget-icon .fin-icon {{ width: 34px; height: 34px; font-size: 16px; border-radius: 11px; }}
 .fin-budget-info {{ flex: 1; min-width: 0; }}
-.fin-budget-name {{ font-size: 13px; font-weight: bold; }}
-.fin-budget-sub {{ font-size: 11px; color: var(--text-muted); margin-top: 1px; }}
+.fin-budget-name {{ font-size: 13px; font-weight: 700; }}
+.fin-budget-sub {{ font-size: 11px; color: var(--text-muted); margin-top: 2px; }}
 .fin-budget-pct {{ font-size: 12px; font-weight: bold; color: var(--primary); min-width: 32px; text-align: center; }}
+.fin-budget-ring {{
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: conic-gradient(
+        var(--fin-budget-color, #4DD980) 0 calc(var(--fin-budget-pct, 0) * 1%),
+        var(--surface-muted) calc(var(--fin-budget-pct, 0) * 1%) 100%
+    );
+    font-size: 9px; font-weight: 800; color: var(--text);
+}}
+.fin-budget-ring span {{
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    font-variant-numeric: tabular-nums;
+}}
 .fin-budget-item.over .fin-budget-pct {{ color: var(--error); }}
 .fin-budget-track {{
-    height: 5px; border-radius: 3px; background: var(--surface-muted);
-    overflow: hidden; margin-top: 8px;
+    height: 6px; border-radius: 999px; background: var(--surface-muted);
+    overflow: hidden; margin-top: 10px;
 }}
 .fin-budget-fill {{
-    height: 100%; border-radius: 3px;
-    background: linear-gradient(90deg, var(--primary), var(--success));
-    transition: width 0.4s ease;
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #059669, #4DD980);
+    transition: width 0.5s var(--ease-out);
+    box-shadow: 0 0 8px rgba(77, 217, 128, 0.3);
 }}
-.fin-budget-fill.over {{ background: linear-gradient(90deg, #FF7359, var(--error)); }}
-.fin-budget-empty {{ font-size: 11px; color: var(--text-muted); margin-top: 6px; }}
-.fin-budget-empty a {{ color: var(--primary); }}
-.fin-budget-warn {{ font-size: 10px; color: var(--error); margin-top: 4px; }}
+.fin-budget-fill.over {{
+    background: linear-gradient(90deg, #FF7359, var(--error));
+    box-shadow: 0 0 8px rgba(255, 115, 89, 0.3);
+}}
+.fin-budget-empty {{ font-size: 11px; color: var(--text-muted); margin-top: 8px; }}
+.fin-budget-empty a {{ color: #4DD980; font-weight: 600; }}
+.fin-budget-warn {{
+    font-size: 10px; color: var(--error); margin-top: 6px; font-weight: 600;
+    display: flex; align-items: center; gap: 4px;
+}}
 
-.fin-daily-table {{ direction: rtl; }}
+.fin-daily-table {{
+    direction: rtl;
+    background: var(--surface-muted);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--divider);
+}}
 .fin-daily-head, .fin-daily-row {{
     display: grid; grid-template-columns: 1.1fr 0.9fr 0.9fr 0.9fr 0.9fr;
-    gap: 4px; padding: 6px 0; font-size: 10px; align-items: center;
+    gap: 4px; padding: 8px 10px; font-size: 10px; align-items: center;
 }}
-.fin-daily-head {{ color: var(--text-muted); border-bottom: 1px solid var(--divider); font-weight: bold; }}
-.fin-daily-row {{ border-bottom: 1px solid var(--surface-muted); }}
+.fin-daily-head {{
+    color: var(--text-muted); background: rgba(0,0,0,0.15);
+    font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.03em;
+}}
+.fin-daily-row {{
+    border-bottom: 1px solid var(--surface-muted);
+    animation: finTxnIn 0.3s var(--ease-out) both;
+    animation-delay: calc(var(--fin-stagger, 0) * 25ms);
+    transition: background var(--duration-fast);
+}}
+.fin-daily-row:nth-child(even) {{ background: rgba(255,255,255,0.02); }}
 .fin-daily-row:last-child {{ border-bottom: none; }}
-.fin-daily-date {{ color: var(--text-muted); }}
-.fin-daily-inc {{ color: #4DD980; font-variant-numeric: tabular-nums; }}
-.fin-daily-exp {{ color: #FF7359; font-variant-numeric: tabular-nums; }}
-.fin-daily-inv {{ color: #FFB020; font-variant-numeric: tabular-nums; }}
-.fin-daily-net {{ font-weight: bold; font-variant-numeric: tabular-nums; }}
+.fin-daily-date {{ color: var(--text-muted); font-weight: 500; }}
+.fin-daily-inc {{ color: #4DD980; font-variant-numeric: tabular-nums; font-weight: 600; }}
+.fin-daily-exp {{ color: #FF7359; font-variant-numeric: tabular-nums; font-weight: 600; }}
+.fin-daily-inv {{ color: #FFB020; font-variant-numeric: tabular-nums; font-weight: 600; }}
+.fin-daily-net {{ font-weight: 800; font-variant-numeric: tabular-nums; }}
 .fin-daily-net.pos {{ color: #4DD980; }}
 .fin-daily-net.neg {{ color: #FF7359; }}
+[data-theme="light"] .fin-daily-head {{ background: rgba(15, 46, 40, 0.04); }}
+[data-theme="light"] .fin-daily-row:nth-child(even) {{ background: rgba(15, 46, 40, 0.02); }}
+[data-theme="light"] .fin-card-badge {{ background: rgba(15, 46, 40, 0.06); color: #0F2E28; border-color: rgba(15, 46, 40, 0.1); }}
+[data-theme="light"] .fin-chip-btn.primary {{ background: rgba(15, 46, 40, 0.08); color: #0F2E28; border-color: rgba(15, 46, 40, 0.14); }}
 
 /* legacy budget styles (home screen) */
 .budget-row {{ margin-bottom: 12px; }}
@@ -3153,6 +3484,42 @@ body.kb-open .proj-sheet-overlay {{
     0%, 100% {{ transform: scale(1); opacity: 0.6; }}
     50% {{ transform: scale(1.04); opacity: 1; }}
 }}
+@keyframes finOrbFloat {{
+    0%, 100% {{ transform: translate(0, 0) scale(1); }}
+    50% {{ transform: translate(6px, -8px) scale(1.04); }}
+}}
+@keyframes finGlowPulse {{
+    0%, 100% {{ opacity: 1; transform: scale(1); }}
+    50% {{ opacity: 0.7; transform: scale(1.06); }}
+}}
+@keyframes finLivePulse {{
+    0%, 100% {{ opacity: 1; transform: scale(1); }}
+    50% {{ opacity: 0.55; transform: scale(0.85); }}
+}}
+@keyframes finRingGlow {{
+    0%, 100% {{ opacity: 0.5; transform: scale(1); }}
+    50% {{ opacity: 1; transform: scale(1.05); }}
+}}
+@keyframes finPanelIn {{
+    from {{ opacity: 0; transform: translateY(10px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
+@keyframes finBodyIn {{
+    from {{ opacity: 0; transform: translateY(6px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
+@keyframes finCardIn {{
+    from {{ opacity: 0; transform: translateY(14px) scale(0.98); }}
+    to {{ opacity: 1; transform: translateY(0) scale(1); }}
+}}
+@keyframes finTxnIn {{
+    from {{ opacity: 0; transform: translateX(8px); }}
+    to {{ opacity: 1; transform: translateX(0); }}
+}}
+@keyframes finDonutIn {{
+    from {{ opacity: 0; transform: rotate(-30deg) scale(0.85); }}
+    to {{ opacity: 1; transform: rotate(0) scale(1); }}
+}}
 
 @media (prefers-reduced-motion: reduce) {{
     *, *::before, *::after {{
@@ -3166,6 +3533,9 @@ body.kb-open .proj-sheet-overlay {{
     .home-orb, .home-today-dot, .home-running-dot, .home-eff-glow,
     .home-empty-ring, .home-header::after {{ animation: none; }}
     .home-hero-panel, .home-body, .home-task-card, .home-fab, .home-empty {{ animation: none; }}
+    .fin-orb, .fin-month-dot, .fin-header::after, .fin-ring-glow,
+    .fin-hero-panel, .fin-body, .fin-card-animate, .fin-txn, .fin-budget-item,
+    .fin-daily-row, .fin-inst-row, .fin-donut-chart {{ animation: none; }}
 }}
 
 /* ── Light theme extras ── */

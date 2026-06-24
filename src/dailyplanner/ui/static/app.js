@@ -1972,51 +1972,75 @@ function renderInstallmentCard(inst) {
 function renderFinanceScreen(f) {
     var entries = f.entries || [];
     window._finEntries = entries;
-    var t = f.totals || { balance: 0, balance_fmt: '۰', income_fmt: '۰', expense_fmt: '۰', investment: 0, investment_fmt: '۰' };
+    var t = f.totals || { balance: 0, balance_fmt: '۰', income: 0, expense: 0, income_fmt: '۰', expense_fmt: '۰', investment: 0, investment_fmt: '۰' };
     var balCls = t.balance >= 0 ? 'positive' : 'negative';
+    var budgetCats = f.by_category || [];
+    var hasExpenseData = budgetCats.some(function(c) { return c.expense > 0; });
 
     var html = '<div class="fin-page">' +
         '<div class="date-header fin-header">' +
+        '<div class="fin-header-orbs" aria-hidden="true">' +
+        '<div class="fin-orb fin-orb-1"></div>' +
+        '<div class="fin-orb fin-orb-2"></div>' +
+        '<div class="fin-orb fin-orb-3"></div></div>' +
+        '<div class="fin-header-brand">' +
         '<div class="fin-header-top">' +
-        finEmoji('💰', 'md') +
+        '<div class="fin-brand-mark">' + finEmoji('💰', 'md') + '</div>' +
+        '<div class="fin-header-titles">' +
         '<span class="fin-header-title">مالی</span>' +
+        '<span class="fin-header-sub">مدیریت درآمد و هزینه</span>' +
         '</div>' +
-        '<div class="date-header-row">' +
+        (f.is_current_month ? '<span class="fin-month-pill"><span class="fin-month-dot"></span>ماه جاری</span>' : '') +
+        '</div>' +
+        '<div class="date-header-row fin-date-row">' +
         navArrowBtn('prev', 'action(\'finance_prev_month\')', 'ماه قبل') +
         '<span class="date-title fin-month-title">' + esc(f.month_label) + '</span>' +
         navArrowBtn('next', 'action(\'finance_next_month\')', 'ماه بعد') +
         '</div>' +
-        (f.is_current_month ? '' : '<div class="date-header-tools">' +
+        (f.is_current_month ? '' : '<div class="date-header-tools fin-header-tools">' +
         '<button type="button" onclick="action(\'finance_current_month\')" class="today-btn fin-today-btn">ماه جاری</button></div>') +
-        '<div class="fin-hero fin-hero-in-header">' +
+        '<div class="fin-hero-panel">' +
+        '<div class="fin-hero-main">' +
+        finBalanceRing(t.income || 0, t.expense || 0, t.balance || 0) +
+        '<div class="fin-hero-side">' +
         '<div class="fin-hero-label">موجودی این ماه</div>' +
         '<div class="fin-hero-balance ' + balCls + '">' + esc(t.balance_fmt) + '<span class="fin-hero-unit">تومان</span></div>' +
+        finCashFlowBar(t.income || 0, t.expense || 0) +
         '<div class="fin-hero-stats">' +
         '<div class="fin-hero-stat income">' + finEmoji('📈', 'sm') + '<div><span class="fin-stat-lbl">درآمد</span><span class="fin-stat-val">' + esc(t.income_fmt) + '</span></div></div>' +
         '<div class="fin-hero-stat expense">' + finEmoji('💸', 'sm') + '<div><span class="fin-stat-lbl">هزینه</span><span class="fin-stat-val">' + esc(t.expense_fmt) + '</span></div></div>' +
         '</div>' +
         (t.investment > 0 ? '<div class="fin-hero-invest">' + finEmoji('💎', 'sm') + ' سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + ' <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
-        '</div></div>';
+        '</div></div></div></div>';
+
+    html += '<div class="fin-body">';
 
     html += '<div class="fin-actions">' +
-        '<button class="fin-action-btn income" onclick="showAddFinance(\'income\')"><span class="fin-action-icon">+</span>درآمد</button>' +
-        '<button class="fin-action-btn expense" onclick="showAddFinance(\'expense\')"><span class="fin-action-icon">+</span>هزینه</button>' +
-        '<button class="fin-action-btn invest" onclick="showAddFinance(\'investment\')"><span class="fin-action-icon">◆</span>سرمایه</button>' +
-        '<button class="fin-action-btn budget" onclick="showAddBudget()"><span class="fin-action-icon">◎</span>بودجه</button>' +
-        '<button class="fin-action-btn inst" onclick="action(\'navigate\',{screen:\'installments\'})"><span class="fin-action-icon">📋</span>اقساط</button>' +
+        '<button class="fin-action-btn income" onclick="showAddFinance(\'income\')"><span class="fin-action-glow"></span><span class="fin-action-icon">↑</span><span class="fin-action-lbl">درآمد</span></button>' +
+        '<button class="fin-action-btn expense" onclick="showAddFinance(\'expense\')"><span class="fin-action-glow"></span><span class="fin-action-icon">↓</span><span class="fin-action-lbl">هزینه</span></button>' +
+        '<button class="fin-action-btn invest" onclick="showAddFinance(\'investment\')"><span class="fin-action-glow"></span><span class="fin-action-icon">◆</span><span class="fin-action-lbl">سرمایه</span></button>' +
+        '<button class="fin-action-btn budget" onclick="showAddBudget()"><span class="fin-action-glow"></span><span class="fin-action-icon">◎</span><span class="fin-action-lbl">بودجه</span></button>' +
+        '<button class="fin-action-btn inst" onclick="action(\'navigate\',{screen:\'installments\'})"><span class="fin-action-glow"></span><span class="fin-action-icon">📋</span><span class="fin-action-lbl">اقساط</span></button>' +
         '</div>';
 
     html += renderInstallmentCard(f.installments);
 
-    html += '<div class="fin-card"><div class="fin-card-head">' + finCardTitle('chart', '📈', 'روند ماهانه') + '</div>';
+    if (hasExpenseData) {
+        html += '<div class="fin-card fin-card-animate" style="--fin-card-delay:0">' +
+            '<div class="fin-card-head">' + finCardTitle('expense', '🥧', 'توزیع هزینه\u200cها') + '</div>' +
+            finExpenseDonut(budgetCats) +
+            '</div>';
+    }
+
+    html += '<div class="fin-card fin-card-animate" style="--fin-card-delay:1"><div class="fin-card-head">' + finCardTitle('chart', '📈', 'روند ماهانه') + '</div>';
     if (f.chart && f.chart.has_data) {
-        html += financeLineChartSvg(f.chart, 320, 130);
+        html += financeLineChartSvg(f.chart, 320, 140);
     } else {
         html += finEmptyState('📊', 'با ثبت اولین تراکنش، نمودار روند مالی نمایش داده می‌شود', '+ ثبت هزینه', 'showAddFinance(\'expense\')', 'chart');
     }
     html += '</div>';
 
-    html += '<div class="fin-card fin-card-collapsible' + (_showFinanceTransactions ? ' open' : '') + '">'
+    html += '<div class="fin-card fin-card-collapsible fin-card-animate' + (_showFinanceTransactions ? ' open' : '') + '" style="--fin-card-delay:2">'
         + '<button type="button" class="fin-card-head fin-card-toggle"'
         + ' onclick="_showFinanceTransactions=!_showFinanceTransactions;renderApp(window._lastState)">'
         + finCardTitle('receipt', '🧾', 'تراکنش\u200cها')
@@ -2028,7 +2052,9 @@ function renderFinanceScreen(f) {
         if (!entries.length) {
             html += finEmptyState('🧾', 'هنوز تراکنشی ثبت نشده', '+ ثبت درآمد', 'showAddFinance(\'income\')', 'income');
         } else {
+            html += '<div class="fin-txn-list">';
             var lastDate = '';
+            var txnIdx = 0;
             entries.slice().reverse().forEach(function(e) {
                 if (e.date_label !== lastDate) {
                     lastDate = e.date_label;
@@ -2036,7 +2062,7 @@ function renderFinanceScreen(f) {
                 }
                 var info = finTypeInfo(e.type);
                 var rowCls = 'fin-txn ' + info.cls;
-                html += '<div class="' + rowCls + '">' +
+                html += '<div class="' + rowCls + '" style="--fin-stagger:' + txnIdx + '">' +
                     '<div class="fin-txn-icon">' + info.arrow + '</div>' +
                     '<div class="fin-txn-body">' +
                     '<div class="fin-txn-title">' + esc(e.title) + '</div>' +
@@ -2049,13 +2075,14 @@ function renderFinanceScreen(f) {
                     '<button class="fin-txn-btn" onclick="showEditFinanceById(' + e.id + ')">✎</button>' +
                     '<button class="fin-txn-btn del" onclick="action(\'delete_finance\',{id:' + e.id + '})">×</button>' +
                     '</div></div></div>';
+                txnIdx++;
             });
+            html += '</div>';
         }
     }
     html += '</div>';
 
-    var budgetCats = f.by_category || [];
-    html += '<div class="fin-card fin-card-collapsible' + (_showFinanceBudgets ? ' open' : '') + '">'
+    html += '<div class="fin-card fin-card-collapsible fin-card-animate' + (_showFinanceBudgets ? ' open' : '') + '" style="--fin-card-delay:3">'
         + '<div class="fin-card-head">'
         + '<button type="button" class="fin-card-toggle fin-card-toggle-grow"'
         + ' onclick="_showFinanceBudgets=!_showFinanceBudgets;renderApp(window._lastState)">'
@@ -2072,18 +2099,18 @@ function renderFinanceScreen(f) {
         if (!budgetCats.length) {
             html += finEmptyState('🎯', 'بودجه ماهانه برای دسته‌ها تعیین نشده', '+ تعیین بودجه', 'showAddBudget()', 'budget');
         } else {
-            budgetCats.forEach(function(c) {
+            budgetCats.forEach(function(c, idx) {
                 var barCls = c.over_budget ? 'fin-budget-fill over' : 'fin-budget-fill';
                 var barWidth = c.budget > 0 ? Math.min(c.used_pct, 100) : 0;
                 var pctLbl = c.budget > 0 ? pd(c.used_pct) + '٪' : '—';
-                html += '<div class="fin-budget-item' + (c.over_budget ? ' over' : '') + '">' +
+                html += '<div class="fin-budget-item' + (c.over_budget ? ' over' : '') + '" style="--fin-stagger:' + idx + '">' +
                     '<div class="fin-budget-top">' +
                     '<span class="fin-budget-icon">' + finCatIconHtml(c.category) + '</span>' +
                     '<div class="fin-budget-info">' +
                     '<div class="fin-budget-name">' + esc(c.category) + '</div>' +
                     '<div class="fin-budget-sub">' + esc(c.expense_fmt) + ' از ' + (c.budget > 0 ? esc(c.budget_fmt) : '—') + '</div>' +
                     '</div>' +
-                    '<span class="fin-budget-pct">' + pctLbl + '</span>' +
+                    (c.budget > 0 ? '<div class="fin-budget-ring" style="--fin-budget-pct:' + Math.min(c.used_pct, 100) + ';--fin-budget-color:' + (c.over_budget ? '#FF7359' : '#4DD980') + '"><span>' + pctLbl + '</span></div>' : '<span class="fin-budget-pct">' + pctLbl + '</span>') +
                     '<div class="fin-txn-btns">' +
                     '<button class="fin-txn-btn" onclick="showAddBudget(\'' + escJs(c.category) + '\',' + c.budget + ')">✎</button>' +
                     (c.budget > 0
@@ -2101,12 +2128,12 @@ function renderFinanceScreen(f) {
     html += '</div>';
 
     if (f.daily_series && f.daily_series.length) {
-        html += '<div class="fin-card"><div class="fin-card-head">' + finCardTitle('daily', '📅', 'خلاصه روزانه') + '</div>' +
+        html += '<div class="fin-card fin-card-animate" style="--fin-card-delay:4"><div class="fin-card-head">' + finCardTitle('daily', '📅', 'خلاصه روزانه') + '</div>' +
             '<div class="fin-daily-table">' +
             '<div class="fin-daily-head"><span>تاریخ</span><span>درآمد</span><span>هزینه</span><span>سرمایه</span><span>خالص</span></div>';
-        f.daily_series.forEach(function(d) {
+        f.daily_series.forEach(function(d, idx) {
             var netCls = d.net >= 0 ? 'pos' : 'neg';
-            html += '<div class="fin-daily-row">' +
+            html += '<div class="fin-daily-row" style="--fin-stagger:' + idx + '">' +
                 '<span class="fin-daily-date">' + esc(d.date_label) + '</span>' +
                 '<span class="fin-daily-inc">' + esc(d.income_fmt) + '</span>' +
                 '<span class="fin-daily-exp">' + esc(d.expense_fmt) + '</span>' +
@@ -2116,7 +2143,7 @@ function renderFinanceScreen(f) {
         html += '</div></div>';
     }
 
-    return html + '</div>';
+    return html + '</div></div>';
 }
 
 function renderInstallments(data) {
