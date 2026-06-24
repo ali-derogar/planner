@@ -3776,18 +3776,7 @@ body.kb-open .proj-sheet-overlay {{
     animation: trackSlideUp 0.45s ease both;
 }}
 .track-breakdown-visual {{
-    display: flex; flex-direction: column; align-items: center; gap: 14px;
     margin-bottom: 14px;
-}}
-.track-breakdown-donut-wrap {{
-    position: relative; width: 100px; height: 100px;
-}}
-.track-breakdown-donut-center {{
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-}}
-.track-breakdown-total-lbl {{
-    font-size: 11px; font-weight: 600; color: var(--text-muted);
 }}
 .track-breakdown-bar {{
     display: flex; height: 10px; border-radius: 5px; overflow: hidden;

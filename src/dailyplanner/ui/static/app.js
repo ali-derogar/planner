@@ -2930,17 +2930,10 @@ function trackingEfficiencyRow(t, opts) {
 
 function trackingBreakdownSection(breakdown, totalSecs) {
     if (!breakdown || !breakdown.length || !totalSecs) return '';
-    var donutSegs = breakdown.map(function(b) {
-        return { color: trackColorForLabel(b.label), pct: b.pct };
-    });
     var html = '<div class="track-section track-breakdown-section">';
     html += trackSecTitle('📊', 'توزیع زمان');
     html += '<div class="track-breakdown-card">';
     html += '<div class="track-breakdown-visual">';
-    html += '<div class="track-breakdown-donut-wrap">';
-    html += trackDonutSvg(donutSegs, 100, 11);
-    html += '<div class="track-breakdown-donut-center"><span class="track-breakdown-total-lbl">کل</span></div>';
-    html += '</div>';
     html += '<div class="track-breakdown-bar track-breakdown-bar-lg">';
     breakdown.forEach(function(b) {
         var w = Math.max(b.pct, 4);
