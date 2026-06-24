@@ -2526,6 +2526,67 @@ function trackColorForLabel(label) {
     return TRACK_COLORS[Math.abs(hash) % TRACK_COLORS.length];
 }
 
+function trackEmojiForLabel(label) {
+    var s = (label || '').trim();
+    if (!s) return '⏱';
+    for (var i = 0; i < TRACK_ACTIVITIES.length; i++) {
+        var a = TRACK_ACTIVITIES[i];
+        if (trackActivityLabel(a) === s || a.l === s) return a.e;
+    }
+    var sp = s.indexOf(' ');
+    if (sp > 0) {
+        var prefix = s.slice(0, sp);
+        if (prefix.length <= 4) return prefix;
+    }
+    return '⏱';
+}
+
+function trackSecTitle(icon, text) {
+    return '<div class="sec-title track-sec-title">' + finEmoji(icon, 'sm') +
+        '<span>' + text + '</span></div>';
+}
+
+function trackDonutSvg(segments, size, strokeWidth) {
+    size = size || 120;
+    strokeWidth = strokeWidth || 12;
+    var r = (size - strokeWidth) / 2;
+    var c = 2 * Math.PI * r;
+    var cx = size / 2;
+    var offset = 0;
+    var rings = '';
+    segments.forEach(function(seg) {
+        if (!seg.pct) return;
+        var dash = Math.max((seg.pct / 100) * c, 0.5);
+        rings += '<circle class="track-donut-seg" cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" ' +
+            'stroke="' + seg.color + '" stroke-width="' + strokeWidth + '" stroke-linecap="round" ' +
+            'stroke-dasharray="' + dash + ' ' + (c - dash) + '" stroke-dashoffset="' + (-offset) + '" ' +
+            'transform="rotate(-90 ' + cx + ' ' + cx + ')" />';
+        offset += dash;
+    });
+    return '<svg class="track-donut" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true">' +
+        '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="var(--surface-muted)" stroke-width="' + strokeWidth + '" />' +
+        rings + '</svg>';
+}
+
+function trackLiveTimerHtml(startedEpoch) {
+    var attrs = startedEpoch ? ' data-started-epoch="' + startedEpoch + '"' : '';
+    return '<div class="track-timer-wrap">' +
+        '<div class="track-timer-glow"></div>' +
+        '<div class="track-timer-ring">' +
+        '<svg class="track-timer-svg" viewBox="0 0 180 180" aria-hidden="true">' +
+        '<defs><linearGradient id="trackTimerGrad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+        '<stop offset="0%" stop-color="#2DD4BF"/><stop offset="50%" stop-color="#818CF8"/><stop offset="100%" stop-color="#2DD4BF"/>' +
+        '</linearGradient></defs>' +
+        '<circle class="track-timer-track" cx="90" cy="90" r="82" fill="none" stroke="rgba(45,212,191,0.12)" stroke-width="6"/>' +
+        '<circle class="track-timer-progress" cx="90" cy="90" r="82" fill="none" stroke="url(#trackTimerGrad)" stroke-width="6" ' +
+        'stroke-linecap="round" stroke-dasharray="120 396" transform="rotate(-90 90 90)"/>' +
+        '</svg>' +
+        '<div class="track-timer-inner">' +
+        '<div class="track-timer-lbl">فعالیت فعلی</div>' +
+        '<div id="tracking-live" class="track-timer-val"' + attrs + '>۰۰:۰۰:۰۰</div>' +
+        '</div></div></div>';
+}
+
 function setTrackLabel(intervalId, label) {
     action('set_tracking_label', { interval_id: intervalId, label: label });
 }
@@ -2585,22 +2646,31 @@ function onTrackLabelInput(intervalId, input) {
     box.style.display = 'block';
 }
 
-function trackingHeader(t, heroInner) {
+function trackingHeader(t, heroInner, opts) {
+    opts = opts || {};
     var html = '<div class="date-header track-header">';
-    html += '<div class="track-header-top">' + finEmoji('⏱️', 'md') + '<span class="track-header-title">ردیابی روز</span></div>';
+    html += '<div class="track-header-orbs" aria-hidden="true"><span class="track-orb track-orb-1"></span><span class="track-orb track-orb-2"></span><span class="track-orb track-orb-3"></span></div>';
+    html += '<div class="track-header-top">' + finEmoji('⏱️', 'md') + '<span class="track-header-title">ردیابی روز</span>';
+    if (opts.live) {
+        html += '<span class="track-live-badge"><span class="track-live-dot"></span>در حال ثبت</span>';
+    }
+    html += '</div>';
     html += '<div class="track-date-label">' + esc(t.date_label) + '</div>';
     if (heroInner) html += heroInner;
     html += '</div>';
     return html;
 }
 
-function trackingIntervalCard(iv, totalSecs) {
+function trackingIntervalCard(iv, totalSecs, opts) {
+    opts = opts || {};
     var isExpanded = !!_expandedTrackingIntervals[iv.id];
     var pct = totalSecs > 0 && iv.duration_secs ? Math.round(iv.duration_secs / totalSecs * 100) : 0;
     var label = (iv.label || '').trim();
     var color = trackColorForLabel(label || 'بدون عنوان');
+    var emoji = trackEmojiForLabel(label);
     var displayLabel = label || 'بدون عنوان';
     var cardCls = 'track-interval' + (isExpanded ? ' is-open' : '');
+    if (iv.is_active) cardCls += ' is-active';
     if (iv.is_useful === true) cardCls += ' is-useful';
     else if (iv.is_useful === false) cardCls += ' is-not-useful';
 
@@ -2610,10 +2680,13 @@ function trackingIntervalCard(iv, totalSecs) {
         if (iv.ended_label) timeCompact += ' ← ' + esc(iv.ended_label);
     }
 
-    var html = '<div class="' + cardCls + '">';
+    var html = '<div class="' + cardCls + '"' + (opts.stagger != null ? ' style="--track-stagger:' + opts.stagger + '"' : '') + '>';
+    html += '<div class="track-timeline-node" style="--node-color:' + color + '"><span class="track-timeline-dot"></span></div>';
+    html += '<div class="track-interval-card">';
     html += '<div class="track-interval-accent" style="background:' + color + '"></div>';
     html += '<div class="track-interval-body">';
     html += '<button type="button" class="track-interval-header" onclick="toggleTrackingInterval(' + iv.id + ')">';
+    html += '<span class="track-interval-avatar" style="--avatar-color:' + color + '">' + emoji + '</span>';
     html += '<span class="track-interval-header-main">';
     html += '<span class="track-interval-label">' + esc(displayLabel) + '</span>';
     if (timeCompact) {
@@ -2623,6 +2696,11 @@ function trackingIntervalCard(iv, totalSecs) {
     html += '<span class="track-interval-top-end">';
     if (iv.duration_label) {
         html += '<span class="track-interval-dur">' + esc(iv.duration_label) + '</span>';
+    } else if (iv.is_active) {
+        html += '<span class="track-interval-live">زنده</span>';
+    }
+    if (pct > 0 && !isExpanded) {
+        html += '<span class="track-interval-pct">' + pd(pct) + '٪</span>';
     }
     html += collapseChevron(isExpanded);
     if (!iv.is_active) {
@@ -2639,6 +2717,7 @@ function trackingIntervalCard(iv, totalSecs) {
         }
         if (pct > 0) {
             html += '<div class="track-interval-bar"><div class="track-interval-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>';
+            html += '<div class="track-interval-pct-row"><span>سهم از کل روز</span><span>' + pd(pct) + '٪</span></div>';
         }
         html += trackingUsefulChips(iv.id, iv.is_useful);
         html += '<div class="track-label-row">';
@@ -2655,6 +2734,36 @@ function trackingIntervalCard(iv, totalSecs) {
         html += '</div></div>';
     }
 
+    html += '</div></div></div>';
+    return html;
+}
+
+function trackingActivePanel(iv) {
+    if (!iv) return '';
+    var label = (iv.label || '').trim();
+    var emoji = trackEmojiForLabel(label);
+    var color = trackColorForLabel(label || 'فعالیت');
+    var displayLabel = label || 'عنوان فعالیت را وارد کنید';
+    var html = '<div class="track-active-panel">';
+    html += '<div class="track-active-panel-head">';
+    html += '<span class="track-active-emoji" style="--avatar-color:' + color + '">' + emoji + '</span>';
+    html += '<div class="track-active-meta">';
+    html += '<span class="track-active-title">' + esc(displayLabel) + '</span>';
+    if (iv.started_label) {
+        html += '<span class="track-active-since">از ' + esc(iv.started_label) + '</span>';
+    }
+    html += '</div></div>';
+    html += '<div class="track-label-row track-active-label-row">';
+    html += '<div class="track-label-wrap">';
+    html += '<input type="text" class="track-label-input track-label-input-prominent" data-interval-id="' + iv.id + '" ' +
+        'placeholder="چه کاری انجام می\u200cدهید؟" value="' + esc(label) + '" autocomplete="off" ' +
+        'oninput="onTrackLabelInput(' + iv.id + ', this)" onfocus="onTrackLabelInput(' + iv.id + ', this)" ' +
+        'onblur="hideTrackLabelSuggestionsDelayed(' + iv.id + ')" ' +
+        'onchange="action(\'set_tracking_label\',{interval_id:' + iv.id + ',label:this.value})">';
+    html += '<div class="track-label-suggestions" id="track-label-sug-' + iv.id + '"></div>';
+    html += '</div>';
+    html += '<button type="button" class="track-pick-btn track-pick-btn-lg" onclick="showActivityPicker(' + iv.id + ')" aria-label="انتخاب فعالیت">' +
+        finEmoji('📋', 'sm') + '<span>انتخاب</span></button>';
     html += '</div></div>';
     return html;
 }
@@ -2663,42 +2772,72 @@ function trackingUsefulChips(intervalId, isUseful) {
     var uCls = isUseful === true ? 'chip-useful-on' : 'chip-useful-off';
     var nuCls = isUseful === false ? 'chip-notuseful-on' : 'chip-neutral';
     return '<div class="track-useful-row">' +
-        '<a href="javascript:void(0)" onclick="action(\'set_tracking_useful\',{interval_id:' + intervalId + ',value:\'true\'})" class="chip ' + uCls + '">✔ مفید</a>' +
-        '<a href="javascript:void(0)" onclick="action(\'set_tracking_useful\',{interval_id:' + intervalId + ',value:\'false\'})" class="chip ' + nuCls + '">✖ نامفید</a>' +
+        '<a href="javascript:void(0)" onclick="action(\'set_tracking_useful\',{interval_id:' + intervalId + ',value:\'true\'})" class="chip track-chip ' + uCls + '">' + finEmoji('✅', 'sm') + ' مفید</a>' +
+        '<a href="javascript:void(0)" onclick="action(\'set_tracking_useful\',{interval_id:' + intervalId + ',value:\'false\'})" class="chip track-chip ' + nuCls + '">' + finEmoji('⚠️', 'sm') + ' نامفید</a>' +
         '</div>';
 }
 
 function trackingEfficiencyRow(t) {
-    if (!t.useful_label && !t.not_useful_label) return '';
-    var html = '<div class="track-eff-row">';
+    if (!t.useful_label && !t.not_useful_label && t.efficiency == null) return '';
+    var segments = [];
+    if (t.efficiency != null) {
+        segments.push({ color: '#34D399', pct: t.efficiency });
+        if (t.not_useful_label) {
+            segments.push({ color: '#FB923C', pct: 100 - t.efficiency });
+        }
+    }
+    var html = '<div class="track-stats-panel">';
+    if (t.efficiency != null && segments.length) {
+        html += '<div class="track-eff-gauge">';
+        html += trackDonutSvg(segments, 88, 10);
+        html += '<div class="track-eff-gauge-center"><span class="track-eff-gauge-val">' + pd(t.efficiency) + '٪</span><span class="track-eff-gauge-lbl">بازده</span></div>';
+        html += '</div>';
+    }
+    html += '<div class="track-stats-grid">';
     if (t.useful_label) {
-        html += '<span class="track-eff-item useful">' + finEmoji('✅', 'sm') + ' مفید: ' + esc(t.useful_label) + '</span>';
+        html += '<div class="track-stat-card useful">' + finEmoji('✅', 'sm') +
+            '<div><span class="track-stat-card-lbl">مفید</span><span class="track-stat-card-val">' + esc(t.useful_label) + '</span></div></div>';
     }
     if (t.not_useful_label) {
-        html += '<span class="track-eff-item not">' + finEmoji('⚠️', 'sm') + ' نامفید: ' + esc(t.not_useful_label) + '</span>';
+        html += '<div class="track-stat-card not">' + finEmoji('⚠️', 'sm') +
+            '<div><span class="track-stat-card-lbl">نامفید</span><span class="track-stat-card-val">' + esc(t.not_useful_label) + '</span></div></div>';
     }
-    if (t.efficiency != null) {
-        html += '<span class="track-eff-item eff">' + finEmoji('🎯', 'sm') + ' بازده: ' + pd(t.efficiency) + '٪</span>';
+    if (t.completed_count) {
+        html += '<div class="track-stat-card neutral">' + finEmoji('📋', 'sm') +
+            '<div><span class="track-stat-card-lbl">بازه\u200cها</span><span class="track-stat-card-val">' + pd(t.completed_count) + '</span></div></div>';
     }
-    return html + '</div>';
+    html += '</div></div>';
+    return html;
 }
 
 function trackingBreakdownSection(breakdown, totalSecs) {
     if (!breakdown || !breakdown.length || !totalSecs) return '';
-    var html = '<div class="track-section"><div class="sec-title">توزیع زمان</div>';
-    html += '<div class="track-breakdown-bar">';
-    breakdown.forEach(function(b) {
-        var w = Math.max(b.pct, 3);
-        html += '<div class="track-breakdown-seg" style="width:' + w + '%;background:' + trackColorForLabel(b.label) + '" title="' + esc(b.label) + '"></div>';
+    var donutSegs = breakdown.map(function(b) {
+        return { color: trackColorForLabel(b.label), pct: b.pct };
     });
-    html += '</div><div class="track-breakdown-legend">';
+    var html = '<div class="track-section track-breakdown-section">';
+    html += trackSecTitle('📊', 'توزیع زمان');
+    html += '<div class="track-breakdown-card">';
+    html += '<div class="track-breakdown-visual">';
+    html += '<div class="track-breakdown-donut-wrap">';
+    html += trackDonutSvg(donutSegs, 100, 11);
+    html += '<div class="track-breakdown-donut-center"><span class="track-breakdown-total-lbl">کل</span></div>';
+    html += '</div>';
+    html += '<div class="track-breakdown-bar track-breakdown-bar-lg">';
     breakdown.forEach(function(b) {
-        html += '<div class="track-legend-item">' +
-            '<span class="track-legend-dot" style="background:' + trackColorForLabel(b.label) + '"></span>' +
-            '<span class="track-legend-label">' + esc(b.label) + '</span>' +
-            '<span class="track-legend-val">' + esc(b.duration_label) + ' · ' + pd(b.pct) + '٪</span></div>';
+        var w = Math.max(b.pct, 4);
+        html += '<div class="track-breakdown-seg" style="width:' + w + '%;background:' + trackColorForLabel(b.label) + '" title="' + esc(b.label) + ' · ' + pd(b.pct) + '٪"></div>';
     });
     html += '</div></div>';
+    html += '<div class="track-breakdown-legend">';
+    breakdown.forEach(function(b, idx) {
+        html += '<div class="track-legend-item" style="--track-stagger:' + idx + '">' +
+            '<span class="track-legend-dot" style="background:' + trackColorForLabel(b.label) + '"></span>' +
+            '<span class="track-legend-label">' + esc(b.label) + '</span>' +
+            '<span class="track-legend-bar-wrap"><span class="track-legend-bar" style="width:' + Math.max(b.pct, 4) + '%;background:' + trackColorForLabel(b.label) + '"></span></span>' +
+            '<span class="track-legend-val">' + esc(b.duration_label) + ' · ' + pd(b.pct) + '٪</span></div>';
+    });
+    html += '</div></div></div>';
     return html;
 }
 
@@ -2711,12 +2850,19 @@ function renderTracking(t) {
 
     if (!hasData && !session) {
         html += trackingHeader(t);
+        html += '<div class="track-empty-hero" aria-hidden="true">' +
+            '<div class="track-empty-rings"><span></span><span></span><span></span></div>' +
+            '<div class="track-empty-icon">' + finEmoji('⏱️', 'lg') + '</div></div>';
         html += '<div class="empty-state track-empty">' +
-            finIcon('neutral', '⏱', 'lg') +
             '<div class="empty-title">روز خود را ردیابی کنید</div>' +
-            '<div class="empty-sub">با زدن شروع، زمان هر فعالیت را ثبت کنید و در پایان روز ببینید وقتتان کجا رفته</div>' +
+            '<div class="empty-sub">هر فعالیت را ثبت کنید و در پایان روز ببینید وقتتان کجا رفته — با یک ضربه شروع کنید</div>' +
             '<button type="button" class="empty-btn track-start-btn" onclick="action(\'start_tracking\',{})">' +
             ico('play', 'ico') + ' شروع ردیابی</button></div>';
+        html += '<div class="track-features">' +
+            '<div class="track-feature"><span class="track-feature-icon">' + finEmoji('🎯', 'sm') + '</span><span>بازده روزانه</span></div>' +
+            '<div class="track-feature"><span class="track-feature-icon">' + finEmoji('📊', 'sm') + '</span><span>نمودار توزیع</span></div>' +
+            '<div class="track-feature"><span class="track-feature-icon">' + finEmoji('⚡', 'sm') + '</span><span>تعویض سریع</span></div>' +
+            '</div>';
         html += '<div class="track-tips"><div class="track-tip">' + finEmoji('💡', 'sm') +
             ' عنوان را بنویسید یا از دکمه «انتخاب» یکی از فعالیت\u200cهای رایج را برگزینید</div></div>';
         return html + '</div>';
@@ -2740,44 +2886,41 @@ function renderTracking(t) {
         }
 
         var heroHtml = '<div class="track-hero-in-header">';
-        heroHtml += '<div class="track-timer-wrap">';
-        heroHtml += '<div class="track-timer-ring"><div class="track-timer-inner">';
-        heroHtml += '<div class="track-timer-lbl">فعالیت فعلی</div>';
-        heroHtml += '<div id="tracking-live" class="track-timer-val"' +
-            (activeInterval ? ' data-started-epoch="' + activeInterval.started_epoch + '"' : '') +
-            '>۰۰:۰۰:۰۰</div>';
-        heroHtml += '</div></div></div>';
+        heroHtml += trackLiveTimerHtml(activeInterval ? activeInterval.started_epoch : null);
         heroHtml += '<div class="track-hero-stats">';
         heroHtml += '<div class="track-hero-stat">' + finEmoji('🕐', 'sm') + '<div><span class="track-stat-lbl">شروع</span><span class="track-stat-val">' + esc(session.started_label) + '</span></div></div>';
         heroHtml += '<div class="track-hero-stat">' + finEmoji('📋', 'sm') + '<div><span class="track-stat-lbl">بازه\u200cها</span><span class="track-stat-val">' + pd(completedCount) + '</span></div></div>';
         heroHtml += '<div class="track-hero-stat">' + finEmoji('⏳', 'sm') + '<div><span class="track-stat-lbl">کل امروز</span><span class="track-stat-val">' + esc(dayTotalLabel) + '</span></div></div>';
         heroHtml += '</div></div>';
 
-        html += trackingHeader(t, heroHtml);
+        html += trackingHeader(t, heroHtml, { live: true });
+
+        html += trackingActivePanel(activeInterval);
 
         html += '<div class="track-actions">';
         html += '<button type="button" class="track-btn track-btn-switch" onclick="action(\'switch_tracking\',{session_id:' + sid + '})">';
         html += '<span class="track-btn-icon">⇄</span><span class="track-btn-text">تعویض فعالیت</span></button>';
+        html += '<div class="track-actions-secondary">';
         html += '<button type="button" class="track-btn track-btn-stop" onclick="action(\'stop_tracking\',{session_id:' + sid + '})">';
         html += ico('stop', 'ico') + '<span>توقف</span></button>';
         html += '<button type="button" class="track-btn track-btn-delete" onclick="action(\'delete_tracking_session\',{session_id:' + sid + '})">';
         html += '<span aria-hidden="true">🗑</span><span>حذف</span></button>';
-        html += '</div>';
-
-        html += '<div class="track-hint">' + finEmoji('👆', 'sm') + ' با «تعویض فعالیت» بازه قبلی بسته می\u200cشود — سپس عنوان بنویسید یا «انتخاب» بزنید</div>';
+        html += '</div></div>';
 
         if (currentCompleted.length) {
-            html += '<div class="track-section"><div class="sec-title">بازه\u200cهای این دور</div><div class="track-timeline">';
+            html += '<div class="track-section"><div class="track-timeline">';
+            html += trackSecTitle('🕓', 'بازه\u200cهای این دور');
             for (var j = currentCompleted.length - 1; j >= 0; j--) {
-                html += trackingIntervalCard(currentCompleted[j], dayTotalSecs);
+                html += trackingIntervalCard(currentCompleted[j], dayTotalSecs, { stagger: currentCompleted.length - 1 - j });
             }
             html += '</div></div>';
         }
 
         if (earlierIntervals.length) {
-            html += '<div class="track-section"><div class="sec-title">ردیابی\u200cهای قبلی امروز</div><div class="track-timeline">';
+            html += '<div class="track-section"><div class="track-timeline">';
+            html += trackSecTitle('📅', 'ردیابی\u200cهای قبلی امروز');
             for (var k = earlierIntervals.length - 1; k >= 0; k--) {
-                html += trackingIntervalCard(earlierIntervals[k], dayTotalSecs);
+                html += trackingIntervalCard(earlierIntervals[k], dayTotalSecs, { stagger: earlierIntervals.length - 1 - k });
             }
             html += '</div></div>';
         }
@@ -2796,10 +2939,13 @@ function renderTracking(t) {
         html += trackingEfficiencyRow(t);
         html += trackingBreakdownSection(t.breakdown, dayTotalSecs);
 
-        html += '<div class="track-section"><div class="sec-title">جدول زمانی امروز</div><div class="track-timeline">';
+        html += '<div class="track-section"><div class="track-timeline">';
+        html += trackSecTitle('🗓️', 'جدول زمانی امروز');
+        var timelineIdx = 0;
         intervals.forEach(function(iv2) {
             if (!iv2.duration_label) return;
-            html += trackingIntervalCard(iv2, dayTotalSecs);
+            html += trackingIntervalCard(iv2, dayTotalSecs, { stagger: timelineIdx });
+            timelineIdx += 1;
         });
         html += '</div></div>';
 

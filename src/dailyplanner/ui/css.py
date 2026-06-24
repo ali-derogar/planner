@@ -2853,20 +2853,62 @@ body.kb-open .proj-sheet-overlay {{
 }}
 
 /* ── Tracking screen ── */
-.track-page {{ padding-bottom: 12px; }}
+.track-page {{ padding-bottom: 16px; }}
 
 .track-header {{
-    background: linear-gradient(145deg, #0F2A2E 0%, #134E4A 45%, #0F2428 100%);
+    background: linear-gradient(155deg, #0A1F22 0%, #0F2A2E 35%, #134E4A 70%, #0C2328 100%);
+    overflow: hidden;
 }}
 .track-header::before {{
-    background: radial-gradient(ellipse at 85% 15%, rgba(45, 212, 191, 0.22), transparent 55%);
+    background:
+        radial-gradient(ellipse 70% 55% at 90% 8%, rgba(45, 212, 191, 0.28), transparent 58%),
+        radial-gradient(ellipse 50% 40% at 8% 92%, rgba(129, 140, 248, 0.14), transparent 55%);
+}}
+.track-header-orbs {{
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+}}
+.track-orb {{
+    position: absolute; border-radius: 50%; filter: blur(40px); opacity: 0.55;
+    animation: trackOrbFloat 8s ease-in-out infinite;
+}}
+.track-orb-1 {{
+    width: 120px; height: 120px; top: -30px; right: -20px;
+    background: rgba(45, 212, 191, 0.35);
+}}
+.track-orb-2 {{
+    width: 90px; height: 90px; bottom: 10px; left: -10px;
+    background: rgba(129, 140, 248, 0.25); animation-delay: -3s;
+}}
+.track-orb-3 {{
+    width: 60px; height: 60px; top: 40%; left: 45%;
+    background: rgba(52, 211, 153, 0.2); animation-delay: -5s;
+}}
+@keyframes trackOrbFloat {{
+    0%, 100% {{ transform: translate(0, 0) scale(1); }}
+    50% {{ transform: translate(6px, -8px) scale(1.06); }}
 }}
 .track-header-top {{
     display: flex; align-items: center; gap: 8px; direction: rtl;
     position: relative; z-index: 1; margin-bottom: 2px;
 }}
 .track-header-title {{
-    font-size: 16px; font-weight: bold; color: #fff;
+    font-size: 16px; font-weight: bold; color: #fff; flex: 1;
+}}
+.track-live-badge {{
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 600; color: #5EEAD4;
+    background: rgba(45, 212, 191, 0.12);
+    border: 1px solid rgba(45, 212, 191, 0.3);
+    border-radius: 999px; padding: 3px 10px 3px 8px;
+}}
+.track-live-dot {{
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #2DD4BF; box-shadow: 0 0 8px #2DD4BF;
+    animation: trackLivePulse 1.4s ease-in-out infinite;
+}}
+@keyframes trackLivePulse {{
+    0%, 100% {{ opacity: 1; transform: scale(1); }}
+    50% {{ opacity: 0.5; transform: scale(0.85); }}
 }}
 .track-date-label {{
     text-align: center; font-size: 12px;
@@ -2876,50 +2918,74 @@ body.kb-open .proj-sheet-overlay {{
 .track-hero-in-header {{
     margin: 4px 0 0;
     padding: 14px 12px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(45, 212, 191, 0.22);
-    border-radius: 14px;
-    position: relative;
-    z-index: 1;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(45, 212, 191, 0.2);
+    border-radius: 16px;
+    position: relative; z-index: 1;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }}
 .track-hero-summary {{ text-align: center; }}
 .track-hero-label {{
     font-size: 11px; color: rgba(255, 255, 255, 0.6); margin-bottom: 4px;
+    letter-spacing: 0.3px;
 }}
 .track-hero-total {{
-    font-size: 32px; font-weight: bold; color: #5EEAD4;
+    font-size: 36px; font-weight: 800; color: #5EEAD4;
     font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.1;
+    text-shadow: 0 0 24px rgba(45, 212, 191, 0.35);
 }}
 .track-hero-range {{
-    font-size: 12px; color: rgba(255, 255, 255, 0.5); margin-top: 6px;
+    font-size: 12px; color: rgba(255, 255, 255, 0.5); margin-top: 8px;
 }}
 .track-timer-wrap {{
-    display: flex; justify-content: center; padding: 8px 0 12px;
+    display: flex; justify-content: center; padding: 4px 0 14px;
+    position: relative;
+}}
+.track-timer-glow {{
+    position: absolute; width: 180px; height: 180px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(45, 212, 191, 0.2), transparent 70%);
+    animation: trackPulse 2.4s ease-in-out infinite;
 }}
 .track-timer-ring {{
-    width: 168px; height: 168px; border-radius: 50%;
-    background: conic-gradient(from 180deg, rgba(45, 212, 191, 0.35), rgba(99, 102, 241, 0.2), rgba(45, 212, 191, 0.35));
+    width: 176px; height: 176px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    animation: trackPulse 2.4s ease-in-out infinite;
-    box-shadow: 0 0 32px rgba(45, 212, 191, 0.15);
+    position: relative;
+}}
+.track-timer-svg {{
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    animation: trackRingSpin 12s linear infinite;
+}}
+.track-timer-progress {{
+    animation: trackRingDash 3s ease-in-out infinite;
+}}
+@keyframes trackRingSpin {{
+    from {{ transform: rotate(0deg); }}
+    to {{ transform: rotate(360deg); }}
+}}
+@keyframes trackRingDash {{
+    0%, 100% {{ stroke-dasharray: 80 436; opacity: 0.85; }}
+    50% {{ stroke-dasharray: 160 356; opacity: 1; }}
 }}
 @keyframes trackPulse {{
     0%, 100% {{ transform: scale(1); opacity: 1; }}
-    50% {{ transform: scale(1.03); opacity: 0.92; }}
+    50% {{ transform: scale(1.05); opacity: 0.85; }}
 }}
 .track-timer-inner {{
     width: 148px; height: 148px; border-radius: 50%;
-    background: rgba(10, 10, 15, 0.85);
-    border: 1px solid rgba(45, 212, 191, 0.25);
+    background: rgba(8, 12, 14, 0.88);
+    border: 1px solid rgba(45, 212, 191, 0.22);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px;
+    gap: 4px; position: relative; z-index: 1;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.05);
 }}
 .track-timer-lbl {{
     font-size: 11px; color: rgba(255, 255, 255, 0.5);
 }}
 .track-timer-val {{
-    font-size: 28px; font-weight: bold; color: #5EEAD4;
+    font-size: 30px; font-weight: 800; color: #5EEAD4;
     font-variant-numeric: tabular-nums; letter-spacing: 2px;
+    text-shadow: 0 0 16px rgba(45, 212, 191, 0.3);
 }}
 .track-hero-stats {{
     display: flex; gap: 6px; direction: rtl;
@@ -2928,7 +2994,8 @@ body.kb-open .proj-sheet-overlay {{
     flex: 1; display: flex; align-items: center; gap: 8px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(45, 212, 191, 0.12);
-    border-radius: 10px; padding: 8px 10px;
+    border-radius: 12px; padding: 9px 10px;
+    transition: border-color var(--duration-fast);
 }}
 .track-hero-stat .fin-emoji {{ flex-shrink: 0; }}
 .track-stat-lbl {{
@@ -2938,82 +3005,206 @@ body.kb-open .proj-sheet-overlay {{
     display: block; font-size: 12px; font-weight: bold;
     color: #fff; font-variant-numeric: tabular-nums;
 }}
+
+/* active session panel */
+.track-active-panel {{
+    margin: 12px 12px 0; padding: 14px;
+    background: linear-gradient(145deg, rgba(45, 212, 191, 0.08), rgba(99, 102, 241, 0.06));
+    border: 1px solid rgba(45, 212, 191, 0.22);
+    border-radius: 16px; direction: rtl;
+    animation: trackSlideUp 0.35s ease both;
+    box-shadow: 0 4px 20px rgba(45, 212, 191, 0.08);
+}}
+@keyframes trackSlideUp {{
+    from {{ opacity: 0; transform: translateY(8px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
+.track-active-panel-head {{
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}}
+.track-active-emoji {{
+    width: 44px; height: 44px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--avatar-color, #2DD4BF) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--avatar-color, #2DD4BF) 35%, transparent);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--avatar-color, #2DD4BF) 15%, transparent);
+}}
+.track-active-meta {{ flex: 1; min-width: 0; }}
+.track-active-title {{
+    display: block; font-size: 15px; font-weight: 700; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}}
+.track-active-since {{
+    display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}}
+.track-active-label-row {{ margin-top: 0; }}
+.track-label-input-prominent {{
+    font-size: 14px !important; padding: 12px 14px !important;
+    background: var(--surface) !important;
+    border-color: rgba(45, 212, 191, 0.3) !important;
+}}
+.track-pick-btn-lg {{ min-height: 44px !important; padding: 0 14px !important; }}
+
 .track-actions {{
-    display: flex; gap: 10px; padding: 12px 12px 0; direction: rtl;
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 12px 12px 0; direction: rtl;
+}}
+.track-actions-secondary {{
+    display: flex; gap: 8px;
 }}
 .track-btn {{
     border: none; border-radius: 14px; font-family: inherit;
-    font-size: 14px; font-weight: 500; cursor: pointer;
+    font-size: 14px; font-weight: 600; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    padding: 14px 16px; transition: transform var(--duration-fast), opacity var(--duration-fast);
+    padding: 14px 16px;
+    transition: transform var(--duration-fast), box-shadow var(--duration-fast), opacity var(--duration-fast);
 }}
 .track-btn:active {{ transform: scale(0.97); }}
 .track-btn-switch {{
-    flex: 1;
-    background: linear-gradient(135deg, #0D9488, #2DD4BF);
-    color: #fff; box-shadow: 0 4px 16px rgba(45, 212, 191, 0.25);
+    width: 100%;
+    background: linear-gradient(135deg, #0D9488 0%, #2DD4BF 50%, #14B8A6 100%);
+    color: #fff;
+    box-shadow: 0 6px 24px rgba(45, 212, 191, 0.3), inset 0 1px 0 rgba(255,255,255,0.15);
 }}
 .track-btn-icon {{ font-size: 18px; line-height: 1; }}
 .track-btn-stop {{
-    flex: 0 0 auto;
-    background: rgba(251, 113, 133, 0.12);
+    flex: 1;
+    background: rgba(251, 113, 133, 0.1);
     color: #FB7185;
     border: 1px solid rgba(251, 113, 133, 0.35);
 }}
 .track-btn-delete {{
-    flex: 0 0 auto;
+    flex: 1;
     background: var(--error-bg);
     color: var(--error);
     border: 1px solid rgba(251, 113, 133, 0.25);
 }}
-.track-hint {{
-    margin: 10px 12px 0; padding: 10px 12px;
-    background: var(--surface-muted); border-radius: 10px;
-    font-size: 12px; color: var(--text-muted); line-height: 1.6;
-    display: flex; align-items: flex-start; gap: 8px;
+
+/* stats & efficiency */
+.track-stats-panel {{
+    margin: 14px 12px 0; padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--divider);
+    border-radius: 16px; direction: rtl;
+    display: flex; align-items: center; gap: 14px;
+    animation: trackSlideUp 0.4s ease both;
 }}
-.track-hint .fin-emoji {{ flex-shrink: 0; margin-top: 1px; }}
-.track-section {{ padding: 14px 12px 0; }}
-.track-section .sec-title {{ margin-bottom: 10px; }}
+.track-eff-gauge {{
+    position: relative; flex-shrink: 0;
+    width: 88px; height: 88px;
+}}
+.track-eff-gauge-center {{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}}
+.track-eff-gauge-val {{
+    font-size: 18px; font-weight: 800; color: var(--success);
+    font-variant-numeric: tabular-nums; line-height: 1;
+}}
+.track-eff-gauge-lbl {{
+    font-size: 9px; color: var(--text-muted); margin-top: 2px;
+}}
+.track-stats-grid {{
+    flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;
+}}
+.track-stat-card {{
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 10px;
+    background: var(--surface-muted); border: 1px solid var(--divider);
+}}
+.track-stat-card.useful {{ border-color: rgba(52, 211, 153, 0.25); }}
+.track-stat-card.not {{ border-color: rgba(251, 146, 60, 0.25); }}
+.track-stat-card .fin-emoji {{ flex-shrink: 0; }}
+.track-stat-card-lbl {{
+    display: block; font-size: 10px; color: var(--text-muted);
+}}
+.track-stat-card-val {{
+    display: block; font-size: 13px; font-weight: 700;
+    color: var(--text); font-variant-numeric: tabular-nums;
+}}
+.track-stat-card.useful .track-stat-card-val {{ color: var(--success); }}
+.track-stat-card.not .track-stat-card-val {{ color: var(--warning); }}
+
+.track-sec-title::before {{ display: none; }}
+.track-sec-title .fin-emoji {{ opacity: 0.9; }}
+
+.track-section {{ padding: 16px 12px 0; }}
+.track-section .track-sec-title {{ margin-bottom: 12px; }}
+
+/* timeline */
 .track-timeline {{
-    display: flex; flex-direction: column; gap: 10px;
+    display: flex; flex-direction: column; gap: 0;
+    position: relative; padding-right: 20px;
+}}
+.track-timeline::before {{
+    content: '';
+    position: absolute; right: 7px; top: 8px; bottom: 8px;
+    width: 2px;
+    background: linear-gradient(180deg, var(--running) 0%, var(--divider) 40%, transparent 100%);
+    border-radius: 1px; opacity: 0.5;
 }}
 .track-interval {{
-    display: flex; gap: 0; background: var(--surface);
-    border-radius: 14px; border: 1px solid var(--divider);
-    overflow: hidden; direction: rtl;
-}}
-.track-interval.is-open {{
-    overflow: visible;
+    display: flex; gap: 0; direction: rtl;
     position: relative;
-    z-index: 2;
+    animation: trackFadeIn 0.35s ease both;
+    animation-delay: calc(var(--track-stagger, 0) * 45ms);
+    padding-right: 4px;
 }}
-.track-interval.is-useful {{
+@keyframes trackFadeIn {{
+    from {{ opacity: 0; transform: translateX(8px); }}
+    to {{ opacity: 1; transform: translateX(0); }}
+}}
+.track-timeline-node {{
+    position: absolute; right: -20px; top: 18px;
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1;
+}}
+.track-timeline-dot {{
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--node-color, var(--running));
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--node-color, var(--running)) 30%, transparent);
+}}
+.track-interval.is-active .track-timeline-dot {{
+    animation: trackLivePulse 1.4s ease-in-out infinite;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color) 25%, transparent),
+                0 0 12px color-mix(in srgb, var(--node-color) 40%, transparent);
+}}
+.track-interval-card {{
+    flex: 1; display: flex; gap: 0;
+    background: var(--surface);
+    border-radius: 14px; border: 1px solid var(--divider);
+    overflow: hidden; margin-bottom: 10px;
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}}
+.track-interval.is-open .track-interval-card {{
+    overflow: visible; border-color: rgba(45, 212, 191, 0.25);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    position: relative; z-index: 2;
+}}
+.track-interval.is-active .track-interval-card {{
+    border-color: rgba(45, 212, 191, 0.35);
+    box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.15), 0 4px 16px rgba(45, 212, 191, 0.1);
+}}
+.track-interval.is-useful .track-interval-card {{
     box-shadow: inset -3px 0 0 0 var(--success);
 }}
-.track-interval.is-not-useful {{
+.track-interval.is-not-useful .track-interval-card {{
     box-shadow: inset -3px 0 0 0 var(--error);
 }}
 .track-useful-row {{
-    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
 }}
-.track-useful-row .chip {{
-    font-size: 11px; padding: 4px 10px; border-radius: 999px;
-    text-decoration: none; cursor: pointer;
+.track-chip {{
+    font-size: 12px !important; padding: 6px 12px !important;
+    border-radius: 999px !important; display: inline-flex !important;
+    align-items: center; gap: 4px;
+    transition: transform var(--duration-fast), background var(--duration-fast);
 }}
-.track-eff-row {{
-    display: flex; flex-wrap: wrap; gap: 8px;
-    padding: 0 12px 12px; direction: rtl;
-}}
-.track-eff-item {{
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 12px; padding: 6px 10px; border-radius: 10px;
-    background: var(--surface-muted); border: 1px solid var(--divider);
-}}
-.track-eff-item.useful {{ color: var(--success); }}
-.track-eff-item.not {{ color: var(--warning); }}
-.track-eff-item.eff {{ color: var(--primary-glow); font-weight: 600; }}
-.track-eff-item .fin-emoji {{ flex-shrink: 0; }}
+.track-chip:active {{ transform: scale(0.96); }}
 .track-interval-accent {{
     width: 4px; flex-shrink: 0;
 }}
@@ -3028,6 +3219,13 @@ body.kb-open .proj-sheet-overlay {{
     direction: rtl; box-sizing: border-box;
 }}
 .track-interval-header:active {{ background: var(--surface-muted); }}
+.track-interval-avatar {{
+    width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    background: color-mix(in srgb, var(--avatar-color, #2DD4BF) 15%, var(--surface-muted));
+    border: 1px solid color-mix(in srgb, var(--avatar-color, #2DD4BF) 25%, transparent);
+}}
 .track-interval-header-main {{
     flex: 1; min-width: 0; display: flex; flex-direction: column;
     gap: 2px; align-items: flex-start;
@@ -3037,10 +3235,9 @@ body.kb-open .proj-sheet-overlay {{
     font-variant-numeric: tabular-nums;
 }}
 .track-interval-detail {{
-    padding: 0 14px 12px;
+    padding: 0 14px 14px;
     border-top: 1px solid var(--divider);
-    direction: rtl;
-    overflow: visible;
+    direction: rtl; overflow: visible;
 }}
 .track-interval.is-open .track-interval-header {{
     padding-bottom: 10px;
@@ -3048,10 +3245,10 @@ body.kb-open .proj-sheet-overlay {{
 .track-interval-header .collapse-chevron {{
     color: var(--text-muted); opacity: 0.7;
     width: 14px; height: 14px; flex-shrink: 0;
+    transition: transform var(--duration-fast);
 }}
-.track-interval-top {{
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 10px; margin-bottom: 4px;
+.track-interval.is-open .collapse-chevron {{
+    transform: rotate(180deg);
 }}
 .track-interval-top-end {{
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
@@ -3061,6 +3258,7 @@ body.kb-open .proj-sheet-overlay {{
     background: transparent; color: #FF595988;
     font-size: 18px; line-height: 1; cursor: pointer; padding: 0;
     display: inline-flex; align-items: center; justify-content: center;
+    transition: background var(--duration-fast), color var(--duration-fast);
 }}
 .track-interval-del:active {{ background: var(--error-bg); color: var(--error); }}
 .track-interval-label {{
@@ -3068,21 +3266,36 @@ body.kb-open .proj-sheet-overlay {{
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }}
 .track-interval-dur {{
-    font-size: 13px; font-weight: bold; color: var(--running);
+    font-size: 12px; font-weight: 700; color: var(--running);
     font-variant-numeric: tabular-nums; flex-shrink: 0;
-    background: var(--running-bg); padding: 2px 8px; border-radius: 8px;
+    background: var(--running-bg); padding: 3px 9px; border-radius: 8px;
+}}
+.track-interval-live {{
+    font-size: 10px; font-weight: 700; color: #2DD4BF;
+    background: rgba(45, 212, 191, 0.12); padding: 3px 8px;
+    border-radius: 999px; border: 1px solid rgba(45, 212, 191, 0.3);
+    animation: trackLivePulse 1.4s ease-in-out infinite;
+}}
+.track-interval-pct {{
+    font-size: 10px; font-weight: 600; color: var(--text-muted);
+    background: var(--surface-muted); padding: 2px 7px; border-radius: 6px;
 }}
 .track-interval-time {{
     font-size: 11px; color: var(--text-muted); margin: 10px 0 8px;
     font-variant-numeric: tabular-nums;
 }}
 .track-interval-bar {{
-    height: 4px; border-radius: 2px; background: var(--surface-muted);
-    overflow: hidden; margin-bottom: 10px;
+    height: 6px; border-radius: 3px; background: var(--surface-muted);
+    overflow: hidden; margin-bottom: 4px;
 }}
 .track-interval-bar-fill {{
-    height: 100%; border-radius: 2px;
+    height: 100%; border-radius: 3px;
     transition: width var(--duration-normal);
+    box-shadow: 0 0 8px color-mix(in srgb, currentColor 30%, transparent);
+}}
+.track-interval-pct-row {{
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: var(--text-muted); margin-bottom: 10px;
 }}
 .track-label-row {{
     display: flex; align-items: stretch; gap: 8px; direction: rtl;
@@ -3094,7 +3307,7 @@ body.kb-open .proj-sheet-overlay {{
     display: none; position: absolute; top: calc(100% + 4px);
     left: 0; right: 0; z-index: 40;
     background: var(--surface); border: 1px solid var(--divider);
-    border-radius: 10px; box-shadow: var(--elevation-2);
+    border-radius: 12px; box-shadow: var(--elevation-2);
     max-height: 200px; overflow-y: auto; -webkit-overflow-scrolling: touch;
     direction: rtl;
 }}
@@ -3103,6 +3316,7 @@ body.kb-open .proj-sheet-overlay {{
     padding: 10px 12px; border: none; background: none;
     cursor: pointer; font-family: inherit; font-size: 13px;
     color: var(--text); text-align: start; direction: rtl;
+    transition: background var(--duration-fast);
 }}
 .track-label-sug-item + .track-label-sug-item {{
     border-top: 1px solid var(--divider);
@@ -3115,8 +3329,12 @@ body.kb-open .proj-sheet-overlay {{
     border: 1px solid var(--divider); border-radius: 10px;
     color: var(--text); font-family: inherit; font-size: 13px;
     padding: 10px 12px; outline: none; direction: rtl;
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
 }}
-.track-label-input:focus {{ border-color: var(--running); }}
+.track-label-input:focus {{
+    border-color: var(--running);
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.12);
+}}
 .track-label-input::placeholder {{ color: var(--text-muted); }}
 .track-pick-btn {{
     flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
@@ -3124,39 +3342,131 @@ body.kb-open .proj-sheet-overlay {{
     border: 1px solid rgba(45, 212, 191, 0.35); color: var(--running);
     border-radius: 10px; padding: 0 12px; min-height: 40px;
     font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: background var(--duration-fast), transform var(--duration-fast);
 }}
 .track-pick-btn:active {{ background: rgba(45, 212, 191, 0.22); transform: scale(0.98); }}
 .track-pick-btn .fin-emoji {{ flex-shrink: 0; }}
+
+/* breakdown */
+.track-breakdown-section {{ padding-top: 14px; }}
+.track-breakdown-card {{
+    background: var(--surface); border: 1px solid var(--divider);
+    border-radius: 16px; padding: 14px;
+    animation: trackSlideUp 0.45s ease both;
+}}
+.track-breakdown-visual {{
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+}}
+.track-breakdown-donut-wrap {{
+    position: relative; width: 100px; height: 100px;
+}}
+.track-breakdown-donut-center {{
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+}}
+.track-breakdown-total-lbl {{
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+}}
 .track-breakdown-bar {{
     display: flex; height: 10px; border-radius: 5px; overflow: hidden;
-    background: var(--surface-muted); margin-bottom: 12px;
+    background: var(--surface-muted); width: 100%;
 }}
+.track-breakdown-bar-lg {{ height: 12px; border-radius: 6px; }}
 .track-breakdown-seg {{
-    height: 100%; min-width: 3px;
-    transition: width var(--duration-normal);
+    height: 100%; min-width: 4px;
+    transition: width 0.6s cubic-bezier(0.34, 1.2, 0.64, 1);
 }}
 .track-breakdown-legend {{
-    display: flex; flex-direction: column; gap: 8px;
+    display: flex; flex-direction: column; gap: 10px;
 }}
 .track-legend-item {{
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; direction: rtl;
+    display: grid; grid-template-columns: 10px 1fr auto;
+    grid-template-rows: auto auto; gap: 2px 8px;
+    align-items: center; font-size: 13px; direction: rtl;
+    animation: trackFadeIn 0.4s ease both;
+    animation-delay: calc(var(--track-stagger, 0) * 50ms);
 }}
 .track-legend-dot {{
     width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    grid-row: 1 / 3;
 }}
 .track-legend-label {{
-    flex: 1; font-weight: 500; color: var(--text);
+    font-weight: 600; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}}
+.track-legend-bar-wrap {{
+    grid-column: 2; height: 4px; border-radius: 2px;
+    background: var(--surface-muted); overflow: hidden;
+}}
+.track-legend-bar {{
+    display: block; height: 100%; border-radius: 2px;
+    transition: width 0.6s cubic-bezier(0.34, 1.2, 0.64, 1);
 }}
 .track-legend-val {{
-    font-size: 12px; color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
+    font-size: 11px; color: var(--text-muted);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
 }}
-.track-empty {{ padding-top: 32px; padding-bottom: 24px; }}
-.track-empty .fin-icon-lg {{
-    background: rgba(45, 212, 191, 0.12); color: var(--running);
+.track-donut-seg {{
+    transition: stroke-dasharray 0.6s cubic-bezier(0.34, 1.2, 0.64, 1);
 }}
-.track-start-btn {{ margin-top: 20px; }}
+
+/* empty state */
+.track-empty-hero {{
+    display: flex; justify-content: center; align-items: center;
+    padding: 28px 0 8px; position: relative;
+}}
+.track-empty-rings {{
+    position: absolute; width: 140px; height: 140px;
+}}
+.track-empty-rings span {{
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid rgba(45, 212, 191, 0.15);
+    animation: trackEmptyRing 3s ease-in-out infinite;
+}}
+.track-empty-rings span:nth-child(2) {{
+    inset: 12px; animation-delay: -1s;
+    border-color: rgba(129, 140, 248, 0.12);
+}}
+.track-empty-rings span:nth-child(3) {{
+    inset: 24px; animation-delay: -2s;
+    border-color: rgba(45, 212, 191, 0.2);
+}}
+@keyframes trackEmptyRing {{
+    0%, 100% {{ transform: scale(1); opacity: 0.6; }}
+    50% {{ transform: scale(1.08); opacity: 1; }}
+}}
+.track-empty-icon {{
+    position: relative; z-index: 1;
+    width: 72px; height: 72px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(145deg, rgba(45, 212, 191, 0.15), rgba(99, 102, 241, 0.1));
+    border: 1px solid rgba(45, 212, 191, 0.25);
+    box-shadow: 0 8px 32px rgba(45, 212, 191, 0.12);
+    font-size: 32px;
+}}
+.track-empty {{ padding-top: 16px; padding-bottom: 8px; }}
+.track-empty .empty-title {{ font-size: 20px; }}
+.track-start-btn {{
+    margin-top: 20px;
+    background: linear-gradient(135deg, #0D9488, #2DD4BF) !important;
+    box-shadow: 0 6px 24px rgba(45, 212, 191, 0.3) !important;
+}}
+.track-features {{
+    display: flex; gap: 8px; padding: 0 16px 12px; direction: rtl;
+}}
+.track-feature {{
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 12px 8px; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--divider);
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    text-align: center;
+}}
+.track-feature-icon {{
+    width: 32px; height: 32px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(45, 212, 191, 0.1);
+}}
 .track-tips {{ padding: 0 16px 16px; }}
 .track-tip {{
     display: flex; align-items: flex-start; gap: 8px;
@@ -3167,16 +3477,23 @@ body.kb-open .proj-sheet-overlay {{
 .track-tip .fin-emoji {{ flex-shrink: 0; }}
 .track-restart-wrap {{ padding: 16px 12px 8px; text-align: center; }}
 .track-restart-btn {{
-    background: var(--surface-muted); border: 1px solid var(--divider);
-    color: var(--text); border-radius: 12px; padding: 12px 24px;
-    font-family: inherit; font-size: 14px; cursor: pointer;
+    background: linear-gradient(135deg, rgba(45, 212, 191, 0.12), rgba(99, 102, 241, 0.08));
+    border: 1px solid rgba(45, 212, 191, 0.3);
+    color: var(--running); border-radius: 14px; padding: 14px 28px;
+    font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+    box-shadow: 0 4px 16px rgba(45, 212, 191, 0.1);
 }}
-.track-restart-btn:active {{ background: rgba(45, 212, 191, 0.12); }}
+.track-restart-btn:active {{
+    transform: scale(0.97);
+    background: rgba(45, 212, 191, 0.18);
+}}
 .track-restart-plus {{
     display: inline-flex; align-items: center; justify-content: center;
-    width: 16px; height: 16px; font-size: 15px; font-weight: 700;
-    line-height: 1; flex-shrink: 0; opacity: 0.9;
+    width: 18px; height: 18px; font-size: 16px; font-weight: 700;
+    line-height: 1; flex-shrink: 0;
+    background: rgba(45, 212, 191, 0.2); border-radius: 50%;
 }}
 .track-start-btn .ico,
 .track-btn-stop .ico {{
@@ -3197,7 +3514,8 @@ body.kb-open .track-act-overlay {{
     width: 100%; max-width: 520px; background: var(--surface);
     border-radius: 20px 20px 0 0;
     padding: 8px 14px calc(14px + var(--safe-bottom));
-    border-top: 1px solid var(--divider);
+    border-top: 1px solid rgba(45, 212, 191, 0.2);
+    background-image: linear-gradient(180deg, rgba(45, 212, 191, 0.06) 0%, transparent 80px);
     animation: projSheetUp 0.25s ease;
     max-height: min(88dvh, calc(var(--visual-vh, 100dvh) - 12px));
     display: flex; flex-direction: column; direction: rtl;
@@ -3224,17 +3542,21 @@ body.kb-open .track-act-overlay {{
 }}
 .track-act-item {{
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px; min-height: 72px; padding: 8px 4px;
+    gap: 4px; min-height: 76px; padding: 8px 4px;
     background: var(--surface-muted); border: 1px solid var(--divider);
-    border-radius: 12px; cursor: pointer; font-family: inherit;
-    transition: background var(--duration-fast), border-color var(--duration-fast), transform var(--duration-fast);
+    border-radius: 14px; cursor: pointer; font-family: inherit;
+    transition: background var(--duration-fast), border-color var(--duration-fast), transform var(--duration-fast), box-shadow var(--duration-fast);
 }}
 .track-act-item:active {{
     transform: scale(0.96);
     background: rgba(45, 212, 191, 0.12);
     border-color: rgba(45, 212, 191, 0.35);
+    box-shadow: 0 4px 12px rgba(45, 212, 191, 0.12);
 }}
-.track-act-emoji {{ font-size: 24px; line-height: 1; }}
+.track-act-emoji {{
+    font-size: 26px; line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+}}
 .track-act-name {{
     font-size: 11px; color: var(--text); text-align: center;
     line-height: 1.3; max-width: 100%;
@@ -3259,23 +3581,27 @@ body.kb-open .track-act-overlay {{
 }}
 
 [data-theme="light"] .track-header {{
-    background: linear-gradient(145deg, #ECFDF5 0%, #F0FDFA 50%, #E0F2FE 100%);
+    background: linear-gradient(155deg, #ECFDF5 0%, #F0FDFA 40%, #E0F2FE 100%);
     box-shadow: 0 2px 16px rgba(13, 148, 136, 0.08);
 }}
+[data-theme="light"] .track-orb {{ opacity: 0.35; }}
 [data-theme="light"] .track-header-title {{ color: #134E4A; }}
 [data-theme="light"] .track-date-label {{ color: var(--text-muted); }}
+[data-theme="light"] .track-live-badge {{
+    color: #0D9488; background: rgba(13, 148, 136, 0.1); border-color: rgba(13, 148, 136, 0.25);
+}}
 [data-theme="light"] .track-hero-in-header {{
     background: rgba(255, 255, 255, 0.82);
     border-color: rgba(13, 148, 136, 0.18);
 }}
 [data-theme="light"] .track-hero-label {{ color: var(--text-muted); }}
-[data-theme="light"] .track-hero-total {{ color: #0D9488; }}
+[data-theme="light"] .track-hero-total {{ color: #0D9488; text-shadow: none; }}
 [data-theme="light"] .track-hero-range {{ color: var(--text-muted); }}
 [data-theme="light"] .track-timer-inner {{
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(13, 148, 136, 0.2);
 }}
-[data-theme="light"] .track-timer-val {{ color: #0D9488; }}
+[data-theme="light"] .track-timer-val {{ color: #0D9488; text-shadow: none; }}
 [data-theme="light"] .track-timer-lbl {{ color: var(--text-muted); }}
 [data-theme="light"] .track-hero-stat {{
     background: rgba(255, 255, 255, 0.7);
@@ -3283,13 +3609,37 @@ body.kb-open .track-act-overlay {{
 }}
 [data-theme="light"] .track-stat-lbl {{ color: var(--text-muted); }}
 [data-theme="light"] .track-stat-val {{ color: var(--text); }}
+[data-theme="light"] .track-active-panel {{
+    background: linear-gradient(145deg, rgba(13, 148, 136, 0.06), rgba(99, 102, 241, 0.04));
+    border-color: rgba(13, 148, 136, 0.18);
+    box-shadow: 0 4px 16px rgba(13, 148, 136, 0.06);
+}}
 [data-theme="light"] .track-btn-switch {{
     background: linear-gradient(135deg, #0D9488, #14B8A6);
 }}
 [data-theme="light"] .track-interval-dur {{
     color: var(--running); background: var(--running-bg);
 }}
-[data-theme="light"] .track-empty .fin-icon-lg {{
-    background: var(--running-bg); color: var(--running);
+[data-theme="light"] .track-empty-icon {{
+    background: linear-gradient(145deg, rgba(13, 148, 136, 0.1), rgba(99, 102, 241, 0.06));
+    border-color: rgba(13, 148, 136, 0.2);
+}}
+[data-theme="light"] .track-feature {{
+    background: rgba(255, 255, 255, 0.9);
+}}
+[data-theme="light"] .track-feature-icon {{
+    background: var(--running-bg);
+}}
+[data-theme="light"] .track-stats-panel,
+[data-theme="light"] .track-breakdown-card {{
+    background: rgba(255, 255, 255, 0.95);
+}}
+[data-theme="light"] .track-restart-btn {{
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.08), rgba(99, 102, 241, 0.05));
+    border-color: rgba(13, 148, 136, 0.25);
+    color: #0D9488;
+}}
+[data-theme="light"] .track-timeline::before {{
+    background: linear-gradient(180deg, #14B8A6 0%, var(--divider) 40%, transparent 100%);
 }}
 """
