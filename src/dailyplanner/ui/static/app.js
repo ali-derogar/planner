@@ -1639,6 +1639,8 @@ function renderHome(h) {
         homeStatCard('tracked', '⏱', 'کل زمان', homeFmtSecs(classified)) +
         '</div></div></div></div></div>';
 
+    html += '<div class="page-glass-zone">';
+
     if (h.show_calendar && h.calendar) {
         html += '<div class="home-calendar-wrap">' + renderCalendar(h.calendar, h.date) + '</div>';
     }
@@ -1677,6 +1679,7 @@ function renderHome(h) {
         '<div class="sec-title home-note-title">' + finEmoji('✍️', 'sm') + ' یادداشت روز من</div>' +
         '<textarea class="note-input home-note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" onblur="flushPendingNote()" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
         '<div class="note-saved" id="note-saved" aria-live="polite">ذخیره شد ✓</div></div>';
+    html += '</div>';
     if (taskCount > 0) {
         html += '<button type="button" class="home-fab" onclick="' + addTaskModal + '" aria-label="افزودن تسک">' + ico('plus', 'ico') + '</button>';
     }
@@ -3448,6 +3451,7 @@ function renderTracking(t) {
 
     if (!hasData && !session) {
         html += trackingHeader(t);
+        html += '<div class="page-glass-zone track-body">';
         html += '<div class="track-empty-hero" aria-hidden="true">' +
             '<div class="track-empty-rings"><span></span><span></span><span></span></div>' +
             '<div class="track-empty-icon">' + finEmoji('⏱️', 'lg') + '</div></div>';
@@ -3463,7 +3467,7 @@ function renderTracking(t) {
             '</div>';
         html += '<div class="track-tips"><div class="track-tip">' + finEmoji('💡', 'sm') +
             ' عنوان را بنویسید یا از دکمه «انتخاب» یکی از فعالیت\u200cهای رایج را برگزینید</div></div>';
-        return html + '</div>';
+        return html + '</div></div>';
     }
 
     var sid = session ? session.id : null;
@@ -3495,6 +3499,7 @@ function renderTracking(t) {
 
         html += trackingHeader(t, heroHtml, { live: true });
 
+        html += '<div class="page-glass-zone track-body">';
         html += '<div class="track-actions">';
         html += '<button type="button" class="track-btn track-btn-switch" onclick="action(\'switch_tracking\',{session_id:' + sid + '})">';
         html += '<span class="track-btn-icon">⇄</span><span class="track-btn-text">تعویض فعالیت</span></button>';
@@ -3533,6 +3538,7 @@ function renderTracking(t) {
         summaryHero += trackingEfficiencyRow(t, { inHeader: true });
         html += trackingHeader(t, summaryHero);
 
+        html += '<div class="page-glass-zone track-body">';
         html += trackingBreakdownSection(t.breakdown, dayTotalSecs);
 
         html += '<div class="track-section"><div class="track-timeline">';
@@ -3550,7 +3556,7 @@ function renderTracking(t) {
             '<span class="track-restart-plus" aria-hidden="true">+</span> شروع ردیابی جدید</button></div>';
     }
 
-    html += '</div>';
+    html += '</div></div>';
     return html;
 }
 

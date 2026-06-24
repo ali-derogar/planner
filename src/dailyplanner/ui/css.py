@@ -124,13 +124,357 @@ textarea:focus-visible, select:focus-visible {{
 .screen {{ display: flex; flex-direction: column; min-height: 100vh; }}
 .content {{
     flex: 1;
+    display: flex;
+    flex-direction: column;
     padding-bottom: calc(88px + var(--safe-bottom));
     max-width: 520px;
     margin: 0 auto;
     width: 100%;
+    min-height: 0;
 }}
 .screen-enter {{
     animation: screenIn var(--duration-normal) var(--ease-out);
+}}
+
+/* ── Page wrappers — flex column so glass canvas fills below header ── */
+.home-page,
+.fin-page,
+.analytics-page,
+.proj-page,
+.track-page {{
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    --page-header-feather: 72px;
+    --page-body-dark-rgb: 6, 6, 12;
+    --page-header-mask: linear-gradient(180deg,
+        #000 0%,
+        #000 28%,
+        rgba(0, 0, 0, 0.88) 44%,
+        rgba(0, 0, 0, 0.62) 62%,
+        rgba(0, 0, 0, 0.32) 80%,
+        rgba(0, 0, 0, 0.08) 94%,
+        transparent 100%
+    );
+}}
+.home-page {{ background-color: rgb(6, 6, 12); }}
+.fin-page {{ background-color: rgb(6, 6, 12); }}
+.analytics-page {{ background-color: rgb(6, 6, 12); }}
+.proj-page {{ background-color: rgb(6, 6, 12); }}
+.track-page {{ background-color: rgb(6, 6, 12); }}
+[data-theme="light"] .home-page,
+[data-theme="light"] .fin-page,
+[data-theme="light"] .analytics-page,
+[data-theme="light"] .proj-page,
+[data-theme="light"] .track-page {{
+    background-color: #FAFAFC;
+}}
+
+/* ── Page canvas — long soft fade; bottom anchors to page height (100%) ── */
+.home-page {{
+    --page-glass-rgb: 56, 189, 248;
+    --page-glass-base-rgb: 12, 74, 110;
+    background-image: linear-gradient(180deg,
+        #020617 0px,
+        #0C4A6E 56px,
+        #0369A1 112px,
+        #1D4ED8 168px,
+        #0C4A6E 232px,
+        rgba(12, 74, 110, 0.96) 268px,
+        rgba(12, 74, 110, 0.86) 304px,
+        rgba(12, 74, 110, 0.72) 340px,
+        rgba(11, 22, 34, 0.78) 380px,
+        rgba(10, 14, 22, 0.86) 430px,
+        rgba(8, 10, 16, 0.91) 560px,
+        rgba(6, 6, 12, 0.94) 760px,
+        rgba(6, 6, 12, 0.96) 1040px,
+        rgb(6, 6, 12) 100%
+    );
+}}
+.fin-page {{
+    --page-glass-rgb: 77, 217, 128;
+    --page-glass-base-rgb: 15, 46, 40;
+    background-image: linear-gradient(180deg,
+        #061510 0px,
+        #0F2E28 64px,
+        #1A4034 128px,
+        #0D2818 208px,
+        rgba(15, 46, 40, 0.96) 248px,
+        rgba(15, 46, 40, 0.84) 288px,
+        rgba(15, 46, 40, 0.70) 328px,
+        rgba(12, 18, 22, 0.76) 372px,
+        rgba(8, 10, 14, 0.84) 430px,
+        rgba(7, 8, 12, 0.90) 560px,
+        rgba(6, 6, 12, 0.92) 760px,
+        rgba(6, 6, 12, 0.94) 1040px,
+        rgb(6, 6, 12) 100%
+    );
+}}
+.proj-page {{
+    --page-glass-rgb: 129, 140, 248;
+    --page-glass-base-rgb: 30, 27, 75;
+    background-image: linear-gradient(180deg,
+        #0F0B2E 0px,
+        #1E1B4B 72px,
+        #312E81 136px,
+        #4338CA 208px,
+        rgba(30, 27, 75, 0.96) 248px,
+        rgba(30, 27, 75, 0.82) 288px,
+        rgba(30, 27, 75, 0.66) 328px,
+        rgba(14, 14, 24, 0.78) 372px,
+        rgba(10, 10, 18, 0.86) 430px,
+        rgba(8, 8, 14, 0.91) 560px,
+        rgba(6, 6, 12, 0.92) 760px,
+        rgba(6, 6, 12, 0.94) 1040px,
+        rgb(6, 6, 12) 100%
+    );
+}}
+.analytics-page {{
+    --page-glass-rgb: 167, 139, 250;
+    --page-glass-base-rgb: 30, 27, 75;
+    background-image: linear-gradient(180deg,
+        #0C0A1A 0px,
+        #1A1A24 72px,
+        #252530 136px,
+        #1E1B4B 208px,
+        rgba(30, 27, 75, 0.96) 248px,
+        rgba(30, 27, 75, 0.82) 288px,
+        rgba(30, 27, 75, 0.66) 328px,
+        rgba(14, 14, 24, 0.76) 372px,
+        rgba(10, 10, 18, 0.84) 430px,
+        rgba(8, 8, 14, 0.90) 560px,
+        rgba(6, 6, 12, 0.92) 760px,
+        rgba(6, 6, 12, 0.94) 1040px,
+        rgb(6, 6, 12) 100%
+    );
+}}
+.track-page {{
+    --page-glass-rgb: 45, 212, 191;
+    --page-glass-base-rgb: 15, 42, 46;
+    background-image: linear-gradient(180deg,
+        #0A1F22 0px,
+        #0F2A2E 80px,
+        #134E4A 168px,
+        rgba(15, 42, 46, 0.96) 228px,
+        rgba(15, 42, 46, 0.82) 268px,
+        rgba(15, 42, 46, 0.66) 308px,
+        rgba(10, 16, 20, 0.76) 352px,
+        rgba(8, 12, 16, 0.84) 410px,
+        rgba(7, 8, 12, 0.90) 560px,
+        rgba(6, 6, 12, 0.92) 760px,
+        rgba(6, 6, 12, 0.94) 1040px,
+        rgb(6, 6, 12) 100%
+    );
+}}
+
+.page-glass-zone,
+.fin-body,
+.analytics-body,
+.proj-body,
+.track-body {{
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-height: 0;
+    margin-top: -16px;
+    padding-top: 16px;
+    padding-bottom: 4px;
+    isolation: isolate;
+    border-top: none;
+    box-shadow: none;
+    background: linear-gradient(180deg,
+        transparent 0px,
+        rgba(var(--page-glass-base-rgb), 0.02) 48px,
+        rgba(var(--page-glass-base-rgb), 0.07) 120px,
+        rgba(var(--page-glass-base-rgb), 0.13) 240px,
+        rgba(var(--page-glass-base-rgb), 0.19) 380px,
+        rgba(var(--page-glass-base-rgb), 0.22) 520px,
+        rgba(var(--page-glass-base-rgb), 0.16) 24%,
+        rgba(var(--page-glass-base-rgb), 0.10) 32%,
+        rgba(10, 12, 18, 0.62) 46%,
+        rgba(8, 9, 14, 0.78) 58%,
+        rgba(var(--page-body-dark-rgb), 0.88) 72%,
+        rgba(var(--page-body-dark-rgb), 0.94) 84%,
+        rgba(5, 5, 10, 0.98) 94%,
+        rgb(var(--page-body-dark-rgb)) 100%
+    );
+    backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.14);
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(1.14);
+}}
+.page-glass-zone::before,
+.fin-body::before,
+.analytics-body::before,
+.proj-body::before,
+.track-body::before {{
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse 100% 40% at 50% 0%, rgba(var(--page-glass-rgb), 0.09), transparent 68%),
+        radial-gradient(ellipse 55% 85% at 0% 38%, rgba(var(--page-glass-base-rgb), 0.07), transparent 58%),
+        radial-gradient(ellipse 45% 70% at 100% 52%, rgba(var(--page-glass-rgb), 0.05), transparent 54%);
+}}
+.page-glass-zone::after,
+.fin-body::after,
+.analytics-body::after,
+.proj-body::after,
+.track-body::after {{
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 55%;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(180deg,
+        transparent 0%,
+        rgba(var(--page-body-dark-rgb), 0.18) 38%,
+        rgba(var(--page-body-dark-rgb), 0.52) 68%,
+        rgba(5, 5, 10, 0.88) 100%
+    );
+}}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {{
+    .page-glass-zone,
+    .fin-body,
+    .analytics-body,
+    .proj-body,
+    .track-body {{
+        background: linear-gradient(180deg,
+            transparent 0px,
+            rgba(var(--page-glass-base-rgb), 0.06) 120px,
+            rgba(var(--page-glass-base-rgb), 0.16) 380px,
+            rgba(var(--page-glass-base-rgb), 0.12) 24%,
+            rgba(10, 12, 18, 0.72) 46%,
+            rgba(var(--page-body-dark-rgb), 0.90) 72%,
+            rgba(5, 5, 10, 0.98) 94%,
+            rgb(var(--page-body-dark-rgb)) 100%
+        );
+    }}
+}}
+[data-theme="light"] .page-glass-zone,
+[data-theme="light"] .fin-body,
+[data-theme="light"] .analytics-body,
+[data-theme="light"] .proj-body,
+[data-theme="light"] .track-body {{
+    background: linear-gradient(180deg,
+        transparent 0px,
+        rgba(var(--page-glass-base-rgb), 0.02) 48px,
+        rgba(255, 255, 255, 0.08) 140px,
+        rgba(255, 255, 255, 0.18) 300px,
+        rgba(255, 255, 255, 0.30) 480px,
+        rgba(255, 255, 255, 0.28) 24%,
+        rgba(255, 255, 255, 0.16) 34%,
+        rgba(248, 250, 252, 0.72) 50%,
+        rgba(246, 247, 250, 0.88) 66%,
+        rgba(250, 250, 252, 0.96) 82%,
+        #FAFAFC 100%
+    );
+}}
+[data-theme="light"] .page-glass-zone::after,
+[data-theme="light"] .fin-body::after,
+[data-theme="light"] .analytics-body::after,
+[data-theme="light"] .proj-body::after,
+[data-theme="light"] .track-body::after {{
+    background: linear-gradient(180deg,
+        transparent 0%,
+        rgba(250, 250, 252, 0.22) 42%,
+        rgba(250, 250, 252, 0.72) 72%,
+        #FAFAFC 100%
+    );
+}}
+[data-theme="light"] .page-glass-zone::before,
+[data-theme="light"] .fin-body::before,
+[data-theme="light"] .analytics-body::before,
+[data-theme="light"] .proj-body::before,
+[data-theme="light"] .track-body::before {{
+    background:
+        radial-gradient(ellipse 100% 40% at 50% 0%, rgba(var(--page-glass-rgb), 0.06), transparent 68%),
+        radial-gradient(ellipse 55% 85% at 0% 38%, rgba(var(--page-glass-base-rgb), 0.04), transparent 58%);
+}}
+.page-glass-zone > *,
+.fin-body > *,
+.analytics-body > *,
+.proj-body > *,
+.track-body > * {{
+    position: relative;
+    z-index: 1;
+}}
+
+[data-theme="light"] .home-page {{
+    background-image: linear-gradient(180deg,
+        #FFF7ED 0px,
+        #FFEDD5 56px,
+        #E0F2FE 152px,
+        #DBEAFE 220px,
+        #F0F9FF 268px,
+        rgba(240, 249, 255, 0.98) 308px,
+        rgba(241, 249, 255, 0.94) 348px,
+        rgba(244, 250, 255, 0.88) 388px,
+        rgba(247, 250, 252, 0.96) 440px,
+        rgba(249, 250, 252, 0.98) 680px,
+        rgba(250, 250, 252, 1) 960px,
+        #FAFAFC 100%
+    );
+}}
+[data-theme="light"] .fin-page {{
+    background-image: linear-gradient(180deg,
+        #ECFDF5 0px,
+        #D1FAE5 88px,
+        #E8F5EE 200px,
+        rgba(236, 253, 245, 0.98) 260px,
+        rgba(239, 253, 247, 0.92) 300px,
+        rgba(243, 252, 248, 0.86) 340px,
+        rgba(247, 251, 250, 0.94) 400px,
+        rgba(249, 250, 252, 0.98) 680px,
+        rgba(250, 250, 252, 1) 960px,
+        #FAFAFC 100%
+    );
+}}
+[data-theme="light"] .proj-page {{
+    background-image: linear-gradient(180deg,
+        #EEF2FF 0px,
+        #E0E7FF 88px,
+        #EDE9FE 200px,
+        rgba(245, 243, 255, 0.98) 260px,
+        rgba(246, 244, 255, 0.92) 300px,
+        rgba(248, 246, 255, 0.86) 340px,
+        rgba(249, 249, 252, 0.95) 400px,
+        rgba(250, 250, 252, 0.98) 680px,
+        rgba(250, 250, 252, 1) 960px,
+        #FAFAFC 100%
+    );
+}}
+[data-theme="light"] .analytics-page {{
+    background-image: linear-gradient(180deg,
+        #F5F3FF 0px,
+        #EDE9FE 88px,
+        #E0E7FF 200px,
+        rgba(245, 243, 255, 0.98) 260px,
+        rgba(246, 244, 255, 0.92) 300px,
+        rgba(248, 246, 255, 0.86) 340px,
+        rgba(249, 249, 252, 0.95) 400px,
+        rgba(250, 250, 252, 0.98) 680px,
+        rgba(250, 250, 252, 1) 960px,
+        #FAFAFC 100%
+    );
+}}
+[data-theme="light"] .track-page {{
+    background-image: linear-gradient(180deg,
+        #ECFDF5 0px,
+        #F0FDFA 120px,
+        #E0F2FE 220px,
+        rgba(240, 253, 250, 0.98) 280px,
+        rgba(242, 252, 251, 0.92) 320px,
+        rgba(245, 251, 251, 0.86) 360px,
+        rgba(248, 250, 251, 0.95) 420px,
+        rgba(250, 250, 252, 0.98) 720px,
+        rgba(250, 250, 252, 1) 960px,
+        #FAFAFC 100%
+    );
 }}
 
 /* ── Bottom Nav — floating dock ── */
@@ -335,29 +679,52 @@ textarea:focus-visible, select:focus-visible {{
     border-color: transparent;
 }}
 
+/* ── Page hero headers — transparent, no clip seam ── */
+.date-header.home-header,
+.date-header.fin-header,
+.date-header.track-header,
+.proj-header,
+.analytics-header {{
+    background: transparent;
+    box-shadow: none;
+    border: none;
+    overflow: visible;
+}}
+.date-header.home-header::before,
+.date-header.fin-header::before,
+.date-header.track-header::before,
+.proj-header::before,
+.analytics-header::before {{
+    inset: 0 0 calc(-1 * var(--page-header-feather)) 0;
+    -webkit-mask-image: var(--page-header-mask);
+    mask-image: var(--page-header-mask);
+}}
+
 /* ── Home (Today) screen ── */
 .home-page {{ padding-bottom: 24px; }}
 
 .home-header,
 .fin-header {{
-    padding: calc(10px + var(--safe-top)) 14px 14px;
+    padding: calc(10px + var(--safe-top)) 14px 8px;
     gap: 10px;
+}}
+.home-page .page-glass-zone {{
+    margin-top: -22px;
+    padding-top: 22px;
 }}
 
 .home-header {{
-    background:
-        linear-gradient(165deg, #020617 0%, #0C4A6E 28%, #0369A1 52%, #1D4ED8 78%, #7C2D12 100%);
-    border-bottom: 1px solid rgba(125, 211, 252, 0.12);
-    overflow: hidden;
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
+    overflow: visible;
 }}
 .home-header::before {{
     content: '';
     position: absolute;
-    inset: 0;
     background:
         radial-gradient(ellipse 80% 60% at 88% 8%, rgba(251, 191, 36, 0.28), transparent 48%),
-        radial-gradient(ellipse 55% 45% at 8% 92%, rgba(56, 189, 248, 0.22), transparent 55%),
-        radial-gradient(ellipse 40% 30% at 50% 100%, rgba(99, 102, 241, 0.15), transparent 60%);
+        radial-gradient(ellipse 55% 45% at 8% 92%, rgba(56, 189, 248, 0.22), transparent 55%);
     pointer-events: none;
 }}
 .home-header::after {{
@@ -493,18 +860,17 @@ textarea:focus-visible, select:focus-visible {{
 
 /* hero panel */
 .home-hero-panel {{
-    margin-top: 4px;
+    margin-top: 0;
+    margin-bottom: -8px;
     padding: 14px;
     background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(125, 211, 252, 0.22);
+    border: 1px solid rgba(125, 211, 252, 0.14);
     border-radius: 18px;
     position: relative;
     z-index: 1;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 8px 24px rgba(0, 0, 0, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
     animation: homePanelIn 0.45s var(--ease-out) both;
 }}
 .home-hero-main {{
@@ -825,8 +1191,9 @@ body.kb-open .home-fab {{ display: none; }}
 }}
 
 [data-theme="light"] .home-header {{
-    background: linear-gradient(155deg, #FFF7ED 0%, #FFEDD5 28%, #E0F2FE 58%, #DBEAFE 82%, #F0F9FF 100%);
-    border-bottom-color: rgba(3, 105, 161, 0.1);
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
 }}
 [data-theme="light"] .home-header::after {{
     background: radial-gradient(circle, rgba(251, 191, 36, 0.55) 0%, rgba(251, 191, 36, 0.12) 48%, transparent 72%);
@@ -870,7 +1237,7 @@ body.kb-open .home-fab {{ display: none; }}
 [data-theme="light"] .home-hero-panel {{
     background: rgba(255, 255, 255, 0.78);
     border-color: rgba(3, 105, 161, 0.14);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 4px 16px rgba(14, 116, 144, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
 }}
 [data-theme="light"] .home-eff-val {{ color: #0C4A6E; }}
 [data-theme="light"] .home-eff-lbl {{ color: var(--text-muted); }}
@@ -1634,24 +2001,22 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 .analytics-page {{ padding-bottom: 8px; }}
 
 .analytics-header {{
-    background: linear-gradient(155deg, #0C0A1A 0%, #1A1A24 22%, #252530 48%, #1E1B4B 72%, #1A1A24 100%);
-    border-bottom: 1px solid rgba(167, 139, 250, 0.18);
-    padding: calc(14px + var(--safe-top)) var(--space-4) 16px;
-    box-shadow: 0 8px 32px rgba(124, 58, 237, 0.16);
+    background: transparent;
+    border-bottom: none;
+    padding: calc(14px + var(--safe-top)) var(--space-4) 10px;
+    box-shadow: none;
     position: sticky;
     top: 0;
     z-index: 100;
-    overflow: hidden;
+    overflow: visible;
     direction: rtl;
 }}
 .analytics-header::before {{
     content: '';
     position: absolute;
-    inset: 0;
     background:
         radial-gradient(ellipse 70% 55% at 88% 8%, rgba(167, 139, 250, 0.26), transparent 52%),
-        radial-gradient(ellipse 50% 45% at 8% 92%, rgba(129, 140, 248, 0.14), transparent 55%),
-        radial-gradient(ellipse 40% 30% at 50% 100%, rgba(196, 181, 253, 0.1), transparent 60%);
+        radial-gradient(ellipse 50% 45% at 8% 92%, rgba(129, 140, 248, 0.14), transparent 55%);
     pointer-events: none;
 }}
 .analytics-header::after {{
@@ -1752,11 +2117,11 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     position: relative; z-index: 1;
     padding: 14px;
     background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(196, 181, 253, 0.22);
+    border: 1px solid rgba(196, 181, 253, 0.14);
     border-radius: 18px;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
     animation: analyticsHeroIn 0.5s var(--ease-out) both;
 }}
 .analytics-hero-main {{
@@ -1812,7 +2177,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 .analytics-hero-panel .home-eff-lbl {{ color: rgba(196, 181, 253, 0.65); }}
 
 .analytics-body {{
-    padding: 4px 0 8px;
+    padding-bottom: 8px;
     animation: analyticsBodyIn 0.45s var(--ease-out) 0.1s both;
 }}
 .analytics-page .analytics-card {{
@@ -2072,9 +2437,9 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 .analytics-empty-sub {{ font-size: 12px; line-height: 1.7; }}
 
 [data-theme="light"] .analytics-header {{
-    background: linear-gradient(155deg, #F5F3FF 0%, #EDE9FE 35%, #E0E7FF 65%, #F5F3FF 100%);
-    border-bottom-color: rgba(124, 58, 237, 0.12);
-    box-shadow: 0 2px 16px rgba(99, 102, 241, 0.08);
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
 }}
 [data-theme="light"] .analytics-header::after {{
     background: radial-gradient(circle, rgba(124, 58, 237, 0.3) 0%, rgba(124, 58, 237, 0.08) 48%, transparent 72%);
@@ -2689,18 +3054,17 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 .fin-page {{ padding-bottom: 8px; }}
 
 .fin-header {{
-    background: linear-gradient(155deg, #061510 0%, #0F2E28 28%, #1A4034 55%, #0D2818 82%, #162016 100%);
-    border-bottom: 1px solid rgba(77, 217, 128, 0.14);
-    overflow: hidden;
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
+    overflow: visible;
 }}
 .fin-header::before {{
     content: '';
     position: absolute;
-    inset: 0;
     background:
         radial-gradient(ellipse 75% 55% at 88% 10%, rgba(77, 217, 128, 0.22), transparent 52%),
-        radial-gradient(ellipse 50% 45% at 10% 90%, rgba(45, 212, 191, 0.14), transparent 55%),
-        radial-gradient(ellipse 40% 30% at 50% 100%, rgba(255, 176, 32, 0.08), transparent 60%);
+        radial-gradient(ellipse 50% 45% at 10% 90%, rgba(45, 212, 191, 0.14), transparent 55%);
     pointer-events: none;
 }}
 .fin-header::after {{
@@ -2790,8 +3154,9 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     box-shadow: 0 0 18px rgba(77, 217, 128, 0.12);
 }}
 [data-theme="light"] .fin-header {{
-    background: linear-gradient(155deg, #ECFDF5 0%, #D1FAE5 35%, #E8F5EE 65%, #F0FAF4 100%);
-    border-bottom-color: rgba(15, 46, 40, 0.08);
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
 }}
 [data-theme="light"] .fin-header::after {{
     background: radial-gradient(circle, rgba(77, 217, 128, 0.4) 0%, rgba(77, 217, 128, 0.1) 48%, transparent 72%);
@@ -2824,14 +3189,13 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     margin-top: 6px;
     padding: 12px;
     background: rgba(6, 21, 16, 0.55);
-    border: 1px solid rgba(77, 217, 128, 0.22);
+    border: 1px solid rgba(77, 217, 128, 0.14);
     border-radius: 18px;
     position: relative;
     z-index: 1;
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.22),
         inset 0 1px 0 rgba(255, 255, 255, 0.06);
     animation: finPanelIn 0.45s var(--ease-out) both;
 }}
@@ -2934,7 +3298,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 [data-theme="light"] .fin-hero-panel {{
     background: rgba(255, 255, 255, 0.72);
     border-color: rgba(15, 46, 40, 0.1);
-    box-shadow: 0 8px 28px rgba(15, 46, 40, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }}
 [data-theme="light"] .fin-ring-pct {{ color: #0F2E28; }}
 [data-theme="light"] .fin-ring-lbl {{ color: var(--text-muted); }}
@@ -2947,7 +3311,8 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 
 /* body + actions */
 .fin-body {{
-    padding: 0 2px;
+    padding-left: 2px;
+    padding-right: 2px;
     animation: finBodyIn 0.4s var(--ease-out) 0.06s both;
 }}
 .fin-actions {{
@@ -3419,24 +3784,22 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 .proj-page {{ padding-bottom: 8px; }}
 
 .proj-header {{
-    background: linear-gradient(155deg, #0F0B2E 0%, #1E1B4B 22%, #312E81 48%, #4338CA 72%, #3730A3 100%);
-    border-bottom: 1px solid rgba(129, 140, 248, 0.18);
-    padding: calc(14px + var(--safe-top)) var(--space-4) 16px;
-    box-shadow: 0 8px 32px rgba(67, 56, 202, 0.18);
+    background: transparent;
+    border-bottom: none;
+    padding: calc(14px + var(--safe-top)) var(--space-4) 10px;
+    box-shadow: none;
     position: sticky;
     top: 0;
     z-index: 100;
-    overflow: hidden;
+    overflow: visible;
     direction: rtl;
 }}
 .proj-header::before {{
     content: '';
     position: absolute;
-    inset: 0;
     background:
         radial-gradient(ellipse 70% 55% at 88% 8%, rgba(129, 140, 248, 0.28), transparent 52%),
-        radial-gradient(ellipse 50% 45% at 8% 92%, rgba(167, 139, 250, 0.16), transparent 55%),
-        radial-gradient(ellipse 40% 30% at 50% 100%, rgba(196, 181, 253, 0.1), transparent 60%);
+        radial-gradient(ellipse 50% 45% at 8% 92%, rgba(167, 139, 250, 0.16), transparent 55%);
     pointer-events: none;
 }}
 .proj-header::after {{
@@ -3517,11 +3880,11 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     position: relative; z-index: 1;
     padding: 14px;
     background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(196, 181, 253, 0.22);
+    border: 1px solid rgba(196, 181, 253, 0.14);
     border-radius: 18px;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
     animation: projHeroIn 0.5s var(--ease-out) both;
 }}
 .proj-hero-main {{
@@ -4294,19 +4657,15 @@ body.kb-open .proj-sheet-overlay {{
 }}
 
 /* ── Light theme extras ── */
-[data-theme="light"] .date-header,
-[data-theme="light"] .home-header,
-[data-theme="light"] .fin-header,
-[data-theme="light"] .proj-header,
-[data-theme="light"] .analytics-header,
-[data-theme="light"] .track-header {{
+[data-theme="light"] .date-header:not(.home-header):not(.fin-header):not(.proj-header):not(.track-header) {{
     box-shadow: 0 2px 16px rgba(99, 102, 241, 0.08);
 }}
 [data-theme="light"] .proj-section-badge {{ color: #4338CA; background: rgba(67, 56, 202, 0.1); }}
 [data-theme="light"] .proj-card-section {{ box-shadow: var(--elevation-1); }}
 [data-theme="light"] .proj-header {{
-    background: linear-gradient(155deg, #EEF2FF 0%, #E0E7FF 35%, #EDE9FE 65%, #F5F3FF 100%);
-    border-bottom-color: rgba(79, 70, 229, 0.1);
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
 }}
 [data-theme="light"] .proj-header::after {{
     background: radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, rgba(99, 102, 241, 0.08) 48%, transparent 72%);
@@ -4387,15 +4746,16 @@ body.kb-open .proj-sheet-overlay {{
 .track-page {{ padding-bottom: 16px; }}
 
 .track-header {{
-    background: linear-gradient(155deg, #0A1F22 0%, #0F2A2E 35%, #134E4A 70%, #0C2328 100%);
-    overflow: hidden;
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
+    overflow: visible;
     gap: 0;
     padding: calc(8px + var(--safe-top)) var(--space-4) 6px;
 }}
 .track-header::before {{
     content: '';
     position: absolute;
-    inset: 0;
     background:
         radial-gradient(ellipse 70% 55% at 90% 8%, rgba(45, 212, 191, 0.28), transparent 58%),
         radial-gradient(ellipse 50% 40% at 8% 92%, rgba(129, 140, 248, 0.14), transparent 55%);
@@ -5203,8 +5563,9 @@ body.kb-open .track-act-overlay {{
 }}
 
 [data-theme="light"] .track-header {{
-    background: linear-gradient(155deg, #ECFDF5 0%, #F0FDFA 40%, #E0F2FE 100%);
-    box-shadow: 0 2px 16px rgba(13, 148, 136, 0.08);
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
 }}
 [data-theme="light"] .track-orb {{ opacity: 0.35; }}
 [data-theme="light"] .track-brand-mark {{
