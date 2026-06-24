@@ -137,13 +137,13 @@ def build_calendar_month(year: int, month: int, db: Database) -> dict:
     for day in range(1, days_in_month + 1):
         g = jalali_to_gregorian(year, month, day)
         useful, not_useful = db.get_useful_totals(g)
-        total = useful + not_useful
-        eff = int(useful / total * 100) if total > 0 else 0
+        classified = useful + not_useful
+        eff = int(useful / classified * 100) if classified > 0 else 0
         cells.append({
             "day": day,
             "date": g.isoformat(),
             "eff": eff,
-            "has_data": total > 0,
+            "has_data": db.get_day_activity_seconds(g) > 0,
         })
     return {
         "year": year,
@@ -332,8 +332,8 @@ def build_state(
             q = search_query.strip().lower()
             tasks = [t for t in tasks if q in t.title.lower()]
         useful, not_useful = db.get_useful_totals(current_date)
-        total = useful + not_useful
-        eff = int(useful / total * 100) if total > 0 else 0
+        classified = useful + not_useful
+        eff = int(useful / classified * 100) if classified > 0 else 0
         wellness = db.get_wellness(current_date)
         note = db.get_daily_note(current_date)
 
@@ -369,7 +369,8 @@ def build_state(
         total = sum(d["total"] for d in tasks_data)
         useful = sum(d["useful"] for d in tasks_data)
         not_useful = sum(d["not_useful"] for d in tasks_data)
-        eff = int(useful / total * 100) if total > 0 else 0
+        classified = useful + not_useful
+        eff = int(useful / classified * 100) if classified > 0 else 0
         income = finance_data["total_income"]
         expense = finance_data["total_expense"]
         investment = finance_data["total_investment"]
@@ -386,7 +387,9 @@ def build_state(
             day_str = d["date"]
             t_total = d["total"]
             t_useful = d["useful"]
-            t_eff = int(t_useful / t_total * 100) if t_total > 0 else 0
+            t_not_useful = d["not_useful"]
+            t_classified = t_useful + t_not_useful
+            t_eff = int(t_useful / t_classified * 100) if t_classified > 0 else 0
             chart_points.append(t_eff)
             heatmap.append({"date": day_str, "eff": t_eff, "total": t_total})
             w = next((x for x in wellness_data if x.date == day_str), None)
@@ -626,6 +629,116 @@ def build_state(
             "urgent_count": sum(
                 1 for d in dicts if d["urgency"] in ("overdue", "urgent")
             ),
+        }
+
+    elif screen == "tracking":
+        from datetime import datetime as _dt
+
+        def _epoch_to_hhmm(epoch):
+            if epoch is None:
+                return None
+            t = _dt.fromtimestamp(epoch)
+            return to_persian_digits(f"{t.hour:02d}:{t.minute:02d}")
+
+        def _fmt_dur(secs):
+            if secs is None:
+                return None
+            h = secs // 3600
+            m = (secs % 3600) // 60
+            s = secs % 60
+            if h > 0:
+                return to_persian_digits(f"{h}:{m:02d}:{s:02d}")
+            return to_persian_digits(f"{m:02d}:{s:02d}")
+
+        track_date = today
+        sessions = db.get_tracking_sessions_for_date(track_date)
+        active_row = db.get_active_tracking_session(track_date)
+
+        all_intervals_out: List[dict] = []
+        earlier_intervals_out: List[dict] = []
+        day_total_secs = 0
+        useful_secs = 0
+        not_useful_secs = 0
+        completed_count = 0
+        by_label: dict = {}
+        active_session_out = None
+
+        for sess in sessions:
+            rows = db.get_tracking_intervals(sess["id"])
+            sess_completed_secs = 0
+            for r in rows:
+                is_active = r["ended_at"] is None
+                dur = r["duration_secs"] or 0
+                raw_useful = r["is_useful"] if "is_useful" in r.keys() else None
+                is_useful = None if raw_useful is None else bool(raw_useful)
+                iv = {
+                    "id": r["id"],
+                    "session_id": sess["id"],
+                    "label": r["label"],
+                    "started_label": _epoch_to_hhmm(r["started_at"]),
+                    "ended_label": _epoch_to_hhmm(r["ended_at"]),
+                    "duration_label": _fmt_dur(dur if dur else None),
+                    "duration_secs": dur if not is_active else 0,
+                    "started_epoch": r["started_at"],
+                    "is_active": is_active,
+                    "is_useful": is_useful,
+                }
+                all_intervals_out.append(iv)
+                if not is_active and dur:
+                    day_total_secs += dur
+                    completed_count += 1
+                    sess_completed_secs += dur
+                    if is_useful is True:
+                        useful_secs += dur
+                    elif is_useful is False:
+                        not_useful_secs += dur
+                    lbl = (r["label"] or "").strip() or "بدون عنوان"
+                    by_label[lbl] = by_label.get(lbl, 0) + dur
+
+            if active_row and sess["id"] == active_row["id"]:
+                active_session_out = {
+                    "id": sess["id"],
+                    "is_active": True,
+                    "started_label": _epoch_to_hhmm(sess["started_at"]),
+                    "ended_label": None,
+                    "total_label": _fmt_dur(sess_completed_secs),
+                    "total_secs": sess_completed_secs,
+                }
+
+        breakdown_out = []
+        for lbl, secs in sorted(by_label.items(), key=lambda x: -x[1]):
+            pct = int(secs / day_total_secs * 100) if day_total_secs else 0
+            breakdown_out.append({
+                "label": lbl,
+                "duration_secs": secs,
+                "duration_label": _fmt_dur(secs),
+                "pct": pct,
+            })
+
+        if active_row:
+            active_sid = active_row["id"]
+            earlier_intervals_out = [
+                iv for iv in all_intervals_out
+                if iv["session_id"] != active_sid and not iv["is_active"]
+            ]
+
+        classified = useful_secs + not_useful_secs
+        efficiency = int(useful_secs / classified * 100) if classified > 0 else None
+
+        state["tracking"] = {
+            "date_label": format_jalali(track_date),
+            "has_data": len(sessions) > 0,
+            "session": active_session_out,
+            "intervals": all_intervals_out,
+            "earlier_intervals": earlier_intervals_out,
+            "breakdown": breakdown_out,
+            "day_total_label": _fmt_dur(day_total_secs),
+            "day_total_secs": day_total_secs,
+            "useful_label": _fmt_dur(useful_secs) if useful_secs else None,
+            "not_useful_label": _fmt_dur(not_useful_secs) if not_useful_secs else None,
+            "efficiency": efficiency,
+            "completed_count": completed_count,
+            "session_count": len(sessions),
         }
 
     return state

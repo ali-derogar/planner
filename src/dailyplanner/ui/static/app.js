@@ -69,6 +69,46 @@ function pd(n) {
     return String(n).replace(/\d/g, function(c) { return d[+c]; });
 }
 
+function fmtElapsed(secs) {
+    var h = Math.floor(secs / 3600);
+    var m = Math.floor((secs % 3600) / 60);
+    var s = secs % 60;
+    var digits = '۰۱۲۳۴۵۶۷۸۹';
+    function p(n) {
+        return (n < 10 ? '0' + n : '' + n).replace(/[0-9]/g, function(d) { return digits[+d]; });
+    }
+    return p(h) + ':' + p(m) + ':' + p(s);
+}
+
+function stopTrackingTicker() {
+    window._trackingEpoch = null;
+    if (window._trackTicker) {
+        clearInterval(window._trackTicker);
+        window._trackTicker = null;
+    }
+}
+
+function syncTrackingTicker() {
+    var el = document.getElementById('tracking-live');
+    if (!el || !el.dataset.startedEpoch) {
+        stopTrackingTicker();
+        return;
+    }
+    window._trackingEpoch = parseFloat(el.dataset.startedEpoch);
+    if (!window._trackTicker) {
+        window._trackTicker = setInterval(function() {
+            var e = document.getElementById('tracking-live');
+            if (!e || !e.dataset.startedEpoch) {
+                stopTrackingTicker();
+                return;
+            }
+            window._trackingEpoch = parseFloat(e.dataset.startedEpoch);
+            e.textContent = fmtElapsed(Math.floor(Date.now() / 1000 - window._trackingEpoch));
+        }, 1000);
+    }
+    el.textContent = fmtElapsed(Math.floor(Date.now() / 1000 - window._trackingEpoch));
+}
+
 /* SVG icons */
 var ICON = {
     home: '<svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.5z"/></svg>',
@@ -90,6 +130,7 @@ var ICON = {
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
     list: '<svg viewBox="0 0 24 24"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
     check: '<svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg>',
+    tracking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"/><path d="M12 10v3l2 2"/><path d="M9 3h6"/><path d="M12 3v3"/></svg>',
 };
 
 function ico(name, cls) {
@@ -129,7 +170,7 @@ function collapseChevron(open) {
 
 function themeColorForScreen(screen, theme) {
     if (theme === 'light') return '#FAFAFC';
-    var map = { home: '#0369A1', finance: '#0F2E28', projects: '#6366F1', analytics: '#1A1A24' };
+    var map = { home: '#0369A1', finance: '#0F2E28', projects: '#6366F1', analytics: '#1A1A24', tracking: '#0F2A2E' };
     return map[screen] || '#0A0A0F';
 }
 
@@ -883,6 +924,7 @@ function ensureModalStructure() {
 function showModal(config) {
     ensureModalStructure();
     closeProjectSheet();
+    closeActivityPicker();
     _modal = config;
     var titleEl = document.getElementById('modal-title');
     if (titleEl) titleEl.textContent = config.title || '';
@@ -2083,6 +2125,16 @@ function showEditInstallment(i) {
 
 var _showCompletedProjects = false;
 var _showFinanceTransactions = false;
+var _expandedTrackingIntervals = {};
+
+function toggleTrackingInterval(id) {
+    if (_expandedTrackingIntervals[id]) {
+        delete _expandedTrackingIntervals[id];
+    } else {
+        _expandedTrackingIntervals[id] = true;
+    }
+    if (window._lastState) renderApp(window._lastState);
+}
 
 function getProjectById(id) {
     return (window._projectsList || []).find(function(x) { return x.id === id; });
@@ -2096,6 +2148,7 @@ function closeProjectSheet() {
 }
 
 function showProjectSheet(id) {
+    closeActivityPicker();
     closeProjectSheet();
     var p = getProjectById(id);
     if (!p) return;
@@ -2334,6 +2387,431 @@ function renderProjectDetail(p) {
     return html;
 }
 
+var TRACK_ACTIVITIES = [
+    { e: '😴', l: 'خواب' }, { e: '💼', l: 'کار' }, { e: '📱', l: 'گوشی' },
+    { e: '☕', l: 'استراحت' }, { e: '🍽️', l: 'غذا' }, { e: '🏃', l: 'ورزش' },
+    { e: '🚇', l: 'مترو' }, { e: '🚗', l: 'ماشین' }, { e: '🚌', l: 'اتوبوس' },
+    { e: '🚕', l: 'تاکسی' }, { e: '🚶', l: 'پیاده\u200cروی' }, { e: '🚴', l: 'دوچرخه' },
+    { e: '🎬', l: 'سینما' }, { e: '📺', l: 'تلویزیون' }, { e: '📚', l: 'مطالعه' },
+    { e: '🎮', l: 'بازی' }, { e: '🛒', l: 'خرید' }, { e: '🧹', l: 'نظافت' },
+    { e: '🍳', l: 'آشپزی' }, { e: '🚿', l: 'دوش' }, { e: '🕌', l: 'نماز' },
+    { e: '👨‍👩‍👧', l: 'خانواده' }, { e: '👥', l: 'دوستان' }, { e: '💬', l: 'گفتگو' },
+    { e: '📞', l: 'تماس' }, { e: '🏥', l: 'پزشکی' }, { e: '💊', l: 'دارو' },
+    { e: '🧘', l: 'مدیتشن' }, { e: '🎵', l: 'موسیقی' }, { e: '🎨', l: 'هنر' },
+    { e: '✍️', l: 'نوشتن' }, { e: '💻', l: 'کامپیوتر' }, { e: '🏫', l: 'کلاس' },
+    { e: '📝', l: 'امتحان' }, { e: '🏋️', l: 'بدنسازی' }, { e: '⚽', l: 'فوتبال' },
+    { e: '☕', l: 'کافه' }, { e: '🍕', l: 'فست\u200cفود' }, { e: '🧋', l: 'نوشیدنی' },
+    { e: '🐕', l: 'حیوان خانگی' }, { e: '🌳', l: 'پارک' }, { e: '🏖️', l: 'تفریح' },
+    { e: '✈️', l: 'سفر' }, { e: '💤', l: 'چرت' }, { e: '🧑‍💼', l: 'جلسه' },
+    { e: '📊', l: 'پروژه' }, { e: '🔧', l: 'تعمیرات' }, { e: '🏠', l: 'خانه' },
+    { e: '🛏️', l: 'دراز کشیدن' }, { e: '📰', l: 'اخبار' }, { e: '🎧', l: 'پادکست' },
+    { e: '🛍️', l: 'مرکز خرید' }, { e: '💇', l: 'آرایشگاه' }, { e: '🏦', l: 'بانک' },
+    { e: '📦', l: 'کارهای اداری' }, { e: '🚬', l: 'سیگار' }, { e: '🧺', l: 'رختشویی' },
+    { e: '👶', l: 'مراقبت کودک' }, { e: '🍵', l: 'چای' }, { e: '🌙', l: 'شب\u200cبیداری' },
+    { e: '🏍️', l: 'موتور' }, { e: '🚆', l: 'قطار' }, { e: '🛫', l: 'فرودگاه' },
+    { e: '🛵', l: 'اسکوتر' }, { e: '🚁', l: 'هلیکوپتر' }, { e: '⛵', l: 'قایق\u200cسواری' },
+    { e: '🦷', l: 'دندانپزشکی' }, { e: '🩺', l: 'آزمایش' }, { e: '💉', l: 'ویزیت پزشک' },
+    { e: '🧴', l: 'فیزیوتراپی' }, { e: '💆', l: 'ماساژ' }, { e: '💅', l: 'آرایش' },
+    { e: '✂️', l: 'اصلاح' }, { e: '🧵', l: 'خیاطی' }, { e: '🪴', l: 'باغبانی' },
+    { e: '🎉', l: 'مهمانی' }, { e: '🎂', l: 'تولد' }, { e: '🕯️', l: 'مراسم' },
+    { e: '🏕️', l: 'کمپینگ' }, { e: '⛰️', l: 'کوهنوردی' }, { e: '🏊', l: 'شنا' },
+    { e: '🏐', l: 'والیبال' }, { e: '🏀', l: 'بسکتبال' }, { e: '🎾', l: 'تنیس' },
+    { e: '🧘‍♀️', l: 'یوگا' }, { e: '🤸', l: 'پیلاتس' }, { e: '🏃‍♂️', l: 'دویدن' },
+    { e: '⛸️', l: 'اسکیت' }, { e: '🎿', l: 'اسکی' }, { e: '🎣', l: 'ماهیگیری' },
+    { e: '♟️', l: 'شطرنج' }, { e: '🧩', l: 'پازل' }, { e: '🖌️', l: 'نقاشی' },
+    { e: '📷', l: 'عکاسی' }, { e: '🎥', l: 'فیلمبرداری' }, { e: '🎞️', l: 'ویرایش ویدیو' },
+    { e: '👨‍💻', l: 'برنامه\u200cنویسی' }, { e: '🖥️', l: 'طراحی' }, { e: '🗣️', l: 'یادگیری زبان' },
+    { e: '🎓', l: 'دوره آنلاین' }, { e: '📡', l: 'وبینار' }, { e: '🔢', l: 'ریاضی' },
+    { e: '📖', l: 'تکلیف درسی' }, { e: '🎹', l: 'تمرین موسیقی' }, { e: '🎤', l: 'آواز' },
+    { e: '🎸', l: 'گیتار' }, { e: '🎻', l: 'ویولن' }, { e: '💃', l: 'رقص' },
+    { e: '🎭', l: 'تئاتر' }, { e: '🎫', l: 'کنسرت' }, { e: '🏛️', l: 'موزه' },
+    { e: '📚', l: 'کتابخانه' }, { e: '📱', l: 'شبکه\u200cهای اجتماعی' }, { e: '▶️', l: 'یوتیوب' },
+    { e: '📸', l: 'اینستاگرام' }, { e: '💬', l: 'تلگرام' }, { e: '📧', l: 'ایمیل' },
+    { e: '🌐', l: 'اینترنت' }, { e: '🛒', l: 'خرید آنلاین' }, { e: '🏪', l: 'بازار' },
+    { e: '🍎', l: 'میوه\u200cفروشی' }, { e: '🥖', l: 'نانوایی' }, { e: '🥩', l: 'قصابی' },
+    { e: '💊', l: 'داروخانه' }, { e: '📮', l: 'پست' }, { e: '⛽', l: 'پمپ بنزین' },
+    { e: '🚗', l: 'کارواش' }, { e: '🔩', l: 'تعویض روغن' }, { e: '🅿️', l: 'پارکینگ' },
+    { e: '🚦', l: 'ترافیک' }, { e: '⏳', l: 'انتظار' }, { e: '🧍', l: 'صف' },
+    { e: '🤝', l: 'قرار ملاقات' }, { e: '👔', l: 'مصاحبه' }, { e: '📽️', l: 'ارائه' },
+    { e: '📋', l: 'یادداشت\u200cبرداری' }, { e: '🗓️', l: 'برنامه\u200cریزی' }, { e: '🗂️', l: 'سازماندهی' },
+    { e: '🗄️', l: 'بایگانی' }, { e: '💾', l: 'پشتیبان\u200cگیری' }, { e: '🧾', l: 'پرداخت قبوض' },
+    { e: '💰', l: 'حسابداری' }, { e: '📑', l: 'مالیات' }, { e: '🛠️', l: 'کار فنی' },
+    { e: '🔨', l: 'نجاری' }, { e: '⚡', l: 'برق\u200cکاری' }, { e: '🚰', l: 'لوله\u200cکشی' },
+    { e: '🖌️', l: 'رنگ\u200cآمیزی' }, { e: '🪟', l: 'شستن پنجره' }, { e: '🧽', l: 'ظرفشویی' },
+];
+var TRACK_COLORS = ['#2DD4BF', '#818CF8', '#F472B6', '#FBBF24', '#FB7185', '#34D399', '#38BDF8'];
+
+function trackActivityLabel(a) {
+    return a.e + ' ' + a.l;
+}
+
+function trackLabelQuery(raw) {
+    var s = (raw || '').trim();
+    if (!s) return '';
+    var m = s.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]+.*$/);
+    return (m ? m[0] : s).trim();
+}
+
+function matchTrackActivities(query) {
+    var raw = (query || '').trim();
+    if (!raw) return TRACK_ACTIVITIES.slice();
+    var q = trackLabelQuery(raw);
+    if (!q) return [];
+    return TRACK_ACTIVITIES.filter(function(a) {
+        return a.l.indexOf(q) !== -1;
+    });
+}
+
+function buildActivityGrid(intervalId, query) {
+    var html = '';
+    matchTrackActivities(query).forEach(function(a) {
+        var full = trackActivityLabel(a);
+        html += '<button type="button" class="track-act-item" onclick="pickTrackActivity(' + intervalId + ',\'' + escJs(full) + '\')">' +
+            '<span class="track-act-emoji">' + a.e + '</span>' +
+            '<span class="track-act-name">' + esc(a.l) + '</span></button>';
+    });
+    return html || '<div class="track-act-empty">فعالیتی یافت نشد</div>';
+}
+
+function filterActivityPicker(query) {
+    var grid = document.getElementById('track-act-grid');
+    var sid = window._trackActIntervalId;
+    if (grid && sid != null) grid.innerHTML = buildActivityGrid(sid, query);
+}
+
+function closeActivityPicker() {
+    var o = document.getElementById('track-act-sheet');
+    if (o) o.style.display = 'none';
+    window._trackActIntervalId = null;
+    syncBodyScrollLock();
+    setTimeout(syncKeyboardLayout, 150);
+}
+
+function pickTrackActivity(intervalId, label) {
+    closeActivityPicker();
+    setTrackLabel(intervalId, label);
+}
+
+function showActivityPicker(intervalId) {
+    closeActivityPicker();
+    closeProjectSheet();
+    window._trackActIntervalId = intervalId;
+    var overlay = document.getElementById('track-act-sheet');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'track-act-sheet';
+        overlay.className = 'track-act-overlay';
+        document.body.appendChild(overlay);
+    }
+    overlay.innerHTML =
+        '<div class="track-act-sheet" onclick="event.stopPropagation()">' +
+        '<div class="track-act-handle"></div>' +
+        '<div class="track-act-title">انتخاب فعالیت</div>' +
+        '<input type="search" class="track-act-search" placeholder="جستجو..." oninput="filterActivityPicker(this.value)" aria-label="جستجوی فعالیت">' +
+        '<div class="track-act-grid" id="track-act-grid">' + buildActivityGrid(intervalId, '') + '</div>' +
+        '<button type="button" class="track-act-cancel" onclick="closeActivityPicker()">بستن</button></div>';
+    overlay.style.display = 'flex';
+    overlay.onclick = closeActivityPicker;
+    syncBodyScrollLock();
+    syncKeyboardLayout();
+}
+
+function trackColorForLabel(label) {
+    if (!label) return '#71717A';
+    var hash = 0;
+    for (var i = 0; i < label.length; i++) {
+        hash = ((hash << 5) - hash) + label.charCodeAt(i);
+        hash |= 0;
+    }
+    return TRACK_COLORS[Math.abs(hash) % TRACK_COLORS.length];
+}
+
+function setTrackLabel(intervalId, label) {
+    action('set_tracking_label', { interval_id: intervalId, label: label });
+}
+
+function hideTrackLabelSuggestions(intervalId) {
+    var box = document.getElementById('track-label-sug-' + intervalId);
+    if (box) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+    }
+}
+
+function hideTrackLabelSuggestionsDelayed(intervalId) {
+    setTimeout(function() { hideTrackLabelSuggestions(intervalId); }, 150);
+}
+
+function pickTrackLabelSuggestion(intervalId, label) {
+    var input = document.querySelector('.track-label-input[data-interval-id="' + intervalId + '"]');
+    if (input) input.value = label;
+    hideTrackLabelSuggestions(intervalId);
+    setTrackLabel(intervalId, label);
+}
+
+function onTrackLabelInput(intervalId, input) {
+    var trimmed = (input.value || '').trim();
+    var query = trackLabelQuery(trimmed);
+    var box = document.getElementById('track-label-sug-' + intervalId);
+    if (!box) return;
+
+    if (!query) {
+        hideTrackLabelSuggestions(intervalId);
+        return;
+    }
+
+    if (TRACK_ACTIVITIES.some(function(a) {
+        return trackActivityLabel(a) === trimmed || a.l === trimmed;
+    })) {
+        hideTrackLabelSuggestions(intervalId);
+        return;
+    }
+
+    var matches = matchTrackActivities(trimmed).slice(0, 6);
+    if (!matches.length) {
+        hideTrackLabelSuggestions(intervalId);
+        return;
+    }
+
+    var html = '';
+    matches.forEach(function(a) {
+        var full = trackActivityLabel(a);
+        html += '<button type="button" class="track-label-sug-item" ' +
+            'onmousedown="event.preventDefault();pickTrackLabelSuggestion(' + intervalId + ',\'' + escJs(full) + '\')">' +
+            '<span class="track-act-emoji">' + a.e + '</span>' +
+            '<span class="track-label-sug-text">' + esc(a.l) + '</span></button>';
+    });
+    box.innerHTML = html;
+    box.style.display = 'block';
+}
+
+function trackingHeader(t, heroInner) {
+    var html = '<div class="date-header track-header">';
+    html += '<div class="track-header-top">' + finEmoji('⏱️', 'md') + '<span class="track-header-title">ردیابی روز</span></div>';
+    html += '<div class="track-date-label">' + esc(t.date_label) + '</div>';
+    if (heroInner) html += heroInner;
+    html += '</div>';
+    return html;
+}
+
+function trackingIntervalCard(iv, totalSecs) {
+    var isExpanded = !!_expandedTrackingIntervals[iv.id];
+    var pct = totalSecs > 0 && iv.duration_secs ? Math.round(iv.duration_secs / totalSecs * 100) : 0;
+    var label = (iv.label || '').trim();
+    var color = trackColorForLabel(label || 'بدون عنوان');
+    var displayLabel = label || 'بدون عنوان';
+    var cardCls = 'track-interval' + (isExpanded ? ' is-open' : '');
+    if (iv.is_useful === true) cardCls += ' is-useful';
+    else if (iv.is_useful === false) cardCls += ' is-not-useful';
+
+    var timeCompact = '';
+    if (iv.started_label) {
+        timeCompact = esc(iv.started_label);
+        if (iv.ended_label) timeCompact += ' ← ' + esc(iv.ended_label);
+    }
+
+    var html = '<div class="' + cardCls + '">';
+    html += '<div class="track-interval-accent" style="background:' + color + '"></div>';
+    html += '<div class="track-interval-body">';
+    html += '<button type="button" class="track-interval-header" onclick="toggleTrackingInterval(' + iv.id + ')">';
+    html += '<span class="track-interval-header-main">';
+    html += '<span class="track-interval-label">' + esc(displayLabel) + '</span>';
+    if (timeCompact) {
+        html += '<span class="track-interval-time-compact">' + timeCompact + '</span>';
+    }
+    html += '</span>';
+    html += '<span class="track-interval-top-end">';
+    if (iv.duration_label) {
+        html += '<span class="track-interval-dur">' + esc(iv.duration_label) + '</span>';
+    }
+    html += collapseChevron(isExpanded);
+    if (!iv.is_active) {
+        html += '<span role="button" tabindex="0" class="track-interval-del" onclick="event.stopPropagation();action(\'delete_tracking_interval\',{interval_id:' + iv.id + '})" title="حذف" aria-label="حذف بازه">×</span>';
+    }
+    html += '</span></button>';
+
+    if (isExpanded) {
+        html += '<div class="track-interval-detail">';
+        if (iv.started_label) {
+            html += '<div class="track-interval-time">' + esc(iv.started_label);
+            if (iv.ended_label) html += ' ← ' + esc(iv.ended_label);
+            html += '</div>';
+        }
+        if (pct > 0) {
+            html += '<div class="track-interval-bar"><div class="track-interval-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>';
+        }
+        html += trackingUsefulChips(iv.id, iv.is_useful);
+        html += '<div class="track-label-row">';
+        html += '<div class="track-label-wrap">';
+        html += '<input type="text" class="track-label-input" data-interval-id="' + iv.id + '" ' +
+            'placeholder="عنوان فعالیت..." value="' + esc(label) + '" autocomplete="off" ' +
+            'oninput="onTrackLabelInput(' + iv.id + ', this)" onfocus="onTrackLabelInput(' + iv.id + ', this)" ' +
+            'onblur="hideTrackLabelSuggestionsDelayed(' + iv.id + ')" ' +
+            'onchange="action(\'set_tracking_label\',{interval_id:' + iv.id + ',label:this.value})">';
+        html += '<div class="track-label-suggestions" id="track-label-sug-' + iv.id + '"></div>';
+        html += '</div>';
+        html += '<button type="button" class="track-pick-btn" onclick="showActivityPicker(' + iv.id + ')" aria-label="انتخاب از لیست فعالیت\u200cها">' +
+            finEmoji('📋', 'sm') + '<span>انتخاب</span></button>';
+        html += '</div></div>';
+    }
+
+    html += '</div></div>';
+    return html;
+}
+
+function trackingUsefulChips(intervalId, isUseful) {
+    var uCls = isUseful === true ? 'chip-useful-on' : 'chip-useful-off';
+    var nuCls = isUseful === false ? 'chip-notuseful-on' : 'chip-neutral';
+    return '<div class="track-useful-row">' +
+        '<a href="javascript:void(0)" onclick="action(\'set_tracking_useful\',{interval_id:' + intervalId + ',value:\'true\'})" class="chip ' + uCls + '">✔ مفید</a>' +
+        '<a href="javascript:void(0)" onclick="action(\'set_tracking_useful\',{interval_id:' + intervalId + ',value:\'false\'})" class="chip ' + nuCls + '">✖ نامفید</a>' +
+        '</div>';
+}
+
+function trackingEfficiencyRow(t) {
+    if (!t.useful_label && !t.not_useful_label) return '';
+    var html = '<div class="track-eff-row">';
+    if (t.useful_label) {
+        html += '<span class="track-eff-item useful">' + finEmoji('✅', 'sm') + ' مفید: ' + esc(t.useful_label) + '</span>';
+    }
+    if (t.not_useful_label) {
+        html += '<span class="track-eff-item not">' + finEmoji('⚠️', 'sm') + ' نامفید: ' + esc(t.not_useful_label) + '</span>';
+    }
+    if (t.efficiency != null) {
+        html += '<span class="track-eff-item eff">' + finEmoji('🎯', 'sm') + ' بازده: ' + pd(t.efficiency) + '٪</span>';
+    }
+    return html + '</div>';
+}
+
+function trackingBreakdownSection(breakdown, totalSecs) {
+    if (!breakdown || !breakdown.length || !totalSecs) return '';
+    var html = '<div class="track-section"><div class="sec-title">توزیع زمان</div>';
+    html += '<div class="track-breakdown-bar">';
+    breakdown.forEach(function(b) {
+        var w = Math.max(b.pct, 3);
+        html += '<div class="track-breakdown-seg" style="width:' + w + '%;background:' + trackColorForLabel(b.label) + '" title="' + esc(b.label) + '"></div>';
+    });
+    html += '</div><div class="track-breakdown-legend">';
+    breakdown.forEach(function(b) {
+        html += '<div class="track-legend-item">' +
+            '<span class="track-legend-dot" style="background:' + trackColorForLabel(b.label) + '"></span>' +
+            '<span class="track-legend-label">' + esc(b.label) + '</span>' +
+            '<span class="track-legend-val">' + esc(b.duration_label) + ' · ' + pd(b.pct) + '٪</span></div>';
+    });
+    html += '</div></div>';
+    return html;
+}
+
+function renderTracking(t) {
+    var session = t.session;
+    var hasData = t.has_data;
+    var dayTotalSecs = t.day_total_secs || 0;
+    var dayTotalLabel = t.day_total_label || '۰۰:۰۰';
+    var html = '<div class="track-page">';
+
+    if (!hasData && !session) {
+        html += trackingHeader(t);
+        html += '<div class="empty-state track-empty">' +
+            finIcon('neutral', '⏱', 'lg') +
+            '<div class="empty-title">روز خود را ردیابی کنید</div>' +
+            '<div class="empty-sub">با زدن شروع، زمان هر فعالیت را ثبت کنید و در پایان روز ببینید وقتتان کجا رفته</div>' +
+            '<button type="button" class="empty-btn track-start-btn" onclick="action(\'start_tracking\',{})">' +
+            ico('play', 'ico') + ' شروع ردیابی</button></div>';
+        html += '<div class="track-tips"><div class="track-tip">' + finEmoji('💡', 'sm') +
+            ' عنوان را بنویسید یا از دکمه «انتخاب» یکی از فعالیت\u200cهای رایج را برگزینید</div></div>';
+        return html + '</div>';
+    }
+
+    var sid = session ? session.id : null;
+    var intervals = t.intervals || [];
+    var earlierIntervals = t.earlier_intervals || [];
+    var completedCount = t.completed_count || 0;
+    var sessionCount = t.session_count || 0;
+
+    if (session && session.is_active) {
+        var activeInterval = null;
+        var currentCompleted = [];
+        for (var i = 0; i < intervals.length; i++) {
+            if (intervals[i].session_id === sid && intervals[i].is_active) {
+                activeInterval = intervals[i];
+            } else if (intervals[i].session_id === sid && !intervals[i].is_active) {
+                currentCompleted.push(intervals[i]);
+            }
+        }
+
+        var heroHtml = '<div class="track-hero-in-header">';
+        heroHtml += '<div class="track-timer-wrap">';
+        heroHtml += '<div class="track-timer-ring"><div class="track-timer-inner">';
+        heroHtml += '<div class="track-timer-lbl">فعالیت فعلی</div>';
+        heroHtml += '<div id="tracking-live" class="track-timer-val"' +
+            (activeInterval ? ' data-started-epoch="' + activeInterval.started_epoch + '"' : '') +
+            '>۰۰:۰۰:۰۰</div>';
+        heroHtml += '</div></div></div>';
+        heroHtml += '<div class="track-hero-stats">';
+        heroHtml += '<div class="track-hero-stat">' + finEmoji('🕐', 'sm') + '<div><span class="track-stat-lbl">شروع</span><span class="track-stat-val">' + esc(session.started_label) + '</span></div></div>';
+        heroHtml += '<div class="track-hero-stat">' + finEmoji('📋', 'sm') + '<div><span class="track-stat-lbl">بازه\u200cها</span><span class="track-stat-val">' + pd(completedCount) + '</span></div></div>';
+        heroHtml += '<div class="track-hero-stat">' + finEmoji('⏳', 'sm') + '<div><span class="track-stat-lbl">کل امروز</span><span class="track-stat-val">' + esc(dayTotalLabel) + '</span></div></div>';
+        heroHtml += '</div></div>';
+
+        html += trackingHeader(t, heroHtml);
+
+        html += '<div class="track-actions">';
+        html += '<button type="button" class="track-btn track-btn-switch" onclick="action(\'switch_tracking\',{session_id:' + sid + '})">';
+        html += '<span class="track-btn-icon">⇄</span><span class="track-btn-text">تعویض فعالیت</span></button>';
+        html += '<button type="button" class="track-btn track-btn-stop" onclick="action(\'stop_tracking\',{session_id:' + sid + '})">';
+        html += ico('stop', 'ico') + '<span>توقف</span></button>';
+        html += '<button type="button" class="track-btn track-btn-delete" onclick="action(\'delete_tracking_session\',{session_id:' + sid + '})">';
+        html += '<span aria-hidden="true">🗑</span><span>حذف</span></button>';
+        html += '</div>';
+
+        html += '<div class="track-hint">' + finEmoji('👆', 'sm') + ' با «تعویض فعالیت» بازه قبلی بسته می\u200cشود — سپس عنوان بنویسید یا «انتخاب» بزنید</div>';
+
+        if (currentCompleted.length) {
+            html += '<div class="track-section"><div class="sec-title">بازه\u200cهای این دور</div><div class="track-timeline">';
+            for (var j = currentCompleted.length - 1; j >= 0; j--) {
+                html += trackingIntervalCard(currentCompleted[j], dayTotalSecs);
+            }
+            html += '</div></div>';
+        }
+
+        if (earlierIntervals.length) {
+            html += '<div class="track-section"><div class="sec-title">ردیابی\u200cهای قبلی امروز</div><div class="track-timeline">';
+            for (var k = earlierIntervals.length - 1; k >= 0; k--) {
+                html += trackingIntervalCard(earlierIntervals[k], dayTotalSecs);
+            }
+            html += '</div></div>';
+        }
+
+        html += trackingEfficiencyRow(t);
+    } else {
+        var sessionNote = sessionCount > 1
+            ? '<div class="track-hero-range">' + pd(sessionCount) + ' دور ردیابی</div>' : '';
+        var summaryHero = '<div class="track-hero-in-header track-hero-summary">' +
+            '<div class="track-hero-label">مجموع امروز</div>' +
+            '<div class="track-hero-total">' + esc(dayTotalLabel) + '</div>' +
+            sessionNote +
+            '</div>';
+        html += trackingHeader(t, summaryHero);
+
+        html += trackingEfficiencyRow(t);
+        html += trackingBreakdownSection(t.breakdown, dayTotalSecs);
+
+        html += '<div class="track-section"><div class="sec-title">جدول زمانی امروز</div><div class="track-timeline">';
+        intervals.forEach(function(iv2) {
+            if (!iv2.duration_label) return;
+            html += trackingIntervalCard(iv2, dayTotalSecs);
+        });
+        html += '</div></div>';
+
+        html += '<div class="track-restart-wrap">';
+        html += '<button type="button" class="track-restart-btn" onclick="action(\'start_tracking\',{})">' +
+            '<span class="track-restart-plus" aria-hidden="true">+</span> شروع ردیابی جدید</button></div>';
+    }
+
+    html += '</div>';
+    return html;
+}
+
 function renderNav(screen) {
     function item(id, label, iconName) {
         var cls = screen === id ? 'nav-btn active nav-' + id : 'nav-btn';
@@ -2342,6 +2820,7 @@ function renderNav(screen) {
             ' aria-label="' + label + '"><span class="nav-icon" aria-hidden="true">' + (ICON[iconName] || '') + '</span>' + label + '</button>';
     }
     return item('home', 'امروز', 'home') +
+        item('tracking', 'ردیابی', 'tracking') +
         item('finance', 'مالی', 'wallet') +
         item('projects', 'پروژه\u200cها', 'folder') +
         item('analytics', 'آمار', 'chart');
@@ -2349,7 +2828,10 @@ function renderNav(screen) {
 
 /* Main render */
 function renderApp(state) {
-    if (!isModalVisible()) closeProjectSheet();
+    if (!isModalVisible()) {
+        closeProjectSheet();
+        closeActivityPicker();
+    }
     window._categories = state.finance_categories || [];
     window._investCategories = state.investment_categories || [];
     window._moodEmojis = state.mood_emojis || [];
@@ -2374,6 +2856,7 @@ function renderApp(state) {
     else if (state.screen === 'projects' && state.projects) html = renderProjects(state.projects);
     else if (state.screen === 'project_detail' && state.project_detail) html = renderProjectDetail(state.project_detail);
     else if (state.screen === 'important_dates' && state.important_dates) html = renderImportantDates(state.important_dates);
+    else if (state.screen === 'tracking' && state.tracking) html = renderTracking(state.tracking);
 
     window._lastState = state;
 
@@ -2456,6 +2939,7 @@ function renderApp(state) {
         'has-bottom-nav',
         state.screen === 'home' || state.screen === 'finance'
             || state.screen === 'analytics' || state.screen === 'projects'
+            || state.screen === 'tracking'
     );
 
     if (state.screen === 'settings' && window._exportData) {
@@ -2464,7 +2948,7 @@ function renderApp(state) {
     }
 
     var nav = document.getElementById('bottom-nav');
-    if (nav && (state.screen === 'home' || state.screen === 'finance' || state.screen === 'analytics' || state.screen === 'projects')) {
+    if (nav && (state.screen === 'home' || state.screen === 'finance' || state.screen === 'analytics' || state.screen === 'projects' || state.screen === 'tracking')) {
         nav.innerHTML = renderNav(state.screen);
         nav.style.display = 'flex';
     } else if (nav) {
@@ -2472,6 +2956,8 @@ function renderApp(state) {
     }
 
     if (state.toast) showToast(state.toast.message, state.toast.type);
+
+    syncTrackingTicker();
 
     if (isModalVisible()) {
         syncBodyScrollLock();
@@ -2504,8 +2990,13 @@ function isProjectSheetVisible() {
     return !!(sheet && sheet.style.display !== 'none');
 }
 
+function isActivityPickerVisible() {
+    var sheet = document.getElementById('track-act-sheet');
+    return !!(sheet && sheet.style.display !== 'none');
+}
+
 function syncBodyScrollLock() {
-    if (isModalVisible() || isProjectSheetVisible()) {
+    if (isModalVisible() || isProjectSheetVisible() || isActivityPickerVisible()) {
         lockBodyForModal();
     } else {
         unlockBodyFromModal();

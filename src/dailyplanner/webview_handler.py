@@ -1013,6 +1013,80 @@ class WebViewHandler:
                 self.toast(f"تمدید شد — سررسید بعدی: {updated.date}")
         await self.push_state()
 
+    # ── tracking ──────────────────────────────────────────────────────────────
+
+    async def _on_start_tracking(self, p):
+        self.db.start_tracking_session(datetime.date.today())
+        self.toast("ردیابی شروع شد")
+        await self.push_state()
+
+    async def _on_switch_tracking(self, p):
+        session_id = _param_int(p, "session_id")
+        if session_id is None:
+            await self.push_state()
+            return
+        self.db.switch_tracking(session_id)
+        await self.push_state()
+
+    async def _on_stop_tracking(self, p):
+        session_id = _param_int(p, "session_id")
+        if session_id is None:
+            await self.push_state()
+            return
+        self.db.stop_tracking(session_id)
+        self.toast("ردیابی پایان یافت")
+        await self.push_state()
+
+    async def _on_set_tracking_label(self, p):
+        interval_id = _param_int(p, "interval_id")
+        label = p.get("label", "").strip()
+        if interval_id is not None:
+            self.db.set_tracking_label(interval_id, label)
+        await self.push_state()
+
+    async def _on_set_tracking_useful(self, p):
+        interval_id = _param_int(p, "interval_id")
+        if interval_id is None:
+            await self.push_state()
+            return
+        val = p.get("value")
+        if val == "true":
+            is_useful = True
+        elif val == "false":
+            is_useful = False
+        else:
+            is_useful = None
+        self.db.set_tracking_useful(interval_id, is_useful)
+        await self.push_state()
+
+    async def _on_delete_tracking_interval(self, p):
+        interval_id = _param_int(p, "interval_id")
+        if interval_id is None:
+            await self.push_state()
+            return
+        confirmed = await self.app.main_window.dialog(
+            toga.ConfirmDialog("حذف بازه", "این بازه ردیابی حذف شود؟")
+        )
+        if confirmed:
+            if self.db.delete_tracking_interval(interval_id):
+                self.toast("حذف شد")
+            else:
+                self.toast("این بازه قابل حذف نیست")
+        await self.push_state()
+
+    async def _on_delete_tracking_session(self, p):
+        session_id = _param_int(p, "session_id")
+        if session_id is None:
+            await self.push_state()
+            return
+        confirmed = await self.app.main_window.dialog(
+            toga.ConfirmDialog("حذف ردیابی", "کل این دور ردیابی و تمام بازه‌هایش حذف شود؟")
+        )
+        if confirmed:
+            if self.db.delete_tracking_session(session_id):
+                self.toast("ردیابی حذف شد")
+        await self.push_state()
+
 
 def _parse_hms(text: str) -> Optional[int]:
     try:

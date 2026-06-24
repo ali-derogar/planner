@@ -531,3 +531,101 @@ def test_open_project_missing_redirects(db):
     asyncio.run(run())
     assert handler.current_screen == "projects"
     assert handler.current_project_id is None
+
+
+def test_delete_tracking_interval(db):
+    import datetime
+    import time
+
+    d = datetime.date.today()
+    sid = db.start_tracking_session(d)
+    db.switch_tracking(sid)
+    intervals = db.get_tracking_intervals(sid)
+    assert len(intervals) == 2
+    completed_id = intervals[0]["id"]
+    db.conn.execute(
+        "UPDATE tracking_intervals SET ended_at=?, duration_secs=? WHERE id=?",
+        (time.time(), 60, completed_id),
+    )
+    db.conn.commit()
+
+    assert db.delete_tracking_interval(completed_id)
+    remaining = db.get_tracking_intervals(sid)
+    assert len(remaining) == 1
+    assert remaining[0]["ended_at"] is None
+
+    active_id = remaining[0]["id"]
+    assert not db.delete_tracking_interval(active_id)
+
+
+def test_delete_tracking_session(db):
+    import datetime
+
+    d = datetime.date.today()
+    sid = db.start_tracking_session(d)
+    db.switch_tracking(sid)
+    assert db.delete_tracking_session(sid)
+    assert db.get_tracking_sessions_for_date(d) == []
+    assert db.get_active_tracking_session(d) is None
+
+
+def test_useful_totals_include_tracking(db):
+    import datetime
+    import time
+
+    d = datetime.date.today()
+    task = db.add_task(d, "task")
+    db.set_useful(task.id, True)
+    db.add_duration(task.id, 100)
+
+    sid = db.start_tracking_session(d)
+    interval = db.get_tracking_intervals(sid)[0]
+    now = time.time()
+    db.conn.execute(
+        "UPDATE tracking_intervals SET ended_at=?, duration_secs=?, is_useful=? WHERE id=?",
+        (now, 200, 1, interval["id"]),
+    )
+    db.conn.commit()
+
+    useful, not_useful = db.get_useful_totals(d)
+    assert useful == 300
+    assert not_useful == 0
+
+
+def test_tasks_summary_includes_tracking(db):
+    import datetime
+    import time
+
+    d = datetime.date.today()
+    sid = db.start_tracking_session(d)
+    interval = db.get_tracking_intervals(sid)[0]
+    now = time.time()
+    db.conn.execute(
+        "UPDATE tracking_intervals SET ended_at=?, duration_secs=?, is_useful=? WHERE id=?",
+        (now, 450, 0, interval["id"]),
+    )
+    db.conn.commit()
+
+    rows = db.get_tasks_summary_for_range(d, d)
+    assert len(rows) == 1
+    assert rows[0]["not_useful"] == 450
+    assert rows[0]["total"] == 450
+
+
+def test_day_activity_seconds_includes_unclassified_tracking(db):
+    import datetime
+    import time
+
+    d = datetime.date.today()
+    sid = db.start_tracking_session(d)
+    interval = db.get_tracking_intervals(sid)[0]
+    now = time.time()
+    db.conn.execute(
+        "UPDATE tracking_intervals SET ended_at=?, duration_secs=? WHERE id=?",
+        (now, 300, interval["id"]),
+    )
+    db.conn.commit()
+
+    assert db.get_day_activity_seconds(d) == 300
+    useful, not_useful = db.get_useful_totals(d)
+    assert useful == 0 and not_useful == 0

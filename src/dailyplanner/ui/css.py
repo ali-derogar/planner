@@ -205,6 +205,11 @@ textarea:focus-visible, select:focus-visible {{
     background: rgba(167, 139, 250, 0.16);
 }}
 .nav-btn.active.nav-analytics::after {{ background: #A78BFA; }}
+.nav-btn.active.nav-tracking {{
+    color: #2DD4BF;
+    background: rgba(45, 212, 191, 0.16);
+}}
+.nav-btn.active.nav-tracking::after {{ background: #2DD4BF; }}
 .nav-btn.active::after {{
     content: '';
     position: absolute;
@@ -2845,5 +2850,446 @@ body.kb-open .proj-sheet-overlay {{
 [data-theme="light"] .period-btn.active {{
     background: rgba(99, 102, 241, 0.12);
     border-color: rgba(99, 102, 241, 0.25);
+}}
+
+/* ── Tracking screen ── */
+.track-page {{ padding-bottom: 12px; }}
+
+.track-header {{
+    background: linear-gradient(145deg, #0F2A2E 0%, #134E4A 45%, #0F2428 100%);
+}}
+.track-header::before {{
+    background: radial-gradient(ellipse at 85% 15%, rgba(45, 212, 191, 0.22), transparent 55%);
+}}
+.track-header-top {{
+    display: flex; align-items: center; gap: 8px; direction: rtl;
+    position: relative; z-index: 1; margin-bottom: 2px;
+}}
+.track-header-title {{
+    font-size: 16px; font-weight: bold; color: #fff;
+}}
+.track-date-label {{
+    text-align: center; font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    padding: 0 0 8px; position: relative; z-index: 1;
+}}
+.track-hero-in-header {{
+    margin: 4px 0 0;
+    padding: 14px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(45, 212, 191, 0.22);
+    border-radius: 14px;
+    position: relative;
+    z-index: 1;
+}}
+.track-hero-summary {{ text-align: center; }}
+.track-hero-label {{
+    font-size: 11px; color: rgba(255, 255, 255, 0.6); margin-bottom: 4px;
+}}
+.track-hero-total {{
+    font-size: 32px; font-weight: bold; color: #5EEAD4;
+    font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.1;
+}}
+.track-hero-range {{
+    font-size: 12px; color: rgba(255, 255, 255, 0.5); margin-top: 6px;
+}}
+.track-timer-wrap {{
+    display: flex; justify-content: center; padding: 8px 0 12px;
+}}
+.track-timer-ring {{
+    width: 168px; height: 168px; border-radius: 50%;
+    background: conic-gradient(from 180deg, rgba(45, 212, 191, 0.35), rgba(99, 102, 241, 0.2), rgba(45, 212, 191, 0.35));
+    display: flex; align-items: center; justify-content: center;
+    animation: trackPulse 2.4s ease-in-out infinite;
+    box-shadow: 0 0 32px rgba(45, 212, 191, 0.15);
+}}
+@keyframes trackPulse {{
+    0%, 100% {{ transform: scale(1); opacity: 1; }}
+    50% {{ transform: scale(1.03); opacity: 0.92; }}
+}}
+.track-timer-inner {{
+    width: 148px; height: 148px; border-radius: 50%;
+    background: rgba(10, 10, 15, 0.85);
+    border: 1px solid rgba(45, 212, 191, 0.25);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px;
+}}
+.track-timer-lbl {{
+    font-size: 11px; color: rgba(255, 255, 255, 0.5);
+}}
+.track-timer-val {{
+    font-size: 28px; font-weight: bold; color: #5EEAD4;
+    font-variant-numeric: tabular-nums; letter-spacing: 2px;
+}}
+.track-hero-stats {{
+    display: flex; gap: 6px; direction: rtl;
+}}
+.track-hero-stat {{
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(45, 212, 191, 0.12);
+    border-radius: 10px; padding: 8px 10px;
+}}
+.track-hero-stat .fin-emoji {{ flex-shrink: 0; }}
+.track-stat-lbl {{
+    display: block; font-size: 10px; color: rgba(255, 255, 255, 0.5);
+}}
+.track-stat-val {{
+    display: block; font-size: 12px; font-weight: bold;
+    color: #fff; font-variant-numeric: tabular-nums;
+}}
+.track-actions {{
+    display: flex; gap: 10px; padding: 12px 12px 0; direction: rtl;
+}}
+.track-btn {{
+    border: none; border-radius: 14px; font-family: inherit;
+    font-size: 14px; font-weight: 500; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px 16px; transition: transform var(--duration-fast), opacity var(--duration-fast);
+}}
+.track-btn:active {{ transform: scale(0.97); }}
+.track-btn-switch {{
+    flex: 1;
+    background: linear-gradient(135deg, #0D9488, #2DD4BF);
+    color: #fff; box-shadow: 0 4px 16px rgba(45, 212, 191, 0.25);
+}}
+.track-btn-icon {{ font-size: 18px; line-height: 1; }}
+.track-btn-stop {{
+    flex: 0 0 auto;
+    background: rgba(251, 113, 133, 0.12);
+    color: #FB7185;
+    border: 1px solid rgba(251, 113, 133, 0.35);
+}}
+.track-btn-delete {{
+    flex: 0 0 auto;
+    background: var(--error-bg);
+    color: var(--error);
+    border: 1px solid rgba(251, 113, 133, 0.25);
+}}
+.track-hint {{
+    margin: 10px 12px 0; padding: 10px 12px;
+    background: var(--surface-muted); border-radius: 10px;
+    font-size: 12px; color: var(--text-muted); line-height: 1.6;
+    display: flex; align-items: flex-start; gap: 8px;
+}}
+.track-hint .fin-emoji {{ flex-shrink: 0; margin-top: 1px; }}
+.track-section {{ padding: 14px 12px 0; }}
+.track-section .sec-title {{ margin-bottom: 10px; }}
+.track-timeline {{
+    display: flex; flex-direction: column; gap: 10px;
+}}
+.track-interval {{
+    display: flex; gap: 0; background: var(--surface);
+    border-radius: 14px; border: 1px solid var(--divider);
+    overflow: hidden; direction: rtl;
+}}
+.track-interval.is-open {{
+    overflow: visible;
+    position: relative;
+    z-index: 2;
+}}
+.track-interval.is-useful {{
+    box-shadow: inset -3px 0 0 0 var(--success);
+}}
+.track-interval.is-not-useful {{
+    box-shadow: inset -3px 0 0 0 var(--error);
+}}
+.track-useful-row {{
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;
+}}
+.track-useful-row .chip {{
+    font-size: 11px; padding: 4px 10px; border-radius: 999px;
+    text-decoration: none; cursor: pointer;
+}}
+.track-eff-row {{
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding: 0 12px 12px; direction: rtl;
+}}
+.track-eff-item {{
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; padding: 6px 10px; border-radius: 10px;
+    background: var(--surface-muted); border: 1px solid var(--divider);
+}}
+.track-eff-item.useful {{ color: var(--success); }}
+.track-eff-item.not {{ color: var(--warning); }}
+.track-eff-item.eff {{ color: var(--primary-glow); font-weight: 600; }}
+.track-eff-item .fin-emoji {{ flex-shrink: 0; }}
+.track-interval-accent {{
+    width: 4px; flex-shrink: 0;
+}}
+.track-interval-body {{
+    flex: 1; min-width: 0;
+}}
+.track-interval-header {{
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; width: 100%; padding: 12px 14px;
+    background: none; border: none; cursor: pointer;
+    font-family: inherit; color: inherit; text-align: start;
+    direction: rtl; box-sizing: border-box;
+}}
+.track-interval-header:active {{ background: var(--surface-muted); }}
+.track-interval-header-main {{
+    flex: 1; min-width: 0; display: flex; flex-direction: column;
+    gap: 2px; align-items: flex-start;
+}}
+.track-interval-time-compact {{
+    font-size: 11px; color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}}
+.track-interval-detail {{
+    padding: 0 14px 12px;
+    border-top: 1px solid var(--divider);
+    direction: rtl;
+    overflow: visible;
+}}
+.track-interval.is-open .track-interval-header {{
+    padding-bottom: 10px;
+}}
+.track-interval-header .collapse-chevron {{
+    color: var(--text-muted); opacity: 0.7;
+    width: 14px; height: 14px; flex-shrink: 0;
+}}
+.track-interval-top {{
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 4px;
+}}
+.track-interval-top-end {{
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}}
+.track-interval-del {{
+    width: 28px; height: 28px; border: none; border-radius: 8px;
+    background: transparent; color: #FF595988;
+    font-size: 18px; line-height: 1; cursor: pointer; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+}}
+.track-interval-del:active {{ background: var(--error-bg); color: var(--error); }}
+.track-interval-label {{
+    font-size: 14px; font-weight: 600; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}}
+.track-interval-dur {{
+    font-size: 13px; font-weight: bold; color: var(--running);
+    font-variant-numeric: tabular-nums; flex-shrink: 0;
+    background: var(--running-bg); padding: 2px 8px; border-radius: 8px;
+}}
+.track-interval-time {{
+    font-size: 11px; color: var(--text-muted); margin: 10px 0 8px;
+    font-variant-numeric: tabular-nums;
+}}
+.track-interval-bar {{
+    height: 4px; border-radius: 2px; background: var(--surface-muted);
+    overflow: hidden; margin-bottom: 10px;
+}}
+.track-interval-bar-fill {{
+    height: 100%; border-radius: 2px;
+    transition: width var(--duration-normal);
+}}
+.track-label-row {{
+    display: flex; align-items: stretch; gap: 8px; direction: rtl;
+}}
+.track-label-wrap {{
+    position: relative; flex: 1; min-width: 0;
+}}
+.track-label-suggestions {{
+    display: none; position: absolute; top: calc(100% + 4px);
+    left: 0; right: 0; z-index: 40;
+    background: var(--surface); border: 1px solid var(--divider);
+    border-radius: 10px; box-shadow: var(--elevation-2);
+    max-height: 200px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    direction: rtl;
+}}
+.track-label-sug-item {{
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 10px 12px; border: none; background: none;
+    cursor: pointer; font-family: inherit; font-size: 13px;
+    color: var(--text); text-align: start; direction: rtl;
+}}
+.track-label-sug-item + .track-label-sug-item {{
+    border-top: 1px solid var(--divider);
+}}
+.track-label-sug-item:active {{ background: var(--surface-muted); }}
+.track-label-sug-text {{ flex: 1; min-width: 0; }}
+.track-label-input {{
+    width: 100%; box-sizing: border-box;
+    background: var(--surface-muted);
+    border: 1px solid var(--divider); border-radius: 10px;
+    color: var(--text); font-family: inherit; font-size: 13px;
+    padding: 10px 12px; outline: none; direction: rtl;
+}}
+.track-label-input:focus {{ border-color: var(--running); }}
+.track-label-input::placeholder {{ color: var(--text-muted); }}
+.track-pick-btn {{
+    flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+    gap: 4px; background: rgba(45, 212, 191, 0.12);
+    border: 1px solid rgba(45, 212, 191, 0.35); color: var(--running);
+    border-radius: 10px; padding: 0 12px; min-height: 40px;
+    font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}}
+.track-pick-btn:active {{ background: rgba(45, 212, 191, 0.22); transform: scale(0.98); }}
+.track-pick-btn .fin-emoji {{ flex-shrink: 0; }}
+.track-breakdown-bar {{
+    display: flex; height: 10px; border-radius: 5px; overflow: hidden;
+    background: var(--surface-muted); margin-bottom: 12px;
+}}
+.track-breakdown-seg {{
+    height: 100%; min-width: 3px;
+    transition: width var(--duration-normal);
+}}
+.track-breakdown-legend {{
+    display: flex; flex-direction: column; gap: 8px;
+}}
+.track-legend-item {{
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; direction: rtl;
+}}
+.track-legend-dot {{
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}}
+.track-legend-label {{
+    flex: 1; font-weight: 500; color: var(--text);
+}}
+.track-legend-val {{
+    font-size: 12px; color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}}
+.track-empty {{ padding-top: 32px; padding-bottom: 24px; }}
+.track-empty .fin-icon-lg {{
+    background: rgba(45, 212, 191, 0.12); color: var(--running);
+}}
+.track-start-btn {{ margin-top: 20px; }}
+.track-tips {{ padding: 0 16px 16px; }}
+.track-tip {{
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 12px 14px; background: var(--surface);
+    border: 1px solid var(--divider); border-radius: 12px;
+    font-size: 12px; color: var(--text-muted); line-height: 1.6;
+}}
+.track-tip .fin-emoji {{ flex-shrink: 0; }}
+.track-restart-wrap {{ padding: 16px 12px 8px; text-align: center; }}
+.track-restart-btn {{
+    background: var(--surface-muted); border: 1px solid var(--divider);
+    color: var(--text); border-radius: 12px; padding: 12px 24px;
+    font-family: inherit; font-size: 14px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}}
+.track-restart-btn:active {{ background: rgba(45, 212, 191, 0.12); }}
+.track-restart-plus {{
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; font-size: 15px; font-weight: 700;
+    line-height: 1; flex-shrink: 0; opacity: 0.9;
+}}
+.track-start-btn .ico,
+.track-btn-stop .ico {{
+    width: 16px; height: 16px; flex-shrink: 0;
+}}
+
+/* activity picker sheet */
+.track-act-overlay {{
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+    z-index: 500; display: flex; align-items: flex-end; justify-content: center;
+    padding: 0 0 calc(var(--safe-bottom));
+    overflow: hidden; touch-action: auto;
+}}
+body.kb-open .track-act-overlay {{
+    padding-bottom: calc(var(--safe-bottom) + var(--keyboard-inset));
+}}
+.track-act-sheet {{
+    width: 100%; max-width: 520px; background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    padding: 8px 14px calc(14px + var(--safe-bottom));
+    border-top: 1px solid var(--divider);
+    animation: projSheetUp 0.25s ease;
+    max-height: min(88dvh, calc(var(--visual-vh, 100dvh) - 12px));
+    display: flex; flex-direction: column; direction: rtl;
+}}
+.track-act-handle {{
+    width: 36px; height: 4px; background: var(--divider);
+    border-radius: 2px; margin: 4px auto 10px; flex-shrink: 0;
+}}
+.track-act-title {{
+    font-size: 15px; font-weight: bold; text-align: center;
+    margin-bottom: 10px; flex-shrink: 0;
+}}
+.track-act-search {{
+    width: 100%; background: var(--surface-muted);
+    border: 1px solid var(--divider); border-radius: 12px;
+    padding: 10px 12px; font-family: inherit; font-size: 14px;
+    color: var(--text); margin-bottom: 10px; outline: none; flex-shrink: 0;
+}}
+.track-act-search:focus {{ border-color: var(--running); }}
+.track-act-grid {{
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    flex: 1; min-height: 0; padding-bottom: 8px;
+}}
+.track-act-item {{
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; min-height: 72px; padding: 8px 4px;
+    background: var(--surface-muted); border: 1px solid var(--divider);
+    border-radius: 12px; cursor: pointer; font-family: inherit;
+    transition: background var(--duration-fast), border-color var(--duration-fast), transform var(--duration-fast);
+}}
+.track-act-item:active {{
+    transform: scale(0.96);
+    background: rgba(45, 212, 191, 0.12);
+    border-color: rgba(45, 212, 191, 0.35);
+}}
+.track-act-emoji {{ font-size: 24px; line-height: 1; }}
+.track-act-name {{
+    font-size: 11px; color: var(--text); text-align: center;
+    line-height: 1.3; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}}
+.track-act-empty {{
+    grid-column: 1 / -1; text-align: center; padding: 24px 12px;
+    color: var(--text-muted); font-size: 13px;
+}}
+.track-act-cancel {{
+    display: block; width: 100%; margin-top: 6px; flex-shrink: 0;
+    background: transparent; border: none; color: var(--text-muted);
+    padding: 12px; font-family: inherit; font-size: 14px; cursor: pointer;
+}}
+[data-theme="light"] .track-pick-btn {{
+    background: var(--running-bg); border-color: rgba(13, 148, 136, 0.25);
+    color: var(--running);
+}}
+[data-theme="light"] .track-act-item:active {{
+    background: var(--running-bg);
+}}
+
+[data-theme="light"] .track-header {{
+    background: linear-gradient(145deg, #ECFDF5 0%, #F0FDFA 50%, #E0F2FE 100%);
+    box-shadow: 0 2px 16px rgba(13, 148, 136, 0.08);
+}}
+[data-theme="light"] .track-header-title {{ color: #134E4A; }}
+[data-theme="light"] .track-date-label {{ color: var(--text-muted); }}
+[data-theme="light"] .track-hero-in-header {{
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(13, 148, 136, 0.18);
+}}
+[data-theme="light"] .track-hero-label {{ color: var(--text-muted); }}
+[data-theme="light"] .track-hero-total {{ color: #0D9488; }}
+[data-theme="light"] .track-hero-range {{ color: var(--text-muted); }}
+[data-theme="light"] .track-timer-inner {{
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(13, 148, 136, 0.2);
+}}
+[data-theme="light"] .track-timer-val {{ color: #0D9488; }}
+[data-theme="light"] .track-timer-lbl {{ color: var(--text-muted); }}
+[data-theme="light"] .track-hero-stat {{
+    background: rgba(255, 255, 255, 0.7);
+    border-color: rgba(13, 148, 136, 0.12);
+}}
+[data-theme="light"] .track-stat-lbl {{ color: var(--text-muted); }}
+[data-theme="light"] .track-stat-val {{ color: var(--text); }}
+[data-theme="light"] .track-btn-switch {{
+    background: linear-gradient(135deg, #0D9488, #14B8A6);
+}}
+[data-theme="light"] .track-interval-dur {{
+    color: var(--running); background: var(--running-bg);
+}}
+[data-theme="light"] .track-empty .fin-icon-lg {{
+    background: var(--running-bg); color: var(--running);
 }}
 """

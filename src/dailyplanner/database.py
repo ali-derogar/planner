@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -123,6 +124,24 @@ class Database:
                 repeat_months INTEGER NOT NULL DEFAULT 0,
                 created_at   TEXT    NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS tracking_sessions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                date        TEXT NOT NULL,
+                started_at  REAL NOT NULL,
+                ended_at    REAL,
+                created_at  TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS tracking_intervals (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id    INTEGER NOT NULL REFERENCES tracking_sessions(id),
+                started_at    REAL NOT NULL,
+                ended_at      REAL,
+                label         TEXT NOT NULL DEFAULT '',
+                duration_secs INTEGER,
+                is_useful     INTEGER
+            );
             """
         )
         self.conn.commit()
@@ -193,6 +212,14 @@ class Database:
                 ALTER TABLE finance_entries_new RENAME TO finance_entries;
                 """
             )
+
+        track_cols = {
+            row[1] for row in self.conn.execute("PRAGMA table_info(tracking_intervals)")
+        }
+        if track_cols and "is_useful" not in track_cols:
+            self.conn.execute(
+                "ALTER TABLE tracking_intervals ADD COLUMN is_useful INTEGER"
+            )
         self.conn.commit()
 
     def get_tasks_for_date(self, d: date) -> List[DailyTask]:
@@ -230,6 +257,20 @@ class Database:
         ).fetchone()
         return row["c"]
 
+    def get_tracking_useful_totals(self, d: date) -> tuple:
+        row = self.conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN ti.is_useful = 1 THEN ti.duration_secs END), 0) AS useful,
+                COALESCE(SUM(CASE WHEN ti.is_useful = 0 THEN ti.duration_secs END), 0) AS not_useful
+            FROM tracking_intervals ti
+            JOIN tracking_sessions ts ON ts.id = ti.session_id
+            WHERE ts.date = ? AND ti.ended_at IS NOT NULL
+            """,
+            (date_to_str(d),),
+        ).fetchone()
+        return int(row["useful"]), int(row["not_useful"])
+
     def get_useful_totals(self, d: date) -> tuple:
         row = self.conn.execute(
             """
@@ -240,7 +281,27 @@ class Database:
             """,
             (date_to_str(d),),
         ).fetchone()
-        return int(row["useful"]), int(row["not_useful"])
+        task_useful = int(row["useful"])
+        task_not_useful = int(row["not_useful"])
+        track_useful, track_not_useful = self.get_tracking_useful_totals(d)
+        return task_useful + track_useful, task_not_useful + track_not_useful
+
+    def get_day_activity_seconds(self, d: date) -> int:
+        ds = date_to_str(d)
+        task_row = self.conn.execute(
+            "SELECT COALESCE(SUM(duration_seconds), 0) AS total FROM daily_tasks WHERE date = ?",
+            (ds,),
+        ).fetchone()
+        track_row = self.conn.execute(
+            """
+            SELECT COALESCE(SUM(ti.duration_secs), 0) AS total
+            FROM tracking_intervals ti
+            JOIN tracking_sessions ts ON ts.id = ti.session_id
+            WHERE ts.date = ? AND ti.ended_at IS NOT NULL
+            """,
+            (ds,),
+        ).fetchone()
+        return int(task_row["total"]) + int(track_row["total"])
 
     def update_duration(self, task_id: int, duration_seconds: int):
         self.conn.execute(
@@ -525,16 +586,36 @@ class Database:
             """
             SELECT
                 date,
-                COALESCE(SUM(CASE WHEN is_useful = 1 THEN duration_seconds END), 0) AS useful,
-                COALESCE(SUM(CASE WHEN is_useful = 0 THEN duration_seconds END), 0) AS not_useful,
-                COALESCE(SUM(duration_seconds), 0) AS total,
-                COUNT(*) AS task_count
-            FROM daily_tasks
-            WHERE date >= ? AND date <= ?
+                SUM(useful) AS useful,
+                SUM(not_useful) AS not_useful,
+                SUM(total) AS total,
+                SUM(task_count) AS task_count
+            FROM (
+                SELECT
+                    date,
+                    COALESCE(SUM(CASE WHEN is_useful = 1 THEN duration_seconds END), 0) AS useful,
+                    COALESCE(SUM(CASE WHEN is_useful = 0 THEN duration_seconds END), 0) AS not_useful,
+                    COALESCE(SUM(duration_seconds), 0) AS total,
+                    COUNT(*) AS task_count
+                FROM daily_tasks
+                WHERE date >= ? AND date <= ?
+                GROUP BY date
+                UNION ALL
+                SELECT
+                    ts.date AS date,
+                    COALESCE(SUM(CASE WHEN ti.is_useful = 1 THEN ti.duration_secs END), 0) AS useful,
+                    COALESCE(SUM(CASE WHEN ti.is_useful = 0 THEN ti.duration_secs END), 0) AS not_useful,
+                    COALESCE(SUM(ti.duration_secs), 0) AS total,
+                    0 AS task_count
+                FROM tracking_intervals ti
+                JOIN tracking_sessions ts ON ts.id = ti.session_id
+                WHERE ts.date >= ? AND ts.date <= ? AND ti.ended_at IS NOT NULL
+                GROUP BY ts.date
+            )
             GROUP BY date
             ORDER BY date
             """,
-            (date_to_str(start), date_to_str(end)),
+            (date_to_str(start), date_to_str(end), date_to_str(start), date_to_str(end)),
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -1437,3 +1518,139 @@ class Database:
             (cutoff,)
         ).fetchone()
         return int(row["c"])
+
+    # ── tracking ──────────────────────────────────────────────────────────────
+
+    def start_tracking_session(self, d: date) -> int:
+        """Create a new session and its first interval. Returns session id."""
+        now_epoch = time.time()
+        now_str = datetime.now().isoformat()
+        cur = self.conn.execute(
+            "INSERT INTO tracking_sessions (date, started_at, created_at) VALUES (?,?,?)",
+            (date_to_str(d), now_epoch, now_str),
+        )
+        session_id = cur.lastrowid
+        self.conn.execute(
+            "INSERT INTO tracking_intervals (session_id, started_at) VALUES (?,?)",
+            (session_id, now_epoch),
+        )
+        self.conn.commit()
+        return session_id
+
+    def switch_tracking(self, session_id: int) -> None:
+        """Close active interval and open a new one."""
+        now_epoch = time.time()
+        row = self.conn.execute(
+            "SELECT id, started_at FROM tracking_intervals WHERE session_id=? AND ended_at IS NULL",
+            (session_id,),
+        ).fetchone()
+        if row:
+            duration = int(now_epoch - row["started_at"])
+            self.conn.execute(
+                "UPDATE tracking_intervals SET ended_at=?, duration_secs=? WHERE id=?",
+                (now_epoch, duration, row["id"]),
+            )
+        self.conn.execute(
+            "INSERT INTO tracking_intervals (session_id, started_at) VALUES (?,?)",
+            (session_id, now_epoch),
+        )
+        self.conn.commit()
+
+    def stop_tracking(self, session_id: int) -> None:
+        """Close active interval and close the session."""
+        now_epoch = time.time()
+        row = self.conn.execute(
+            "SELECT id, started_at FROM tracking_intervals WHERE session_id=? AND ended_at IS NULL",
+            (session_id,),
+        ).fetchone()
+        if row:
+            duration = int(now_epoch - row["started_at"])
+            self.conn.execute(
+                "UPDATE tracking_intervals SET ended_at=?, duration_secs=? WHERE id=?",
+                (now_epoch, duration, row["id"]),
+            )
+        self.conn.execute(
+            "UPDATE tracking_sessions SET ended_at=? WHERE id=?",
+            (now_epoch, session_id),
+        )
+        self.conn.commit()
+
+    def set_tracking_label(self, interval_id: int, label: str) -> None:
+        self.conn.execute(
+            "UPDATE tracking_intervals SET label=? WHERE id=?",
+            (label.strip(), interval_id),
+        )
+        self.conn.commit()
+
+    def set_tracking_useful(self, interval_id: int, is_useful: Optional[bool]) -> None:
+        value = None
+        if is_useful is not None:
+            value = 1 if is_useful else 0
+        self.conn.execute(
+            "UPDATE tracking_intervals SET is_useful=? WHERE id=?",
+            (value, interval_id),
+        )
+        self.conn.commit()
+
+    def get_active_tracking_session(self, d: date):
+        """Returns the active (not ended) session row for given date, or None."""
+        return self.conn.execute(
+            "SELECT * FROM tracking_sessions WHERE date=? AND ended_at IS NULL ORDER BY id DESC LIMIT 1",
+            (date_to_str(d),),
+        ).fetchone()
+
+    def get_tracking_sessions_for_date(self, d: date):
+        return self.conn.execute(
+            "SELECT * FROM tracking_sessions WHERE date=? ORDER BY started_at ASC",
+            (date_to_str(d),),
+        ).fetchall()
+
+    def get_last_tracking_session(self, d: date):
+        """Returns the most recent session for given date (active or ended)."""
+        return self.conn.execute(
+            "SELECT * FROM tracking_sessions WHERE date=? ORDER BY id DESC LIMIT 1",
+            (date_to_str(d),),
+        ).fetchone()
+
+    def get_tracking_intervals(self, session_id: int):
+        return self.conn.execute(
+            "SELECT * FROM tracking_intervals WHERE session_id=? ORDER BY started_at ASC",
+            (session_id,),
+        ).fetchall()
+
+    def get_tracking_interval(self, interval_id: int):
+        return self.conn.execute(
+            "SELECT * FROM tracking_intervals WHERE id=?",
+            (interval_id,),
+        ).fetchone()
+
+    def delete_tracking_interval(self, interval_id: int) -> bool:
+        """Delete a completed interval. Returns False if active or missing."""
+        row = self.get_tracking_interval(interval_id)
+        if not row or row["ended_at"] is None:
+            return False
+        session_id = row["session_id"]
+        self.conn.execute("DELETE FROM tracking_intervals WHERE id=?", (interval_id,))
+        remaining = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM tracking_intervals WHERE session_id=?",
+            (session_id,),
+        ).fetchone()["c"]
+        if remaining == 0:
+            self.conn.execute("DELETE FROM tracking_sessions WHERE id=?", (session_id,))
+        self.conn.commit()
+        return True
+
+    def delete_tracking_session(self, session_id: int) -> bool:
+        row = self.conn.execute(
+            "SELECT id FROM tracking_sessions WHERE id=?",
+            (session_id,),
+        ).fetchone()
+        if not row:
+            return False
+        self.conn.execute(
+            "DELETE FROM tracking_intervals WHERE session_id=?",
+            (session_id,),
+        )
+        self.conn.execute("DELETE FROM tracking_sessions WHERE id=?", (session_id,))
+        self.conn.commit()
+        return True
