@@ -30,8 +30,10 @@ from dailyplanner.ui.tokens import (
     PROJECT_COLORS,
 )
 from dailyplanner.utils.jalali import (
+    current_jalali_ym,
     format_jalali,
     gregorian_to_jalali_parts,
+    jalali_month_bounds,
     jalali_to_gregorian,
     to_persian_digits,
 )
@@ -211,7 +213,9 @@ def _project_task_dict(task: ProjectTask, db: Database, today: datetime.date) ->
     }
 
 
-def _installment_dict(inst: Installment, db: Database, year: int, month: int) -> dict:
+def _installment_dict(
+    inst: Installment, db: Database, month_start: datetime.date, month_end: datetime.date
+) -> dict:
     next_due = inst.next_due_date()
     today = datetime.date.today()
     if next_due is None:
@@ -230,7 +234,7 @@ def _installment_dict(inst: Installment, db: Database, year: int, month: int) ->
             due_label = to_persian_digits(f"{delta} روز مانده")
 
     progress = int(inst.paid_count / inst.total_count * 100) if inst.total_count else 0
-    paid_month = db.is_paid_this_month(inst.id, year, month)
+    paid_month = db.is_paid_in_date_range(inst.id, month_start, month_end)
 
     return {
         "id": inst.id,
@@ -434,13 +438,13 @@ def build_state(
         }
 
     elif screen == "finance":
-        fy = finance_year or today.year
-        fm = finance_month or today.month
-        first_day = datetime.date(fy, fm, 1)
-        jy, jm, _ = gregorian_to_jalali_parts(first_day)
+        cur_jy, cur_jm = current_jalali_ym(today)
+        jy = finance_year or cur_jy
+        jm = finance_month or cur_jm
+        month_start, month_end = jalali_month_bounds(jy, jm)
         month_label = f"{_jalali_month_name(jm)} {to_persian_digits(str(jy))}"
 
-        monthly_totals = db.get_finance_monthly_totals(fy, fm)
+        monthly_totals = db.get_finance_monthly_totals_between(month_start, month_end)
         budget_limits = db.get_budget_limits()
         income = monthly_totals["total_income"]
         expense = monthly_totals["total_expense"]
@@ -483,7 +487,7 @@ def build_state(
         by_category_list.sort(key=lambda x: x["expense"], reverse=True)
 
         daily_series = []
-        for row in reversed(db.get_finance_daily_series(fy, fm)):
+        for row in reversed(db.get_finance_daily_series_between(month_start, month_end)):
             day_income = row["income"]
             day_expense = row["expense"]
             day_investment = row["investment"]
@@ -501,9 +505,8 @@ def build_state(
             })
 
         daily_raw = {
-            row["date"]: row for row in db.get_finance_daily_series(fy, fm)
+            row["date"]: row for row in db.get_finance_daily_series_between(month_start, month_end)
         }
-        last_day = calendar.monthrange(fy, fm)[1]
         chart_income: List[int] = []
         chart_expense: List[int] = []
         chart_investment: List[int] = []
@@ -512,9 +515,9 @@ def build_state(
         cum_income = 0
         cum_expense = 0
         cum_investment = 0
-        for day in range(1, last_day + 1):
-            d = datetime.date(fy, fm, day)
-            row = daily_raw.get(d.isoformat(), {"income": 0, "expense": 0, "investment": 0})
+        chart_day = month_start
+        while chart_day <= month_end:
+            row = daily_raw.get(chart_day.isoformat(), {"income": 0, "expense": 0, "investment": 0})
             cum_income += int(row["income"])
             cum_expense += int(row["expense"])
             cum_investment += int(row["investment"])
@@ -522,17 +525,19 @@ def build_state(
             chart_expense.append(cum_expense)
             chart_investment.append(cum_investment)
             chart_balance.append(cum_income - cum_expense - cum_investment)
-            chart_labels.append(to_persian_digits(str(day)))
+            jd = jdatetime.date.fromgregorian(date=chart_day)
+            chart_labels.append(to_persian_digits(str(jd.day)))
+            chart_day += datetime.timedelta(days=1)
 
-        entries = db.get_finance_entries_for_month(fy, fm)
+        entries = db.get_finance_entries_between(month_start, month_end)
 
-        inst_summary = db.get_installments_summary_for_month(fy, fm)
+        inst_summary = db.get_installments_summary_for_range(month_start, month_end)
 
         state["finance_screen"] = {
-            "year": fy,
-            "month": fm,
+            "year": jy,
+            "month": jm,
             "month_label": month_label,
-            "is_current_month": fy == today.year and fm == today.month,
+            "is_current_month": jy == cur_jy and jm == cur_jm,
             "totals": {
                 "income": income,
                 "expense": expense,
@@ -562,26 +567,26 @@ def build_state(
                 "total_due_fmt": format_money(inst_summary["total_due"]),
                 "total_unpaid_fmt": format_money(inst_summary["total_unpaid"]),
                 "items": [
-                    _installment_dict(x["installment"], db, fy, fm)
+                    _installment_dict(x["installment"], db, month_start, month_end)
                     for x in inst_summary["items"]
                 ],
             },
         }
 
     elif screen == "installments":
-        fy = finance_year or today.year
-        fm = finance_month or today.month
-        first_day = datetime.date(fy, fm, 1)
-        jy, jm, _ = gregorian_to_jalali_parts(first_day)
+        cur_jy, cur_jm = current_jalali_ym(today)
+        jy = finance_year or cur_jy
+        jm = finance_month or cur_jm
+        month_start, month_end = jalali_month_bounds(jy, jm)
         month_label = f"{_jalali_month_name(jm)} {to_persian_digits(str(jy))}"
 
         installments = db.get_all_installments()
-        summary = db.get_installments_summary_for_month(fy, fm)
+        summary = db.get_installments_summary_for_range(month_start, month_end)
         total_remaining = sum(i.remaining_amount for i in installments if not i.is_settled)
 
         state["installments"] = {
             "list": [
-                _installment_dict(i, db, fy, fm) for i in installments
+                _installment_dict(i, db, month_start, month_end) for i in installments
             ],
             "month_label": month_label,
             "month_total_due": summary["total_due"],

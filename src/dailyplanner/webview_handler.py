@@ -1,7 +1,6 @@
 """WebView action handler — SPA state + JS→Python actions."""
 import asyncio
 import base64
-import calendar
 import datetime
 import json
 from typing import Optional, Set
@@ -15,7 +14,14 @@ from dailyplanner.services.recurring import RecurringService
 from dailyplanner.services.timer import TimerService
 from dailyplanner.ui.shell import build_web_bundle
 from dailyplanner.ui.state import build_state
-from dailyplanner.utils.jalali import gregorian_to_jalali_parts, jalali_to_gregorian
+from dailyplanner.utils.jalali import (
+    current_jalali_ym,
+    gregorian_to_jalali_parts,
+    jalali_month_bounds,
+    jalali_to_gregorian,
+    next_jalali_month,
+    prev_jalali_month,
+)
 from dailyplanner.utils.platform import set_webview_bundle
 
 
@@ -43,16 +49,17 @@ def _finance_entry_date(
     finance_year: int,
     finance_month: int,
 ) -> datetime.date:
-    """Pick entry date: viewed finance month when on finance screen, else current day."""
+    """Pick entry date for the viewed Jalali finance month."""
     today = datetime.date.today()
     if screen != "finance":
         return current_date
-    if today.year == finance_year and today.month == finance_month:
+    cur_jy, cur_jm = current_jalali_ym(today)
+    if finance_year == cur_jy and finance_month == cur_jm:
         return today
-    if (finance_year, finance_month) < (today.year, today.month):
-        last = calendar.monthrange(finance_year, finance_month)[1]
-        return datetime.date(finance_year, finance_month, last)
-    return datetime.date(finance_year, finance_month, 1)
+    start, end = jalali_month_bounds(finance_year, finance_month)
+    if (finance_year, finance_month) < (cur_jy, cur_jm):
+        return end
+    return start
 
 
 class WebViewHandler:
@@ -70,8 +77,7 @@ class WebViewHandler:
         self.show_calendar: bool = False
         self.calendar_year: Optional[int] = None
         self.calendar_month: Optional[int] = None
-        self.finance_month: int = datetime.date.today().month
-        self.finance_year: int = datetime.date.today().year
+        self.finance_year, self.finance_month = current_jalali_ym()
         self.managing_installments: bool = False
         self.current_project_id: Optional[int] = None
         self._shell_requested: bool = False
@@ -116,6 +122,17 @@ class WebViewHandler:
         self._shell_loaded = True
 
     def _build_state(self) -> dict:
+        if self.current_screen == "project_detail":
+            if not self.current_project_id or not self.db.get_project_by_id(
+                self.current_project_id
+            ):
+                self.current_screen = "projects"
+                self.current_project_id = None
+                if not self._pending_toast:
+                    self._pending_toast = {
+                        "message": "پروژه یافت نشد",
+                        "type": "error",
+                    }
         if self.current_screen == "home":
             self.recurring_svc.ensure_daily_tasks(self.current_date)
         toast = self._pending_toast
@@ -180,6 +197,34 @@ class WebViewHandler:
         self._pending_toast = {"message": message, "type": type}
 
     # ── background loops ──────────────────────────────────────────────────────
+
+    async def flush_pending_js(self):
+        """Drain debounced note/search and pending actions before shutdown."""
+        if not self._shell_loaded:
+            return
+        try:
+            raw = await self.app.webview.evaluate_javascript(
+                "if(typeof flushPendingNote==='function')flushPendingNote();"
+                "if(typeof flushPendingSearch==='function')flushPendingSearch();"
+                "var a=window._actions||[];window._actions=[];JSON.stringify(a);"
+            )
+            if raw and raw not in (None, "null", "[]", '""'):
+                if isinstance(raw, str) and raw.startswith('"'):
+                    raw = json.loads(raw)
+                actions = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(actions, list):
+                    for item in actions:
+                        if isinstance(item, dict):
+                            cmd = item.get("cmd", "")
+                            params = item.get("params", {})
+                            if cmd == "set_note":
+                                await self._on_set_note(params)
+                            elif cmd == "set_search":
+                                self.search_query = params.get("q", "")
+                            else:
+                                await self.handle_action(cmd, params)
+        except Exception:
+            pass
 
     async def poll_loop(self, _app=None, **kwargs):
         while True:
@@ -485,6 +530,7 @@ class WebViewHandler:
             return
         entry = self.db.get_finance_entry_by_id(entry_id)
         if not entry:
+            self.toast("تراکنش یافت نشد", "error")
             await self.push_state()
             return
         title = p.get("title", "").strip()
@@ -511,25 +557,19 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_finance_prev_month(self, p):
-        if self.finance_month == 1:
-            self.finance_month = 12
-            self.finance_year -= 1
-        else:
-            self.finance_month -= 1
+        self.finance_year, self.finance_month = prev_jalali_month(
+            self.finance_year, self.finance_month
+        )
         await self.push_state()
 
     async def _on_finance_next_month(self, p):
-        if self.finance_month == 12:
-            self.finance_month = 1
-            self.finance_year += 1
-        else:
-            self.finance_month += 1
+        self.finance_year, self.finance_month = next_jalali_month(
+            self.finance_year, self.finance_month
+        )
         await self.push_state()
 
     async def _on_finance_current_month(self, p):
-        today = datetime.date.today()
-        self.finance_year = today.year
-        self.finance_month = today.month
+        self.finance_year, self.finance_month = current_jalali_ym()
         await self.push_state()
 
     async def _on_set_budget(self, p):
@@ -687,8 +727,7 @@ class WebViewHandler:
             self.current_screen = "home"
             self.expanded_tasks = set()
             self.current_project_id = None
-            self.finance_year = datetime.date.today().year
-            self.finance_month = datetime.date.today().month
+            self.finance_year, self.finance_month = current_jalali_ym()
             self.timer_service = TimerService()
             self._restore_active_timer()
             try:
@@ -931,8 +970,16 @@ class WebViewHandler:
             self.toast("این قسط قبلاً تسویه شده", "error")
             await self.push_state()
             return
-        today = datetime.date.today()
-        if self.db.is_paid_this_month(inst_id, today.year, today.month):
+        entry_date = _finance_entry_date(
+            self.current_screen,
+            self.current_date,
+            self.finance_year,
+            self.finance_month,
+        )
+        month_start, month_end = jalali_month_bounds(
+            self.finance_year, self.finance_month
+        )
+        if self.db.is_paid_in_date_range(inst_id, month_start, month_end):
             self.toast("این قسط این ماه قبلاً پرداخت شده", "error")
             await self.push_state()
             return
@@ -941,7 +988,7 @@ class WebViewHandler:
             self.toast("این قسط قبلاً تسویه شده", "error")
         else:
             self.db.add_finance_entry(
-                today,
+                entry_date,
                 "expense",
                 f"قسط — {inst.title}",
                 inst.amount,

@@ -10,6 +10,7 @@ from dailyplanner.models import str_to_date
 from dailyplanner.services.recurring import RecurringService
 from dailyplanner.services.timer import TimerService
 from dailyplanner.ui.state import build_state, compute_streak
+from dailyplanner.utils.jalali import current_jalali_ym
 
 
 @pytest.fixture
@@ -316,9 +317,10 @@ def test_build_state_all_screens(db):
     db.add_installment("loan", 50000, 6, today.isoformat(), 10)
     db.add_important_date("evt", today.isoformat(), "سایر", "", "none", 0)
     timer = TimerService()
+    fin_jy, fin_jm = current_jalali_ym(today)
 
     screens = [
-        "home", "finance", "analytics", "settings", "recurring",
+        "home", "finance", "analytics", "settings", "recurring", "tracking",
         "projects", "project_detail", "installments", "important_dates",
     ]
     for screen in screens:
@@ -330,8 +332,8 @@ def test_build_state_all_screens(db):
             expanded_tasks=set(),
             analytics_period=7,
             current_project_id=pid if screen == "project_detail" else None,
-            finance_year=today.year,
-            finance_month=today.month,
+            finance_year=fin_jy,
+            finance_month=fin_jm,
         )
         assert state["screen"] == screen
 
@@ -431,6 +433,7 @@ def test_frontend_render_smoke(db, tmp_path):
     db.add_installment("loan", 50000, 6, today.isoformat(), 10)
     db.add_important_date("evt", today.isoformat(), "سایر", "", "none", 0)
     timer = TimerService()
+    fin_jy, fin_jm = current_jalali_ym(today)
 
     states = {}
     for screen in (
@@ -445,8 +448,8 @@ def test_frontend_render_smoke(db, tmp_path):
             expanded_tasks=set(),
             analytics_period=7,
             current_project_id=pid if screen == "project_detail" else None,
-            finance_year=today.year,
-            finance_month=today.month,
+            finance_year=fin_jy,
+            finance_month=fin_jm,
             show_calendar=True,
             calendar_year=1404,
             calendar_month=4,
@@ -468,13 +471,13 @@ def test_frontend_audit_renders():
 
 def test_finance_entry_uses_viewed_month(db):
     import asyncio
+    from dailyplanner.utils.jalali import current_jalali_ym, jalali_month_bounds, prev_jalali_month
     from dailyplanner.webview_handler import WebViewHandler
 
     today = datetime.date.today()
-    if today.month == 1:
-        fy, fm = today.year - 1, 12
-    else:
-        fy, fm = today.year, today.month - 1
+    cur_jy, cur_jm = current_jalali_ym(today)
+    fy, fm = prev_jalali_month(cur_jy, cur_jm)
+    month_start, month_end = jalali_month_bounds(fy, fm)
 
     class _App:
         pass
@@ -503,9 +506,9 @@ def test_finance_entry_uses_viewed_month(db):
 
     asyncio.run(run())
 
-    entries = db.get_finance_entries_for_month(fy, fm)
+    entries = db.get_finance_entries_between(month_start, month_end)
     assert len(entries) == 1
-    assert entries[0].date.startswith(f"{fy}-{fm:02d}")
+    assert month_start.isoformat() <= entries[0].date <= month_end.isoformat()
 
 
 def test_validate_backup_rejects_bad_important_dates():

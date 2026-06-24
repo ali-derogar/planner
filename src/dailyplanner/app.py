@@ -66,6 +66,10 @@ class DailyPlannerApp(toga.App):
             await self.handler.push_state()
 
     def on_exit(self, widget=None, **kwargs):
+        try:
+            asyncio.get_event_loop().run_until_complete(self.handler.flush_pending_js())
+        except Exception:
+            pass
         self.db.close()
         return True
 

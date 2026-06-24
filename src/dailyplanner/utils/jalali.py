@@ -46,3 +46,33 @@ def gregorian_to_jalali_parts(d: date) -> tuple:
 def jalali_to_gregorian(year: int, month: int, day: int) -> date:
     jd = jdatetime.date(year, month, day)
     return jd.togregorian()
+
+
+def jalali_month_last_day(jy: int, jm: int) -> int:
+    if jm == 12:
+        return 30 if jdatetime.date.isleap(jy) else 29
+    return jdatetime.j_days_in_month[jm - 1]
+
+
+def jalali_month_bounds(jy: int, jm: int) -> tuple:
+    """Gregorian start/end dates (inclusive) for a Jalali month."""
+    start = jalali_to_gregorian(jy, jm, 1)
+    end = jalali_to_gregorian(jy, jm, jalali_month_last_day(jy, jm))
+    return start, end
+
+
+def prev_jalali_month(jy: int, jm: int) -> tuple:
+    if jm == 1:
+        return jy - 1, 12
+    return jy, jm - 1
+
+
+def next_jalali_month(jy: int, jm: int) -> tuple:
+    if jm == 12:
+        return jy + 1, 1
+    return jy, jm + 1
+
+
+def current_jalali_ym(d: date = None) -> tuple:
+    d = d or date.today()
+    return gregorian_to_jalali_parts(d)[:2]

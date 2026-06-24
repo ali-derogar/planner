@@ -1611,7 +1611,7 @@ function renderHome(h) {
     html += '<div class="home-wellness-wrap">' + renderWellness(h.wellness) + '</div>';
     html += '<div class="section note-section home-note-section">' +
         '<div class="sec-title home-note-title">' + finEmoji('✍️', 'sm') + ' یادداشت روز من</div>' +
-        '<textarea class="note-input home-note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
+        '<textarea class="note-input home-note-input" id="daily-note" placeholder="افکار، اهداف یا یادآوری‌های امروز..." oninput="debounceNote(this.value)" onblur="flushPendingNote()" aria-label="یادداشت روز">' + esc(h.daily_note) + '</textarea>' +
         '<div class="note-saved" id="note-saved" aria-live="polite">ذخیره شد ✓</div></div>';
     if (taskCount > 0) {
         html += '<button type="button" class="home-fab" onclick="' + addTaskModal + '" aria-label="افزودن تسک">' + ico('plus', 'ico') + '</button>';
@@ -2561,7 +2561,11 @@ function toggleTrackingInterval(id) {
 }
 
 function getProjectById(id) {
-    return (window._projectsList || []).find(function(x) { return x.id === id; });
+    var p = (window._projectsList || []).find(function(x) { return x.id == id; });
+    if (!p && window._projectDetail && window._projectDetail.id == id) {
+        p = window._projectDetail;
+    }
+    return p;
 }
 
 function closeProjectSheet() {
@@ -2575,7 +2579,10 @@ function showProjectSheet(id) {
     closeActivityPicker();
     closeProjectSheet();
     var p = getProjectById(id);
-    if (!p) return;
+    if (!p) {
+        showToast('پروژه یافت نشد — صفحه را تازه کنید', 'error');
+        return;
+    }
     var overlay = document.getElementById('proj-sheet');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -2673,9 +2680,11 @@ function showAddProject(colors) {
 function showEditProject(id, colors) {
     closeProjectSheet();
     colors = colors || window._projectColors || DEFAULT_PROJECT_COLORS;
-    var p = (window._projectsList || []).find(function(x) { return x.id === id; });
-    if (!p && window._projectDetail && window._projectDetail.id === id) p = window._projectDetail;
-    if (!p) return;
+    var p = getProjectById(id);
+    if (!p) {
+        showToast('پروژه یافت نشد — صفحه را تازه کنید', 'error');
+        return;
+    }
     var colorVal = p.color;
     if (colors.indexOf(colorVal) === -1) colors = colors.concat([colorVal]);
     showModal({
@@ -3337,14 +3346,19 @@ function trackingEfficiencyRow(t, opts) {
 
 function trackingBreakdownSection(breakdown, totalSecs) {
     if (!breakdown || !breakdown.length || !totalSecs) return '';
+    var pcts = breakdown.map(function(b) { return Math.max(0, b.pct || 0); });
+    var sum = pcts.reduce(function(a, b) { return a + b; }, 0);
+    var widths = sum > 0
+        ? pcts.map(function(p) { return (p / sum) * 100; })
+        : pcts.map(function() { return 0; });
     var html = '<div class="track-section track-breakdown-section">';
     html += trackSecTitle('📊', 'توزیع زمان');
     html += '<div class="track-breakdown-card">';
     html += '<div class="track-breakdown-visual">';
     html += '<div class="track-breakdown-bar track-breakdown-bar-lg">';
-    breakdown.forEach(function(b) {
-        var w = Math.max(b.pct, 4);
-        html += '<div class="track-breakdown-seg" style="width:' + w + '%;background:' + trackColorForLabel(b.label) + '" title="' + esc(b.label) + ' · ' + pd(b.pct) + '٪"></div>';
+    breakdown.forEach(function(b, idx) {
+        var w = widths[idx];
+        html += '<div class="track-breakdown-seg" style="width:' + w + '%;min-width:2px;background:' + trackColorForLabel(b.label) + '" title="' + esc(b.label) + ' · ' + pd(b.pct) + '٪"></div>';
     });
     html += '</div></div>';
     html += '<div class="track-breakdown-legend">';
@@ -3352,7 +3366,7 @@ function trackingBreakdownSection(breakdown, totalSecs) {
         html += '<div class="track-legend-item" style="--track-stagger:' + idx + '">' +
             '<span class="track-legend-dot" style="background:' + trackColorForLabel(b.label) + '"></span>' +
             '<span class="track-legend-label">' + esc(b.label) + '</span>' +
-            '<span class="track-legend-bar-wrap"><span class="track-legend-bar" style="width:' + Math.max(b.pct, 4) + '%;background:' + trackColorForLabel(b.label) + '"></span></span>' +
+            '<span class="track-legend-bar-wrap"><span class="track-legend-bar" style="width:' + widths[idx] + '%;background:' + trackColorForLabel(b.label) + '"></span></span>' +
             '<span class="track-legend-val">' + esc(b.duration_label) + ' · ' + pd(b.pct) + '٪</span></div>';
     });
     html += '</div></div></div>';
@@ -3491,7 +3505,8 @@ function renderNav(screen) {
 
 /* Main render */
 function renderApp(state) {
-    if (!isModalVisible()) {
+    var screenChanged = window._renderedScreen !== state.screen;
+    if (!isModalVisible() && screenChanged) {
         closeProjectSheet();
         closeActivityPicker();
     }
@@ -3536,7 +3551,6 @@ function renderApp(state) {
     var modalFocusId = restoreModal ? focused.id : null;
     var modalCaret = restoreModal && focused.selectionStart != null ? focused.selectionStart : null;
 
-    var screenChanged = window._renderedScreen !== state.screen;
     window._renderedScreen = state.screen;
 
     root.innerHTML = html;
@@ -3839,4 +3853,8 @@ function ensureFieldVisible(el) {
     } else {
         bind();
     }
+    window.addEventListener('pagehide', function() {
+        if (typeof flushPendingNote === 'function') flushPendingNote();
+        if (typeof flushPendingSearch === 'function') flushPendingSearch();
+    });
 })();

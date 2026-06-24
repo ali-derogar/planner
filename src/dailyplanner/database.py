@@ -631,6 +631,19 @@ class Database:
         ).fetchall()
         return [FinanceEntry.from_row(row) for row in rows]
 
+    def get_finance_entries_between(
+        self, start: date, end: date
+    ) -> List[FinanceEntry]:
+        rows = self.conn.execute(
+            """
+            SELECT * FROM finance_entries
+            WHERE date >= ? AND date <= ?
+            ORDER BY date, id
+            """,
+            (start.isoformat(), end.isoformat()),
+        ).fetchall()
+        return [FinanceEntry.from_row(row) for row in rows]
+
     def get_finance_monthly_totals(self, year: int, month: int) -> dict:
         prefix = f"{year:04d}-{month:02d}"
         rows = self.conn.execute(
@@ -641,6 +654,42 @@ class Database:
             GROUP BY category, entry_type
             """,
             (f"{prefix}%",),
+        ).fetchall()
+        total_income = 0
+        total_expense = 0
+        total_investment = 0
+        by_category: dict = {}
+        for row in rows:
+            cat = row["category"] or "عمومی"
+            if cat not in by_category:
+                by_category[cat] = {"income": 0, "expense": 0, "investment": 0}
+            amount = int(row["total"])
+            entry_type = row["entry_type"]
+            if entry_type == "income":
+                by_category[cat]["income"] += amount
+                total_income += amount
+            elif entry_type == "investment":
+                by_category[cat]["investment"] += amount
+                total_investment += amount
+            else:
+                by_category[cat]["expense"] += amount
+                total_expense += amount
+        return {
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "total_investment": total_investment,
+            "by_category": by_category,
+        }
+
+    def get_finance_monthly_totals_between(self, start: date, end: date) -> dict:
+        rows = self.conn.execute(
+            """
+            SELECT category, entry_type, SUM(amount) AS total
+            FROM finance_entries
+            WHERE date >= ? AND date <= ?
+            GROUP BY category, entry_type
+            """,
+            (start.isoformat(), end.isoformat()),
         ).fetchall()
         total_income = 0
         total_expense = 0
@@ -683,6 +732,31 @@ class Database:
             ORDER BY date
             """,
             (f"{prefix}%",),
+        ).fetchall()
+        return [
+            {
+                "date": row["date"],
+                "income": int(row["income"]),
+                "expense": int(row["expense"]),
+                "investment": int(row["investment"]),
+            }
+            for row in rows
+        ]
+
+    def get_finance_daily_series_between(self, start: date, end: date) -> List[dict]:
+        rows = self.conn.execute(
+            """
+            SELECT
+                date,
+                COALESCE(SUM(CASE WHEN entry_type = 'income' THEN amount END), 0) AS income,
+                COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS expense,
+                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN amount END), 0) AS investment
+            FROM finance_entries
+            WHERE date >= ? AND date <= ?
+            GROUP BY date
+            ORDER BY date
+            """,
+            (start.isoformat(), end.isoformat()),
         ).fetchall()
         return [
             {
@@ -1416,6 +1490,14 @@ class Database:
         ).fetchone()
         return row is not None
 
+    def is_paid_in_date_range(self, inst_id: int, start: date, end: date) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM installment_payments"
+            " WHERE installment_id=? AND payment_date >= ? AND payment_date <= ?",
+            (inst_id, start.isoformat(), end.isoformat()),
+        ).fetchone()
+        return row is not None
+
     def get_installments_summary_for_month(self, year: int, month: int) -> dict:
         """Returns active installments with their payment status for the given month."""
         installments = self.get_all_installments()
@@ -1423,6 +1505,27 @@ class Database:
         result = []
         for inst in active:
             paid_month = self.is_paid_this_month(inst.id, year, month)
+            result.append({
+                "installment": inst,
+                "paid_this_month": paid_month,
+            })
+        total_due = sum(i.amount for i in active)
+        total_unpaid = sum(
+            i["installment"].amount for i in result if not i["paid_this_month"]
+        )
+        return {
+            "items": result,
+            "total_due": total_due,
+            "total_unpaid": total_unpaid,
+        }
+
+    def get_installments_summary_for_range(self, start: date, end: date) -> dict:
+        """Active installments with payment status for a Gregorian date range."""
+        installments = self.get_all_installments()
+        active = [i for i in installments if not i.is_settled]
+        result = []
+        for inst in active:
+            paid_month = self.is_paid_in_date_range(inst.id, start, end)
             result.append({
                 "installment": inst,
                 "paid_this_month": paid_month,
