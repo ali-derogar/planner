@@ -346,6 +346,7 @@ textarea:focus-visible, select:focus-visible {{
     background:
         linear-gradient(165deg, #020617 0%, #0C4A6E 28%, #0369A1 52%, #1D4ED8 78%, #7C2D12 100%);
     border-bottom: 1px solid rgba(125, 211, 252, 0.12);
+    overflow: hidden;
 }}
 .home-header::before {{
     content: '';
@@ -2688,10 +2689,14 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     overflow: hidden;
 }}
 .fin-header::before {{
+    content: '';
+    position: absolute;
+    inset: 0;
     background:
         radial-gradient(ellipse 75% 55% at 88% 10%, rgba(77, 217, 128, 0.22), transparent 52%),
         radial-gradient(ellipse 50% 45% at 10% 90%, rgba(45, 212, 191, 0.14), transparent 55%),
         radial-gradient(ellipse 40% 30% at 50% 100%, rgba(255, 176, 32, 0.08), transparent 60%);
+    pointer-events: none;
 }}
 .fin-header::after {{
     content: '';

@@ -1559,7 +1559,7 @@ function renderHome(h) {
         homeStatCard('not', '⚠️', 'نامفید', esc(h.not_useful_fmt)) +
         homeStatCard('tasks', '📝', 'تسک', pd(taskCount)) +
         homeStatCard('tracked', '⏱', 'کل زمان', homeFmtSecs(classified)) +
-        '</div></div></div></div></div>';
+        '</div></div></div></div>';
 
     if (h.show_calendar && h.calendar) {
         html += '<div class="home-calendar-wrap">' + renderCalendar(h.calendar, h.date) + '</div>';
@@ -1602,7 +1602,7 @@ function renderHome(h) {
     if (taskCount > 0) {
         html += '<button type="button" class="home-fab" onclick="' + addTaskModal + '" aria-label="افزودن تسک">' + ico('plus', 'ico') + '</button>';
     }
-    return html + '</div>';
+    return html + '</div></div>';
 }
 
 function renderCalendar(cal, selectedDate) {
@@ -1853,7 +1853,7 @@ function renderAnalytics(a) {
         '<div class="analytics-hero-stats">' +
         '<div class="analytics-hero-stat streak">' + finEmoji('🔥', 'sm') + '<div><span class="analytics-stat-lbl">استریک</span><span class="analytics-stat-val">' + pd(s.streak) + '</span></div></div>' +
         '<div class="analytics-hero-stat time">' + finEmoji('⏱️', 'sm') + '<div><span class="analytics-stat-lbl">کل زمان</span><span class="analytics-stat-val">' + esc(s.total_fmt) + '</span></div></div>' +
-        '</div></div></div></div></div></div>' +
+        '</div></div></div></div></div>' +
         '<div class="analytics-body">';
 
     html += '<div class="fin-card fin-card-animate analytics-card" style="--fin-card-delay:0">' +
@@ -3129,7 +3129,7 @@ function trackingHeader(t, heroInner, opts) {
     html += '</div>';
     html += '<div class="track-date-label">' + esc(t.date_label) + '</div>';
     if (heroInner) html += '<div class="track-hero-panel">' + heroInner + '</div>';
-    html += '</div></div>';
+    html += '</div>';
     return html;
 }
 
@@ -3335,7 +3335,7 @@ function renderTracking(t) {
             '</div>';
         html += '<div class="track-tips"><div class="track-tip">' + finEmoji('💡', 'sm') +
             ' عنوان را بنویسید یا از دکمه «انتخاب» یکی از فعالیت\u200cهای رایج را برگزینید</div></div>';
-        return html + '</div>';
+        return html + '</div></div>';
     }
 
     var sid = session ? session.id : null;
@@ -3422,7 +3422,7 @@ function renderTracking(t) {
             '<span class="track-restart-plus" aria-hidden="true">+</span> شروع ردیابی جدید</button></div>';
     }
 
-    html += '</div>';
+    html += '</div></div>';
     return html;
 }
 
