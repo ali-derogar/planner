@@ -51,7 +51,7 @@ def _finance_entry_date(
 ) -> datetime.date:
     """Pick entry date for the viewed Jalali finance month."""
     today = datetime.date.today()
-    if screen != "finance":
+    if screen not in ("finance", "installments"):
         return current_date
     cur_jy, cur_jm = current_jalali_ym(today)
     if finance_year == cur_jy and finance_month == cur_jm:
@@ -106,10 +106,12 @@ class WebViewHandler:
             self.db.set_active_timer(task_id, started_at)
 
     def _stop_timer_and_save(self) -> None:
-        task_id, elapsed = self.timer_service.stop()
+        task_id = self.timer_service.active_task_id
+        elapsed = self.timer_service.get_elapsed() if task_id else 0
+        self.timer_service.stop()
+        self.db.clear_active_timer()
         if task_id and elapsed > 0:
             self.db.add_duration(task_id, elapsed)
-        self.db.clear_active_timer()
 
     # ── SPA loading ───────────────────────────────────────────────────────────
 
@@ -444,7 +446,7 @@ class WebViewHandler:
             return
         value = p.get("value", "").strip()
         secs = _parse_hms(value)
-        if secs is not None:
+        if secs is not None and secs >= 0:
             self.db.update_duration(task_id, secs)
         else:
             self.toast("فرمت مدت نامعتبر", "error")
@@ -457,7 +459,7 @@ class WebViewHandler:
             return
         value = p.get("value", "").strip()
         secs = _parse_hms(value)
-        if secs is not None:
+        if secs is not None and secs >= 0:
             self.db.update_estimated(task_id, secs)
         else:
             self.toast("فرمت تخمین نامعتبر", "error")
@@ -837,6 +839,10 @@ class WebViewHandler:
         if pid is None:
             await self.push_state()
             return
+        if not self.db.get_project_by_id(pid):
+            self.toast("پروژه یافت نشد", "error")
+            await self.push_state()
+            return
         title = p.get("title", "").strip()
         if title:
             self.db.add_project_task(pid, title)
@@ -846,6 +852,10 @@ class WebViewHandler:
     async def _on_toggle_project_task(self, p):
         task_id = _param_int(p, "id")
         if task_id is None:
+            await self.push_state()
+            return
+        if not self.db.get_project_task_by_id(task_id):
+            self.toast("تسک یافت نشد", "error")
             await self.push_state()
             return
         self.db.toggle_project_task(task_id)
@@ -971,6 +981,11 @@ class WebViewHandler:
             self.toast("این قسط قبلاً تسویه شده", "error")
             await self.push_state()
             return
+        cur_jy, cur_jm = current_jalali_ym()
+        if (self.finance_year, self.finance_month) > (cur_jy, cur_jm):
+            self.toast("امکان پرداخت قسط ماه آینده وجود ندارد", "error")
+            await self.push_state()
+            return
         entry_date = _finance_entry_date(
             self.current_screen,
             self.current_date,
@@ -984,21 +999,18 @@ class WebViewHandler:
             self.toast("این قسط این ماه قبلاً پرداخت شده", "error")
             await self.push_state()
             return
-        result = self.db.pay_installment(inst_id)
+        result = self.db.pay_installment_and_record(
+            inst_id,
+            entry_date,
+            inst.amount,
+            f"قسط — {inst.title}",
+        )
         if result is None:
             self.toast("این قسط قبلاً تسویه شده", "error")
+        elif result.is_settled:
+            self.toast("تبریک! این قسط تسویه شد ✓")
         else:
-            self.db.add_finance_entry(
-                entry_date,
-                "expense",
-                f"قسط — {inst.title}",
-                inst.amount,
-                "اقساط",
-            )
-            if result.is_settled:
-                self.toast("تبریک! این قسط تسویه شد ✓")
-            else:
-                self.toast(f"پرداخت ثبت شد — {result.remaining_count} قسط مانده")
+            self.toast(f"پرداخت ثبت شد — {result.remaining_count} قسط مانده")
         await self.push_state()
 
     # ── important dates ─────────────────────────────────────────────────────
@@ -1120,7 +1132,8 @@ class WebViewHandler:
         if session_id is None:
             await self.push_state()
             return
-        self.db.switch_tracking(session_id)
+        if not self.db.switch_tracking(session_id):
+            self.toast("نشست ردیابی فعال نیست", "error")
         await self.push_state()
 
     async def _on_stop_tracking(self, p):
@@ -1128,7 +1141,10 @@ class WebViewHandler:
         if session_id is None:
             await self.push_state()
             return
-        self.db.stop_tracking(session_id)
+        if not self.db.stop_tracking(session_id):
+            self.toast("نشست ردیابی فعال نیست", "error")
+            await self.push_state()
+            return
         self.toast("ردیابی پایان یافت")
         await self.push_state()
 
@@ -1187,9 +1203,15 @@ def _parse_hms(text: str) -> Optional[int]:
     try:
         parts = normalize_digits(text).strip().split(":")
         if len(parts) == 3:
-            return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+            if h < 0 or m < 0 or s < 0:
+                return None
+            return h * 3600 + m * 60 + s
         if len(parts) == 2:
-            return int(parts[0]) * 3600 + int(parts[1]) * 60
+            h, m = int(parts[0]), int(parts[1])
+            if h < 0 or m < 0:
+                return None
+            return h * 3600 + m * 60
     except (ValueError, IndexError):
         pass
     return None

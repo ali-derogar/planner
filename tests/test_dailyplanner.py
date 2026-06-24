@@ -172,6 +172,8 @@ def test_export_json(db):
     assert len(data["tasks"]) >= 1
     assert "installments" in data
     assert "installment_payments" in data
+    assert "tracking_sessions" in data
+    assert "tracking_intervals" in data
 
 
 def test_backup_v1_installments_import(db):
@@ -728,8 +730,105 @@ def test_import_json_clears_tracking(db):
     assert db.get_tracking_sessions_for_date(d)
 
     exported = db.export_json()
+    exported.pop("tracking_sessions", None)
+    exported.pop("tracking_intervals", None)
     db.import_json(exported)
     assert db.get_tracking_sessions_for_date(d) == []
+
+
+def test_backup_tracking_roundtrip(db):
+    import datetime
+
+    d = datetime.date.today()
+    sid = db.start_tracking_session(d)
+    db.stop_tracking(sid)
+    assert db.get_tracking_sessions_for_date(d)
+
+    exported = db.export_json()
+    db.import_json(exported)
+    restored = db.get_tracking_sessions_for_date(d)
+    assert len(restored) == 1
+    assert restored[0]["id"] == sid
+
+
+def test_pay_installment_past_jalali_month_no_duplicate(db):
+    import asyncio
+    from dailyplanner.utils.jalali import current_jalali_ym, jalali_month_bounds, prev_jalali_month
+    from dailyplanner.webview_handler import WebViewHandler
+
+    today = datetime.date.today()
+    cur_jy, cur_jm = current_jalali_ym(today)
+    fy, fm = prev_jalali_month(cur_jy, cur_jm)
+    month_start, month_end = jalali_month_bounds(fy, fm)
+    inst = db.add_installment("loan", 50000, 6, today.isoformat(), 10)
+
+    class _App:
+        pass
+
+    app = _App()
+    app.db = db
+    app.main_window = type("W", (), {"dialog": lambda *a, **k: True})()
+    handler = WebViewHandler(app)
+    handler._shell_loaded = True
+    handler.current_screen = "finance"
+    handler.finance_year = fy
+    handler.finance_month = fm
+
+    async def _noop_push(self):
+        pass
+
+    handler.push_state = _noop_push.__get__(handler, WebViewHandler)
+
+    async def run():
+        await handler._on_pay_installment({"id": str(inst.id)})
+        await handler._on_pay_installment({"id": str(inst.id)})
+
+    asyncio.run(run())
+
+    updated = db.get_installment_by_id(inst.id)
+    assert updated.paid_count == 1
+    payments = db.conn.execute(
+        "SELECT payment_date FROM installment_payments WHERE installment_id=?",
+        (inst.id,),
+    ).fetchall()
+    assert len(payments) == 1
+    assert month_start.isoformat() <= payments[0]["payment_date"] <= month_end.isoformat()
+    entries = db.get_finance_entries_between(month_start, month_end)
+    assert len(entries) == 1
+
+
+def test_validate_backup_rejects_paid_over_total():
+    db = Database(":memory:")
+    data = db.export_json()
+    data["installments"] = [{
+        "id": 1,
+        "title": "loan",
+        "amount": 1000,
+        "total_count": 2,
+        "paid_count": 5,
+        "start_date": "2026-06-01",
+        "due_day": 1,
+        "created_at": "",
+    }]
+    ok, err = db.validate_backup(data)
+    assert not ok
+    assert "اقساط" in err
+
+
+def test_switch_tracking_rejects_ended_session(db):
+    import datetime
+
+    d = datetime.date.today()
+    sid = db.start_tracking_session(d)
+    assert db.stop_tracking(sid)
+    assert not db.switch_tracking(sid)
+
+
+def test_parse_hms_rejects_negative():
+    from dailyplanner.webview_handler import _parse_hms
+
+    assert _parse_hms("-1:00:00") is None
+    assert _parse_hms("1:-30:00") is None
 
 
 def test_start_tracking_reuses_active_session(db):

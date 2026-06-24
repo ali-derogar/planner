@@ -266,7 +266,7 @@ textarea:focus-visible, select:focus-visible {{
         padding-top: calc(14px + max(36px, var(--safe-top)));
     }}
     .date-header.track-header {{
-        padding-top: calc(10px + max(36px, var(--safe-top)));
+        padding-top: calc(8px + max(36px, var(--safe-top)));
     }}
     .home-header,
     .fin-header {{
@@ -4390,7 +4390,7 @@ body.kb-open .proj-sheet-overlay {{
     background: linear-gradient(155deg, #0A1F22 0%, #0F2A2E 35%, #134E4A 70%, #0C2328 100%);
     overflow: hidden;
     gap: 0;
-    padding: calc(10px + var(--safe-top)) var(--space-4) 8px;
+    padding: calc(8px + var(--safe-top)) var(--space-4) 6px;
 }}
 .track-header::before {{
     content: '';
@@ -4430,11 +4430,11 @@ body.kb-open .proj-sheet-overlay {{
     to {{ opacity: 1; transform: translateY(0) scale(1); }}
 }}
 .track-header-top {{
-    display: flex; align-items: center; gap: 10px; direction: rtl;
-    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px; direction: rtl;
+    margin-bottom: 4px;
 }}
 .track-brand-mark {{
-    width: 40px; height: 40px; border-radius: 14px;
+    width: 36px; height: 36px; border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(45, 212, 191, 0.32);
@@ -4445,7 +4445,7 @@ body.kb-open .proj-sheet-overlay {{
     flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
 }}
 .track-header-title {{
-    font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0.01em;
+    font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 0.01em;
     text-shadow: 0 2px 16px rgba(45, 212, 191, 0.35);
     line-height: 1.2;
 }}
@@ -4454,8 +4454,8 @@ body.kb-open .proj-sheet-overlay {{
 }}
 .track-hero-panel {{
     position: relative; z-index: 1;
-    margin-top: 4px;
-    padding: 14px;
+    margin-top: 2px;
+    padding: 10px 12px;
     background: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(45, 212, 191, 0.22);
     border-radius: 18px;
@@ -4483,7 +4483,7 @@ body.kb-open .proj-sheet-overlay {{
 .track-date-label {{
     text-align: center; font-size: 11px; font-weight: 500;
     color: rgba(153, 246, 228, 0.72);
-    padding: 0 0 8px; position: relative; z-index: 1;
+    padding: 0 0 4px; position: relative; z-index: 1;
     letter-spacing: 0.02em;
 }}
 .track-hero-in-header {{
@@ -4494,7 +4494,7 @@ body.kb-open .proj-sheet-overlay {{
 .track-hero-panel .track-hero-in-header + .track-active-panel.track-active-in-header,
 .track-hero-panel .track-hero-in-header + .track-stats-panel.track-stats-in-header,
 .track-hero-panel .track-hero-summary + .track-stats-panel.track-stats-in-header {{
-    margin-top: 8px; padding-top: 8px;
+    margin-top: 6px; padding-top: 6px;
 }}
 .track-hero-summary {{ text-align: center; }}
 .track-hero-label {{
@@ -4502,7 +4502,7 @@ body.kb-open .proj-sheet-overlay {{
     letter-spacing: 0.3px;
 }}
 .track-hero-total {{
-    font-size: 30px; font-weight: 800; color: #5EEAD4;
+    font-size: 26px; font-weight: 800; color: #5EEAD4;
     font-variant-numeric: tabular-nums; letter-spacing: 1px; line-height: 1.05;
     text-shadow: 0 0 24px rgba(45, 212, 191, 0.35);
 }}
@@ -4510,9 +4510,14 @@ body.kb-open .proj-sheet-overlay {{
     font-size: 11px; color: rgba(255, 255, 255, 0.5); margin-top: 4px;
 }}
 .track-timer-wrap {{
-    display: flex; justify-content: center; padding: 0 0 6px;
+    display: flex; justify-content: center; padding: 0 0 4px;
     position: relative;
 }}
+.track-header .track-timer-wrap {{ padding-bottom: 2px; }}
+.track-header .track-timer-glow {{ width: 132px; height: 132px; }}
+.track-header .track-timer-ring {{ width: 128px; height: 128px; }}
+.track-header .track-timer-inner {{ width: 106px; height: 106px; }}
+.track-header .track-timer-val {{ font-size: 22px; }}
 .track-timer-glow {{
     position: absolute; width: 154px; height: 154px; border-radius: 50%;
     background: radial-gradient(circle, rgba(45, 212, 191, 0.2), transparent 70%);
@@ -4562,10 +4567,10 @@ body.kb-open .proj-sheet-overlay {{
     display: flex; gap: 5px; direction: rtl;
 }}
 .track-hero-stat {{
-    flex: 1; display: flex; align-items: center; gap: 6px;
+    flex: 1; display: flex; align-items: center; gap: 5px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(45, 212, 191, 0.12);
-    border-radius: 10px; padding: 7px 8px;
+    border-radius: 10px; padding: 5px 6px;
     transition: border-color var(--duration-fast);
 }}
 .track-hero-stat .fin-emoji {{ flex-shrink: 0; }}
@@ -4588,7 +4593,7 @@ body.kb-open .proj-sheet-overlay {{
 }}
 .track-header .track-stats-panel.track-stats-in-header,
 .track-hero-panel .track-stats-panel.track-stats-in-header {{
-    margin: 8px 0 0; padding: 8px 0 0;
+    margin: 6px 0 0; padding: 6px 0 0;
     background: none; border: none; border-radius: 0;
     border-top: 1px solid rgba(45, 212, 191, 0.2);
     box-shadow: none; animation: none;
@@ -4596,7 +4601,7 @@ body.kb-open .proj-sheet-overlay {{
 }}
 .track-header .track-active-panel.track-active-in-header,
 .track-hero-panel .track-active-panel.track-active-in-header {{
-    margin: 10px 0 0; padding: 10px 0 0;
+    margin: 6px 0 0; padding: 6px 0 0;
     background: none; border: none; border-radius: 0;
     border-top: 1px solid rgba(45, 212, 191, 0.2);
     box-shadow: none; animation: none;
@@ -4615,15 +4620,15 @@ body.kb-open .proj-sheet-overlay {{
 }}
 .track-header .track-stats-grid {{ gap: 4px; }}
 .track-header .track-active-panel-head {{
-    margin-bottom: 8px; gap: 10px;
+    margin-bottom: 6px; gap: 8px;
 }}
 .track-header .track-active-emoji {{
-    width: 38px; height: 38px; border-radius: 12px; font-size: 18px;
+    width: 34px; height: 34px; border-radius: 11px; font-size: 16px;
 }}
 .track-header .track-label-input-prominent {{
-    padding: 10px 12px !important;
+    padding: 8px 10px !important;
 }}
-.track-header .track-pick-btn-lg {{ min-height: 40px !important; }}
+.track-header .track-pick-btn-lg {{ min-height: 36px !important; }}
 .track-header .track-stat-card-lbl {{ color: rgba(255, 255, 255, 0.55); }}
 .track-header .track-stat-card-val {{ color: #fff; }}
 .track-header .track-stat-card.useful .track-stat-card-val {{ color: #6EE7B7; }}

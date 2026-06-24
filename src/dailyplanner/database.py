@@ -913,6 +913,8 @@ class Database:
             "important_dates": _count("important_dates"),
             "installments": _count("installments"),
             "installment_payments": _count("installment_payments"),
+            "tracking_sessions": _count("tracking_sessions"),
+            "tracking_intervals": _count("tracking_intervals"),
         }
 
     def export_json(self) -> dict:
@@ -936,6 +938,12 @@ class Database:
         inst_payments = self.conn.execute(
             "SELECT * FROM installment_payments ORDER BY installment_id, payment_date"
         ).fetchall()
+        tracking_sessions = self.conn.execute(
+            "SELECT * FROM tracking_sessions ORDER BY date, id"
+        ).fetchall()
+        tracking_intervals = self.conn.execute(
+            "SELECT * FROM tracking_intervals ORDER BY session_id, started_at"
+        ).fetchall()
         skip_settings = {"active_timer_task_id", "active_timer_started_at"}
         settings = {
             r["key"]: r["value"]
@@ -956,6 +964,8 @@ class Database:
             "important_dates": [dict(r) for r in important_dates],
             "installments": [dict(r) for r in installments],
             "installment_payments": [dict(r) for r in inst_payments],
+            "tracking_sessions": [dict(r) for r in tracking_sessions],
+            "tracking_intervals": [dict(r) for r in tracking_intervals],
         }
 
     def validate_backup(self, data) -> tuple[bool, str]:
@@ -1036,7 +1046,11 @@ class Database:
                     try:
                         if int(inst.get("amount", 0)) <= 0:
                             return False, "اقساط خراب هستند"
-                        if int(inst.get("total_count", 0)) <= 0:
+                        total_count = int(inst.get("total_count", 0))
+                        paid_count = int(inst.get("paid_count", 0))
+                        if total_count <= 0:
+                            return False, "اقساط خراب هستند"
+                        if paid_count > total_count:
                             return False, "اقساط خراب هستند"
                     except (TypeError, ValueError):
                         return False, "اقساط خراب هستند"
@@ -1071,13 +1085,13 @@ class Database:
                     if not isinstance(b, dict) or not isinstance(b.get("category"), str):
                         return False, "بودجه‌ها خراب هستند"
 
-        for t in tasks[:5]:
+        for t in tasks:
             try:
                 date.fromisoformat(t["date"])
             except ValueError:
                 return False, "تسک‌ها خراب هستند"
 
-        for f in finance[:5]:
+        for f in finance:
             try:
                 date.fromisoformat(f["date"])
             except ValueError:
@@ -1258,6 +1272,35 @@ class Database:
                         pay.get("installment_id"),
                         pay.get("payment_date", ""),
                         pay.get("created_at", ""),
+                    ),
+                )
+
+            for ts in data.get("tracking_sessions", []):
+                self.conn.execute(
+                    "INSERT INTO tracking_sessions (id, date, started_at, ended_at, created_at)"
+                    " VALUES (?,?,?,?,?)",
+                    (
+                        ts.get("id"),
+                        ts.get("date", ""),
+                        ts.get("started_at"),
+                        ts.get("ended_at"),
+                        ts.get("created_at", ""),
+                    ),
+                )
+
+            for ti in data.get("tracking_intervals", []):
+                self.conn.execute(
+                    "INSERT INTO tracking_intervals"
+                    " (id, session_id, started_at, ended_at, label, duration_secs, is_useful)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (
+                        ti.get("id"),
+                        ti.get("session_id"),
+                        ti.get("started_at"),
+                        ti.get("ended_at"),
+                        ti.get("label", ""),
+                        ti.get("duration_secs"),
+                        ti.get("is_useful"),
                     ),
                 )
 
@@ -1470,13 +1513,15 @@ class Database:
         self.conn.execute("DELETE FROM installments WHERE id=?", (inst_id,))
         self.conn.commit()
 
-    def pay_installment(self, inst_id: int) -> Optional[Installment]:
+    def pay_installment(
+        self, inst_id: int, payment_date: Optional[date] = None
+    ) -> Optional[Installment]:
         """Record one payment. Returns updated installment or None if already settled."""
         inst = self.get_installment_by_id(inst_id)
         if inst is None or inst.is_settled:
             return None
         now_str = datetime.now().isoformat()
-        today = datetime.now().strftime("%Y-%m-%d")
+        pay_str = date_to_str(payment_date or date.today())
         self.conn.execute(
             "UPDATE installments SET paid_count = paid_count + 1 WHERE id = ?",
             (inst_id,),
@@ -1484,9 +1529,42 @@ class Database:
         self.conn.execute(
             "INSERT INTO installment_payments (installment_id, payment_date, created_at)"
             " VALUES (?,?,?)",
-            (inst_id, today, now_str),
+            (inst_id, pay_str, now_str),
         )
         self.conn.commit()
+        return self.get_installment_by_id(inst_id)
+
+    def pay_installment_and_record(
+        self,
+        inst_id: int,
+        payment_date: date,
+        amount: int,
+        finance_title: str,
+        category: str = "اقساط",
+    ) -> Optional[Installment]:
+        """Atomically record installment payment and matching finance expense."""
+        inst = self.get_installment_by_id(inst_id)
+        if inst is None or inst.is_settled:
+            return None
+        now_str = datetime.now().isoformat()
+        pay_str = date_to_str(payment_date)
+        with self.conn:
+            self.conn.execute(
+                "UPDATE installments SET paid_count = paid_count + 1 WHERE id = ?",
+                (inst_id,),
+            )
+            self.conn.execute(
+                "INSERT INTO installment_payments (installment_id, payment_date, created_at)"
+                " VALUES (?,?,?)",
+                (inst_id, pay_str, now_str),
+            )
+            self.conn.execute(
+                """
+                INSERT INTO finance_entries (date, entry_type, title, amount, category)
+                VALUES (?, 'expense', ?, ?, ?)
+                """,
+                (pay_str, finance_title, amount, category),
+            )
         return self.get_installment_by_id(inst_id)
 
     def is_paid_this_month(self, inst_id: int, year: int, month: int) -> bool:
@@ -1623,11 +1701,17 @@ class Database:
         return self.get_important_date_by_id(date_id)
 
     def count_urgent_dates(self, today: date, threshold_days: int = 7) -> int:
-        """Count dates that are overdue or within threshold_days."""
-        cutoff = (today + timedelta(days=threshold_days)).isoformat()
+        """Count upcoming dates within threshold and recently overdue ones."""
+        today_str = date_to_str(today)
+        future_cutoff = date_to_str(today + timedelta(days=threshold_days))
+        past_cutoff = date_to_str(today - timedelta(days=threshold_days))
         row = self.conn.execute(
-            "SELECT COUNT(*) AS c FROM important_dates WHERE date <= ?",
-            (cutoff,)
+            """
+            SELECT COUNT(*) AS c FROM important_dates
+            WHERE (date >= ? AND date <= ?)
+               OR (date < ? AND date >= ?)
+            """,
+            (today_str, future_cutoff, today_str, past_cutoff),
         ).fetchone()
         return int(row["c"])
 
@@ -1663,43 +1747,57 @@ class Database:
         for row in rows:
             self.stop_tracking(row["id"])
 
-    def switch_tracking(self, session_id: int) -> None:
+    def get_tracking_session_by_id(self, session_id: int):
+        return self.conn.execute(
+            "SELECT * FROM tracking_sessions WHERE id=?",
+            (session_id,),
+        ).fetchone()
+
+    def switch_tracking(self, session_id: int) -> bool:
         """Close active interval and open a new one."""
+        row = self.get_tracking_session_by_id(session_id)
+        if not row or row["ended_at"] is not None:
+            return False
         now_epoch = time.time()
-        row = self.conn.execute(
+        active = self.conn.execute(
             "SELECT id, started_at FROM tracking_intervals WHERE session_id=? AND ended_at IS NULL",
             (session_id,),
         ).fetchone()
-        if row:
-            duration = int(now_epoch - row["started_at"])
+        if active:
+            duration = int(now_epoch - active["started_at"])
             self.conn.execute(
                 "UPDATE tracking_intervals SET ended_at=?, duration_secs=? WHERE id=?",
-                (now_epoch, duration, row["id"]),
+                (now_epoch, duration, active["id"]),
             )
         self.conn.execute(
             "INSERT INTO tracking_intervals (session_id, started_at) VALUES (?,?)",
             (session_id, now_epoch),
         )
         self.conn.commit()
+        return True
 
-    def stop_tracking(self, session_id: int) -> None:
+    def stop_tracking(self, session_id: int) -> bool:
         """Close active interval and close the session."""
+        row = self.get_tracking_session_by_id(session_id)
+        if not row or row["ended_at"] is not None:
+            return False
         now_epoch = time.time()
-        row = self.conn.execute(
+        active = self.conn.execute(
             "SELECT id, started_at FROM tracking_intervals WHERE session_id=? AND ended_at IS NULL",
             (session_id,),
         ).fetchone()
-        if row:
-            duration = int(now_epoch - row["started_at"])
+        if active:
+            duration = int(now_epoch - active["started_at"])
             self.conn.execute(
                 "UPDATE tracking_intervals SET ended_at=?, duration_secs=? WHERE id=?",
-                (now_epoch, duration, row["id"]),
+                (now_epoch, duration, active["id"]),
             )
         self.conn.execute(
             "UPDATE tracking_sessions SET ended_at=? WHERE id=?",
             (now_epoch, session_id),
         )
         self.conn.commit()
+        return True
 
     def set_tracking_label(self, interval_id: int, label: str) -> None:
         self.conn.execute(
