@@ -1714,69 +1714,204 @@ function renderWellness(w) {
         '<div class="mood-row">' + moods + '</div></div>';
 }
 
+function analyticsEffChart(points, w, h) {
+    if (!points || !points.length) return '';
+    var max = Math.max.apply(null, points.concat([1]));
+    var min = 0;
+    var range = max - min || 1;
+    var n = points.length;
+    var padT = 14, padB = 8, padX = 8;
+    function toY(v) {
+        return padT + (h - padT - padB) * (1 - (v - min) / range);
+    }
+    function toPts(arr) {
+        return arr.map(function(v, i) {
+            return (padX + i * (w - padX * 2) / (n - 1 || 1)).toFixed(1) + ',' + toY(v).toFixed(1);
+        });
+    }
+    var pts = toPts(points);
+    var linePts = pts.join(' ');
+    var areaPath = 'M' + pts[0];
+    for (var i = 1; i < pts.length; i++) areaPath += ' L' + pts[i];
+    var baseY = (h - padB).toFixed(1);
+    areaPath += ' L' + pts[pts.length - 1].split(',')[0] + ',' + baseY;
+    areaPath += ' L' + pts[0].split(',')[0] + ',' + baseY + ' Z';
+    var last = pts[pts.length - 1].split(',');
+    var svg = '<svg class="analytics-eff-chart" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+        '<defs>' +
+        '<linearGradient id="anEffGrad" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0%" stop-color="#A78BFA" stop-opacity="0.42"/>' +
+        '<stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/>' +
+        '</linearGradient>' +
+        '<filter id="anEffGlow" x="-20%" y="-20%" width="140%" height="140%">' +
+        '<feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+        '</filter></defs>';
+    for (var g = 0; g <= 3; g++) {
+        var gy = padT + (h - padT - padB) * g / 3;
+        svg += '<line class="analytics-chart-grid" x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (w - padX) + '" y2="' + gy.toFixed(1) + '"/>';
+    }
+    svg += '<path class="analytics-chart-area" d="' + areaPath + '" fill="url(#anEffGrad)"/>';
+    svg += '<polyline class="analytics-chart-line" fill="none" stroke="#C4B5FD" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" points="' + linePts + '" filter="url(#anEffGlow)"/>';
+    svg += '<circle class="analytics-chart-dot" cx="' + last[0] + '" cy="' + last[1] + '" r="3.5" fill="#E9D5FF" stroke="#7C3AED" stroke-width="1.5"/>';
+    svg += '</svg>';
+    return '<div class="analytics-chart-wrap">' + svg + '</div>';
+}
+
+function analyticsHeatmapCard(heatmap) {
+    if (!heatmap || !heatmap.length) return '';
+    var cells = heatmap.map(function(d) {
+        var cls = 'analytics-hm-cell';
+        if (d.eff >= 70) cls += ' hm-high';
+        else if (d.eff >= 40) cls += ' hm-mid';
+        else if (d.total > 0) cls += ' hm-low';
+        else cls += ' hm-empty';
+        var tip = esc(d.date);
+        if (d.total > 0) tip += ' · ' + pd(d.eff) + '٪';
+        return '<div class="' + cls + '" title="' + tip + '"></div>';
+    }).join('');
+    return '<div class="analytics-heatmap">' + cells + '</div>' +
+        '<div class="analytics-hm-legend">' +
+        '<span class="analytics-hm-leg-item"><span class="analytics-hm-leg-dot hm-empty"></span>بدون فعالیت</span>' +
+        '<span class="analytics-hm-leg-item"><span class="analytics-hm-leg-dot hm-low"></span>کم</span>' +
+        '<span class="analytics-hm-leg-item"><span class="analytics-hm-leg-dot hm-mid"></span>متوسط</span>' +
+        '<span class="analytics-hm-leg-item"><span class="analytics-hm-leg-dot hm-high"></span>عالی</span>' +
+        '</div>';
+}
+
+function analyticsMetricCard(cls, emoji, key, val) {
+    return '<div class="analytics-metric ' + cls + '">' +
+        '<div class="analytics-metric-icon">' + finEmoji(emoji, 'sm') + '</div>' +
+        '<div class="analytics-metric-body">' +
+        '<span class="analytics-metric-key">' + esc(key) + '</span>' +
+        '<span class="analytics-metric-val">' + val + '</span></div></div>';
+}
+
+function analyticsDayCard(d, idx) {
+    var effCls = d.eff >= 70 ? 'great' : d.eff >= 40 ? 'ok' : d.eff > 0 ? 'low' : 'none';
+    var extra = '';
+    if (d.sleep || d.mood) {
+        extra = '<div class="analytics-day-wellness">' +
+            (d.sleep ? '<span class="analytics-day-well-item">' + finEmoji('😴', 'sm') + esc(d.sleep) + '</span>' : '') +
+            (d.mood ? '<span class="analytics-day-well-item">' + esc(d.mood) + '</span>' : '') +
+            '</div>';
+    }
+    return '<div class="analytics-day-card" style="--an-day-delay:' + idx + '">' +
+        '<div class="analytics-day-rail"><div class="analytics-day-dot ' + effCls + '"></div></div>' +
+        '<div class="analytics-day-body">' +
+        '<div class="analytics-day-head">' +
+        '<span class="analytics-day-date">' + esc(d.date_label) + '</span>' +
+        '<span class="analytics-day-eff ' + effCls + '">' + pd(d.eff) + '٪</span></div>' +
+        '<div class="analytics-day-bar"><div class="analytics-day-bar-fill ' + effCls + '" style="width:' + d.eff + '%"></div></div>' +
+        '<div class="analytics-day-stats">' +
+        '<span class="analytics-day-stat"><span class="analytics-day-stat-lbl">کل</span>' + esc(d.total_fmt) + '</span>' +
+        '<span class="analytics-day-stat useful"><span class="analytics-day-stat-lbl">مفید</span>' + esc(d.useful_fmt) + '</span>' +
+        '</div>' + extra + '</div></div>';
+}
+
 function renderAnalytics(a) {
-    var p7 = a.period === 7 ? 'period-btn active' : 'period-btn';
-    var p30 = a.period === 30 ? 'period-btn active' : 'period-btn';
-    var s = a.stats || { streak: 0, eff: 0, total_fmt: '—', useful_fmt: '—', not_useful_fmt: '—', income_fmt: '—', expense_fmt: '—', investment_fmt: '—', balance_fmt: '—', avg_mood: '—', avg_sleep: '—' };
+    var period = a.period || 7;
+    var p7 = period === 7 ? 'analytics-period-btn active' : 'analytics-period-btn';
+    var p30 = period === 30 ? 'analytics-period-btn active' : 'analytics-period-btn';
+    var s = a.stats || {
+        streak: 0, eff: 0, useful: 0, not_useful: 0,
+        total_fmt: '—', useful_fmt: '—', not_useful_fmt: '—',
+        income: 0, expense: 0, income_fmt: '—', expense_fmt: '—',
+        investment_fmt: '—', balance_fmt: '—', balance: 0,
+        avg_mood: '—', avg_sleep: '—',
+    };
+    var classified = (s.useful || 0) + (s.not_useful || 0);
+    var balCls = (s.balance || 0) >= 0 ? 'positive' : 'negative';
+    var hasChart = a.chart_points && a.chart_points.some(function(v) { return v > 0; });
+
     var html = '<div class="analytics-page">' +
         '<div class="analytics-header">' +
+        '<div class="analytics-header-orbs" aria-hidden="true">' +
+        '<div class="analytics-orb analytics-orb-1"></div>' +
+        '<div class="analytics-orb analytics-orb-2"></div>' +
+        '<div class="analytics-orb analytics-orb-3"></div></div>' +
+        '<div class="analytics-header-brand">' +
         '<div class="analytics-header-top">' +
-        finEmoji('📊', 'md') +
-        '<span class="analytics-header-title">آمار کلی</span>' +
+        '<div class="analytics-brand-mark">' + finEmoji('📊', 'md') + '</div>' +
+        '<div class="analytics-header-titles">' +
+        '<span class="analytics-header-title">آمار</span>' +
+        '<span class="analytics-header-sub">تحلیل عملکرد و روند</span>' +
         '</div>' +
-        '<div class="analytics-period analytics-period-in-header">' +
+        (s.streak > 0 ? '<span class="analytics-streak-pill">' + finEmoji('🔥', 'sm') + pd(s.streak) + ' روز</span>' : '') +
+        '</div>' +
+        '<div class="analytics-period-row">' +
         '<a href="javascript:void(0)" onclick="action(\'set_period\',{days:7})" class="' + p7 + '">۷ روز</a>' +
         '<a href="javascript:void(0)" onclick="action(\'set_period\',{days:30})" class="' + p30 + '">۳۰ روز</a>' +
         '</div>' +
-        '<div class="analytics-period-label">' + esc(a.start_label) + ' تا ' + esc(a.end_label) + '</div>' +
-        '<div class="analytics-hero-in-header">' +
-        '<div class="analytics-summary">' +
-        analyticsSummaryItem('🔥', pd(s.streak), 'استریک') +
-        analyticsSummaryItem('🎯', pd(s.eff) + '٪', 'بازده') +
-        analyticsSummaryItem('⏱️', esc(s.total_fmt), 'کل زمان') +
-        '</div></div></div>' +
-        '<div class="chart-box">' + sparklineSvg(a.chart_points, 300, 60) + '</div>' +
-        heatmapHtml(a.heatmap) +
-        '<div class="stat-cards">' +
-        statCard('کل زمان', s.total_fmt) +
-        statCard('مفید', s.useful_fmt, '#4DD980') +
-        statCard('نامفید', s.not_useful_fmt, '#FF7359') +
-        statCard('بازده', pd(s.eff) + '٪', '#A78BFA') +
-        statCard('درآمد', s.income_fmt, '#4DD980') +
-        statCard('هزینه', s.expense_fmt, '#FF7359') +
-        statCard('سرمایه\u200cگذاری', s.investment_fmt, '#FFB020') +
-        statCard('موجودی', s.balance_fmt, '#818CF8') +
-        statCard('خلق و خو', s.avg_mood) +
-        statCard('خواب', s.avg_sleep) +
-        '</div><div class="sec-title analytics-days-title">روزهای گذشته</div>';
+        '<div class="analytics-range-label">' + esc(a.start_label) + ' — ' + esc(a.end_label) + '</div>' +
+        '<div class="analytics-hero-panel">' +
+        '<div class="analytics-hero-main">' +
+        homeEffRing(s.eff, classified) +
+        '<div class="analytics-hero-side">' +
+        '<div class="analytics-hero-label">میانگین بازده دوره</div>' +
+        '<div class="analytics-hero-eff">' + pd(s.eff) + '<span class="analytics-hero-unit">٪</span></div>' +
+        homeTimeBar(s.useful, s.not_useful) +
+        '<div class="analytics-hero-stats">' +
+        '<div class="analytics-hero-stat streak">' + finEmoji('🔥', 'sm') + '<div><span class="analytics-stat-lbl">استریک</span><span class="analytics-stat-val">' + pd(s.streak) + '</span></div></div>' +
+        '<div class="analytics-hero-stat time">' + finEmoji('⏱️', 'sm') + '<div><span class="analytics-stat-lbl">کل زمان</span><span class="analytics-stat-val">' + esc(s.total_fmt) + '</span></div></div>' +
+        '</div></div></div></div></div></div>' +
+        '<div class="analytics-body">';
+
+    html += '<div class="fin-card fin-card-animate analytics-card" style="--fin-card-delay:0">' +
+        '<div class="fin-card-head">' + finCardTitle('chart', '📈', 'روند بازدهی') + '</div>';
+    if (hasChart) {
+        html += analyticsEffChart(a.chart_points, 320, 120);
+    } else {
+        html += '<div class="analytics-chart-empty">' + finIcon('chart', '📉', 'lg') +
+            '<p>با ثبت فعالیت روزانه، نمودار بازدهی اینجا نمایش داده می‌شود</p></div>';
+    }
+    html += '</div>';
+
+    if (a.heatmap && a.heatmap.length) {
+        html += '<div class="fin-card fin-card-animate analytics-card" style="--fin-card-delay:1">' +
+            '<div class="fin-card-head">' + finCardTitle('analytics', '🗓', 'نقشه فعالیت') + '</div>' +
+            analyticsHeatmapCard(a.heatmap) + '</div>';
+    }
+
+    html += '<div class="analytics-metrics-section fin-card-animate" style="--fin-card-delay:2">' +
+        '<div class="analytics-metrics-head"><span class="analytics-metrics-icon">' + finEmoji('⏳', 'sm') + '</span><span>زمان</span></div>' +
+        '<div class="analytics-metrics-grid">' +
+        analyticsMetricCard('total', '⏱️', 'کل زمان', esc(s.total_fmt)) +
+        analyticsMetricCard('useful', '✅', 'مفید', esc(s.useful_fmt)) +
+        analyticsMetricCard('not', '⚠️', 'نامفید', esc(s.not_useful_fmt)) +
+        analyticsMetricCard('eff', '🎯', 'بازده', pd(s.eff) + '٪') +
+        '</div></div>';
+
+    html += '<div class="analytics-metrics-section fin-card-animate" style="--fin-card-delay:3">' +
+        '<div class="analytics-metrics-head"><span class="analytics-metrics-icon">' + finEmoji('💰', 'sm') + '</span><span>مالی</span></div>' +
+        '<div class="analytics-metrics-grid">' +
+        analyticsMetricCard('income', '📈', 'درآمد', esc(s.income_fmt)) +
+        analyticsMetricCard('expense', '💸', 'هزینه', esc(s.expense_fmt)) +
+        analyticsMetricCard('invest', '💎', 'سرمایه\u200cگذاری', esc(s.investment_fmt)) +
+        analyticsMetricCard('balance ' + balCls, '🏦', 'موجودی', esc(s.balance_fmt)) +
+        '</div></div>';
+
+    html += '<div class="analytics-metrics-section fin-card-animate" style="--fin-card-delay:4">' +
+        '<div class="analytics-metrics-head"><span class="analytics-metrics-icon">' + finEmoji('🌙', 'sm') + '</span><span>سلامت</span></div>' +
+        '<div class="analytics-metrics-grid analytics-metrics-grid-2">' +
+        analyticsMetricCard('mood', '😊', 'خلق و خو', esc(s.avg_mood)) +
+        analyticsMetricCard('sleep', '😴', 'میانگین خواب', esc(s.avg_sleep)) +
+        '</div></div>';
+
+    html += '<div class="analytics-days-section fin-card-animate" style="--fin-card-delay:5">' +
+        '<div class="analytics-days-head">' +
+        '<span class="analytics-days-title">روزهای گذشته</span>' +
+        '<span class="analytics-days-badge">' + pd((a.days && a.days.length) || 0) + ' روز</span></div>';
 
     if (!(a.days && a.days.length)) {
-        html += '<div class="empty-state">' + finIcon('analytics', '📊', 'lg') +
-            '<div class="empty-title">داده\u200cای برای نمایش نیست</div>' +
-            '<div class="empty-sub">چند روز تسک انجام دهید تا آمار بازدهی اینجا نمایش داده شود</div></div>';
+        html += '<div class="analytics-empty">' + finIcon('analytics', '📊', 'lg') +
+            '<div class="analytics-empty-title">داده\u200cای برای نمایش نیست</div>' +
+            '<div class="analytics-empty-sub">چند روز تسک انجام دهید تا آمار بازدهی اینجا نمایش داده شود</div></div>';
     } else {
-        a.days.forEach(function(d) {
-            html += '<div class="day-card"><div class="day-date">' + esc(d.date_label) + '</div>' +
-                '<div class="day-bar"><div class="day-bar-fill" style="width:' + d.eff + '%"></div></div>' +
-                '<div class="day-stats"><span>کل: ' + esc(d.total_fmt) + '</span>' +
-                '<span style="color:#4DD980">مفید: ' + esc(d.useful_fmt) + '</span>' +
-                '<span style="color:#A78BFA">بازده: ' + pd(d.eff) + '٪</span></div>' +
-                (d.sleep || d.mood ? '<div class="day-extra">' + esc(d.sleep) + ' ' + esc(d.mood) + '</div>' : '') +
-                '</div>';
-        });
+        html += '<div class="analytics-day-list">';
+        a.days.forEach(function(d, i) { html += analyticsDayCard(d, i); });
+        html += '</div>';
     }
-    return html + '</div>';
-}
-
-function analyticsSummaryItem(emoji, val, lbl) {
-    return '<div class="analytics-summary-item">' + finEmoji(emoji, 'sm') +
-        '<span class="analytics-summary-val">' + val + '</span>' +
-        '<span class="analytics-summary-lbl">' + lbl + '</span></div>';
-}
-
-function statCard(key, val, color) {
-    return '<div class="stat-card"><div class="stat-key">' + esc(key) + '</div>' +
-        '<div class="stat-val" style="color:' + (color || '') + '">' + esc(val) + '</div></div>';
+    return html + '</div></div></div>';
 }
 
 function renderBackupSummary(summary) {
@@ -2400,10 +2535,18 @@ function showProjectSheet(id) {
         document.body.appendChild(overlay);
     }
     var doneLabel = p.is_done ? '↩ بازگردانی به فعال' : '✓ علامت‌گذاری تموم‌شده';
+    var progress = p.progress || 0;
     overlay.innerHTML =
-        '<div class="proj-sheet" onclick="event.stopPropagation()">' +
+        '<div class="proj-sheet" style="--project-color:' + esc(p.color) + '" onclick="event.stopPropagation()">' +
+        '<div class="proj-sheet-accent"></div>' +
         '<div class="proj-sheet-handle"></div>' +
+        '<div class="proj-sheet-head">' +
+        projectProgressRing(progress, p.color, 52) +
+        '<div class="proj-sheet-meta">' +
         '<div class="proj-sheet-title">' + esc(p.title) + '</div>' +
+        '<div class="proj-sheet-sub">' + pd(p.done) + ' از ' + pd(p.total) + ' تسک · ' + pd(progress) + '٪</div>' +
+        projectDeadlineBadge(p) +
+        '</div></div>' +
         '<button type="button" class="proj-sheet-btn" onclick="closeProjectSheet();showEditProject(' + id + ',window._projectColors)">✎ ویرایش پروژه</button>' +
         '<button type="button" class="proj-sheet-btn" onclick="closeProjectSheet();action(\'toggle_project_done\',{id:' + id + '})">' + doneLabel + '</button>' +
         '<button type="button" class="proj-sheet-btn danger" onclick="closeProjectSheet();action(\'delete_project\',{id:' + id + '})">🗑 حذف پروژه</button>' +
@@ -2416,17 +2559,45 @@ function showProjectSheet(id) {
 
 function projectProgressRing(pct, color, size) {
     size = size || 48;
-    var r = (size - 8) / 2;
+    var sw = size >= 68 ? 5 : 4;
+    var r = (size - sw * 2 - 2) / 2;
     var c = 2 * Math.PI * r;
-    var offset = c * (1 - Math.min(100, Math.max(0, pct)) / 100);
+    var clamped = Math.min(100, Math.max(0, pct));
+    var offset = c * (1 - clamped / 100);
     var cx = size / 2;
-    return '<svg class="proj-ring" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true">' +
-        '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="4"/>' +
-        '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="' + esc(color) + '" stroke-width="4" ' +
+    return '<div class="proj-ring-wrap" style="--project-color:' + esc(color) + '">' +
+        '<div class="proj-ring-glow" aria-hidden="true"></div>' +
+        '<svg class="proj-ring" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true">' +
+        '<circle class="proj-ring-track" cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke-width="' + sw + '"/>' +
+        '<circle class="proj-ring-arc" cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="' + esc(color) + '" stroke-width="' + sw + '" ' +
         'stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + offset.toFixed(2) + '" ' +
         'stroke-linecap="round" transform="rotate(-90 ' + cx + ' ' + cx + ')"/>' +
-        '<text x="' + cx + '" y="' + (cx + 4) + '" text-anchor="middle" fill="currentColor" font-size="11" font-weight="bold">' +
-        pd(pct) + '٪</text></svg>';
+        '<text class="proj-ring-text" x="' + cx + '" y="' + (cx + (size >= 68 ? 5 : 4)) + '" text-anchor="middle" fill="currentColor" font-size="' + (size >= 68 ? 13 : 11) + '" font-weight="bold">' +
+        pd(clamped) + '٪</text></svg></div>';
+}
+
+function projectOverallRing(pct) {
+    var size = 92;
+    var sw = 7;
+    var r = (size - sw * 2 - 4) / 2;
+    var c = 2 * Math.PI * r;
+    var clamped = Math.min(100, Math.max(0, pct));
+    var offset = c * (1 - clamped / 100);
+    var cx = size / 2;
+    return '<div class="proj-overall-ring" aria-hidden="true">' +
+        '<div class="proj-ring-glow proj-ring-glow-lg"></div>' +
+        '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" class="proj-overall-svg">' +
+        '<defs><linearGradient id="projOverallGrad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+        '<stop offset="0%" stop-color="#818CF8"/><stop offset="50%" stop-color="#6366F1"/><stop offset="100%" stop-color="#A78BFA"/>' +
+        '</linearGradient></defs>' +
+        '<circle class="proj-ring-track" cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke-width="' + sw + '"/>' +
+        '<circle class="proj-ring-arc" cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" stroke="url(#projOverallGrad)" stroke-width="' + sw + '" ' +
+        'stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + offset.toFixed(2) + '" ' +
+        'stroke-linecap="round" transform="rotate(-90 ' + cx + ' ' + cx + ')"/>' +
+        '</svg>' +
+        '<div class="proj-overall-inner">' +
+        '<span class="proj-overall-pct">' + pd(clamped) + '٪</span>' +
+        '<span class="proj-overall-lbl">کل پیشرفت</span></div></div>';
 }
 
 function projectDeadlineBadge(p) {
@@ -2470,8 +2641,9 @@ function showEditProject(id, colors) {
     });
 }
 
-function projSummaryItem(emoji, val, lbl) {
-    return '<div class="proj-summary-item">' + finEmoji(emoji, 'sm') +
+function projSummaryItem(emoji, val, lbl, variant) {
+    variant = variant || 'default';
+    return '<div class="proj-summary-item proj-summary-' + variant + '">' + finEmoji(emoji, 'sm') +
         '<span class="proj-summary-val">' + val + '</span>' +
         '<span class="proj-summary-lbl">' + lbl + '</span></div>';
 }
@@ -2483,23 +2655,27 @@ function projSectionHead(type, icon, title, badge) {
         '</div>';
 }
 
-function renderProjectCard(p, muted) {
+function renderProjectCard(p, muted, idx) {
     var mutedCls = muted ? ' muted' : '';
     var progress = p.progress || 0;
-    var html = '<div class="proj-card' + mutedCls + '" style="--project-color:' + esc(p.color) + '">';
+    var html = '<div class="proj-card proj-card-animate' + mutedCls + '" style="--project-color:' + esc(p.color) + ';--proj-stagger:' + (idx || 0) + '">';
+    html += '<div class="proj-card-glow" aria-hidden="true"></div>';
     html += '<div class="proj-card-accent"></div>';
     html += '<div class="proj-card-body" onclick="action(\'open_project\',{id:' + p.id + '})">';
     html += '<div class="proj-card-top">';
     html += '<div class="proj-card-info">';
+    html += '<div class="proj-card-title-row">';
+    html += '<span class="proj-card-dot" aria-hidden="true"></span>';
     html += '<div class="proj-card-title">' + esc(p.title) + '</div>';
-    html += projectDeadlineBadge(p);
+    html += '</div>';
+    html += '<div class="proj-card-badges">' + projectDeadlineBadge(p) + '</div>';
     html += '<div class="proj-card-meta">' + pd(p.done) + ' از ' + pd(p.total) + ' تسک انجام‌شده</div>';
     html += '</div>';
     html += projectProgressRing(progress, p.color, 56);
     html += '</div>';
     html += '<div class="proj-bar"><div class="proj-bar-fill" style="width:' + progress + '%"></div></div>';
     html += '</div>';
-    html += '<button type="button" class="proj-card-menu" onclick="event.stopPropagation();showProjectSheet(' + p.id + ')" aria-label="گزینه‌ها">⋮</button>';
+    html += '<button type="button" class="proj-card-menu" onclick="event.stopPropagation();showProjectSheet(' + p.id + ')" aria-label="گزینه‌ها"><span class="proj-menu-dots" aria-hidden="true"></span></button>';
     html += '</div>';
     return html;
 }
@@ -2517,47 +2693,64 @@ function renderProjects(data) {
 
     var html = '<div class="proj-page">';
 
-    html += '<div class="proj-header">' +
-        '<div class="proj-header-top">' +
+    html += '<div class="proj-header date-header">' +
+        '<div class="proj-header-orbs" aria-hidden="true">' +
+        '<div class="proj-orb proj-orb-1"></div>' +
+        '<div class="proj-orb proj-orb-2"></div>' +
+        '<div class="proj-orb proj-orb-3"></div></div>' +
         '<div class="proj-header-brand">' +
-        finEmoji('📁', 'md') +
+        '<div class="proj-header-top">' +
+        '<div class="proj-brand-mark">' + finIconSvg('projects', 'folder') + '</div>' +
+        '<div class="proj-header-titles">' +
         '<span class="proj-header-title">پروژه\u200cها</span>' +
+        '<span class="proj-header-sub">مدیریت تسک\u200cها و پیشرفت</span>' +
         '</div>' +
-        '<button type="button" class="proj-header-add" onclick="showAddProject(window._projectColors)">+ پروژه جدید</button>' +
+        (active.length ? '<span class="proj-live-pill"><span class="proj-live-dot"></span>' + pd(active.length) + ' فعال</span>' : '') +
         '</div>' +
-        '<div class="proj-hero-in-header"><div class="proj-summary">' +
-        projSummaryItem('🚀', pd(active.length), 'فعال') +
-        projSummaryItem('✅', pd(doneTasks) + '/' + pd(totalTasks), 'تسک') +
-        projSummaryItem('📈', pd(overallPct) + '٪', 'پیشرفت') +
-        '</div></div></div>';
+        '<div class="proj-hero-panel">' +
+        '<div class="proj-hero-main">' +
+        projectOverallRing(overallPct) +
+        '<div class="proj-hero-side">' +
+        '<div class="proj-hero-stats">' +
+        projSummaryItem('🚀', pd(active.length), 'فعال', 'active') +
+        projSummaryItem('✅', pd(doneTasks) + '/' + pd(totalTasks), 'تسک', 'tasks') +
+        projSummaryItem('🏆', pd(done.length), 'تمام\u200cشده', 'done') +
+        '</div>' +
+        '<button type="button" class="proj-header-add" onclick="showAddProject(window._projectColors)">' +
+        ico('plus', 'ico') + '<span>پروژه جدید</span></button>' +
+        '</div></div></div></div>';
+
+    html += '<div class="proj-body">';
 
     if (!list.length) {
         html += finEmptyState('📋', 'هنوز پروژه\u200cای ندارید.<br>اولین پروژه\u200cتان را بسازید و تسک\u200cها را مدیریت کنید.', '+ ساخت پروژه', 'showAddProject(window._projectColors)', 'projects');
-        return html + '</div>';
+        return html + '</div></div>';
     }
 
     if (active.length) {
-        html += '<div class="proj-card-section">' + projSectionHead('projects', '◆', 'در جریان', active.length);
-        active.forEach(function(p) { html += renderProjectCard(p, false); });
+        html += '<div class="proj-card-section proj-card-animate" style="--proj-stagger:0">' + projSectionHead('projects', '◆', 'در جریان', active.length);
+        active.forEach(function(p, i) { html += renderProjectCard(p, false, i); });
         html += '</div>';
     } else {
-        html += '<div class="proj-card-section"><div class="proj-empty-mini">پروژه فعالی ندارید — یک پروژه جدید بسازید</div></div>';
+        html += '<div class="proj-card-section proj-card-animate" style="--proj-stagger:0"><div class="proj-empty-mini">' +
+            finIcon('projects', '📁') + '<p>پروژه فعالی ندارید</p>' +
+            '<button type="button" class="proj-empty-mini-btn" onclick="showAddProject(window._projectColors)">+ ساخت پروژه</button></div></div>';
     }
 
     if (done.length) {
-        html += '<div class="proj-card-section proj-section-done">';
+        html += '<div class="proj-card-section proj-section-done proj-card-animate" style="--proj-stagger:1">';
         html += '<button type="button" class="proj-done-toggle' + (_showCompletedProjects ? ' open' : '') +
             '" onclick="_showCompletedProjects=!_showCompletedProjects;renderApp(window._lastState)">' +
             finIcon('projects', '✓') +
             '<span>پروژه\u200cهای تموم\u200cشده</span><span class="proj-section-badge">' + pd(done.length) + '</span>' +
             '<span class="proj-done-chevron">' + collapseChevron(_showCompletedProjects) + '</span></button>';
         if (_showCompletedProjects) {
-            done.forEach(function(p) { html += renderProjectCard(p, true); });
+            done.forEach(function(p, i) { html += renderProjectCard(p, true, i); });
         }
         html += '</div>';
     }
 
-    return html + '</div>';
+    return html + '</div></div>';
 }
 
 function renderProjectDetail(p) {
@@ -2565,10 +2758,12 @@ function renderProjectDetail(p) {
     window._projectColors = p.colors;
     var tasks = p.tasks || [];
     var progress = p.progress || 0;
+    var pendingTasks = tasks.filter(function(t) { return !t.is_done; }).length;
 
     var html = '<div class="proj-detail-page" style="--project-color:' + esc(p.color) + '">';
 
     html += '<div class="proj-detail-hero">' +
+        '<div class="proj-detail-blob" aria-hidden="true"></div>' +
         '<div class="proj-detail-nav">' +
         '<button type="button" class="proj-back-btn" aria-label="برگشت به پروژه\u200cها" onclick="action(\'navigate\',{screen:\'projects\'})">' + ico('chevRight', 'ico') + '</button>' +
         '<div class="proj-detail-actions-top">' +
@@ -2577,11 +2772,18 @@ function renderProjectDetail(p) {
         '</div></div>' +
         '<div class="proj-detail-hero-body">' +
         '<div class="proj-detail-hero-text">' +
-        '<div class="proj-detail-name">' + esc(p.title) + '</div>' +
-        projectDeadlineBadge(p) +
-        '<div class="proj-detail-sub">' + pd(p.done) + ' از ' + pd(p.total) + ' تسک انجام‌شده</div>' +
-        '</div>' +
-        projectProgressRing(progress, p.color, 72) +
+        '<div class="proj-detail-name-row">' +
+        '<span class="proj-detail-dot" aria-hidden="true"></span>' +
+        '<div class="proj-detail-name">' + esc(p.title) + '</div></div>' +
+        '<div class="proj-detail-badges">' + projectDeadlineBadge(p) + '</div>' +
+        '<div class="proj-detail-stats">' +
+        '<span class="proj-detail-stat"><strong>' + pd(p.done) + '</strong> انجام\u200cشده</span>' +
+        '<span class="proj-detail-stat-sep">·</span>' +
+        '<span class="proj-detail-stat"><strong>' + pd(pendingTasks) + '</strong> باقی\u200cمانده</span>' +
+        '<span class="proj-detail-stat-sep">·</span>' +
+        '<span class="proj-detail-stat"><strong>' + pd(p.total) + '</strong> کل</span>' +
+        '</div></div>' +
+        projectProgressRing(progress, p.color, 76) +
         '</div>' +
         '<div class="proj-bar proj-bar-lg"><div class="proj-bar-fill" style="width:' + progress + '%"></div></div>' +
         '<button type="button" class="proj-done-toggle-btn' + (p.is_done ? ' on' : '') +
@@ -2589,22 +2791,23 @@ function renderProjectDetail(p) {
         (p.is_done ? '✓ پروژه تموم شده — بازگردانی' : '✓ علامت‌گذاری پروژه به عنوان تموم‌شده') +
         '</button></div>';
 
-    html += '<div class="proj-tasks-card">' +
-        '<div class="proj-section-head"><span class="proj-section-title">تسک‌ها</span>' +
+    html += '<div class="proj-tasks-card proj-card-animate" style="--proj-stagger:0">' +
+        '<div class="proj-section-head">' +
+        finCardTitle('projects', '☑', 'تسک\u200cها') +
         '<span class="proj-section-badge">' + pd(tasks.length) + '</span></div>';
 
     if (!tasks.length) {
-        html += finEmptyState('☑', 'هنوز تسکی اضافه نکرده‌اید', '+ افزودن تسک',
+        html += finEmptyState('☑', 'هنوز تسکی اضافه نکرده\u200cاید', '+ افزودن تسک',
             'showModal({title:\'تسک جدید\',cmd:\'add_project_task\',params:{project_id:' + p.id +
-            '},fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})');
+            '},fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})', 'projects');
     } else {
         html += '<div class="proj-task-list">';
-        tasks.forEach(function(task) {
-            var rowCls = 'proj-task-item' + (task.is_done ? ' done' : '');
-            html += '<div class="' + rowCls + '">';
+        tasks.forEach(function(task, idx) {
+            var rowCls = 'proj-task-item proj-task-animate' + (task.is_done ? ' done' : '');
+            html += '<div class="' + rowCls + '" style="--proj-stagger:' + idx + '">';
             html += '<button type="button" class="proj-task-check' + (task.is_done ? ' checked' : '') +
                 '" onclick="action(\'toggle_project_task\',{id:' + task.id + '})">' +
-                (task.is_done ? '✓' : '') + '</button>';
+                (task.is_done ? ico('check', 'ico proj-check-ico') : '') + '</button>';
             html += '<div class="proj-task-body" onclick="showModal({title:\'ویرایش تسک\',cmd:\'edit_project_task_title\',params:{id:' + task.id +
                 '},fields:[{label:\'عنوان\',key:\'value\',value:\'' + escJs(task.title) + '\',validate:\'required\'}]})">' +
                 '<div class="proj-task-title">' + esc(task.title) + '</div></div>';
@@ -2621,7 +2824,7 @@ function renderProjectDetail(p) {
     }
 
     html += '<button type="button" class="proj-add-task-btn" onclick="showModal({title:\'تسک جدید\',cmd:\'add_project_task\',params:{project_id:' + p.id +
-        '},fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">+ افزودن تسک</button>';
+        '},fields:[{label:\'عنوان\',key:\'title\',validate:\'required\'}]})">' + ico('plus', 'ico') + '<span>افزودن تسک</span></button>';
     html += '</div></div>';
 
     return html;
@@ -2913,14 +3116,20 @@ function trackingHeader(t, heroInner, opts) {
     opts = opts || {};
     var html = '<div class="date-header track-header">';
     html += '<div class="track-header-orbs" aria-hidden="true"><span class="track-orb track-orb-1"></span><span class="track-orb track-orb-2"></span><span class="track-orb track-orb-3"></span></div>';
-    html += '<div class="track-header-top">' + finEmoji('⏱️', 'md') + '<span class="track-header-title">ردیابی روز</span>';
+    html += '<div class="track-header-brand">';
+    html += '<div class="track-header-top">';
+    html += '<div class="track-brand-mark">' + finEmoji('⏱️', 'md') + '</div>';
+    html += '<div class="track-header-titles">';
+    html += '<span class="track-header-title">ردیابی روز</span>';
+    html += '<span class="track-header-sub">ثبت و تحلیل زمان</span>';
+    html += '</div>';
     if (opts.live) {
         html += '<span class="track-live-badge"><span class="track-live-dot"></span>در حال ثبت</span>';
     }
-    html += '<span class="track-date-label track-date-inline">' + esc(t.date_label) + '</span>';
     html += '</div>';
-    if (heroInner) html += heroInner;
-    html += '</div>';
+    html += '<div class="track-date-label">' + esc(t.date_label) + '</div>';
+    if (heroInner) html += '<div class="track-hero-panel">' + heroInner + '</div>';
+    html += '</div></div>';
     return html;
 }
 
