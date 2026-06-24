@@ -434,7 +434,7 @@ def test_frontend_render_smoke(db, tmp_path):
 
     states = {}
     for screen in (
-        "home", "finance", "analytics", "settings", "recurring",
+        "home", "finance", "analytics", "settings", "recurring", "tracking",
         "projects", "project_detail", "installments", "important_dates",
     ):
         states[screen] = build_state(
@@ -458,6 +458,56 @@ def test_frontend_render_smoke(db, tmp_path):
     subprocess.run(["node", str(smoke), str(states_file)], check=True, cwd=str(Path(__file__).parents[1]))
 
 
+def test_frontend_audit_renders():
+    import subprocess
+    from pathlib import Path
+
+    audit = Path(__file__).parent / "audit_renders.js"
+    subprocess.run(["node", str(audit)], check=True, cwd=str(Path(__file__).parents[1]))
+
+
+def test_finance_entry_uses_viewed_month(db):
+    import asyncio
+    from dailyplanner.webview_handler import WebViewHandler
+
+    today = datetime.date.today()
+    if today.month == 1:
+        fy, fm = today.year - 1, 12
+    else:
+        fy, fm = today.year, today.month - 1
+
+    class _App:
+        pass
+
+    app = _App()
+    app.db = db
+    app.main_window = type("W", (), {"dialog": lambda *a, **k: True})()
+    handler = WebViewHandler(app)
+    handler._shell_loaded = True
+    handler.current_screen = "finance"
+    handler.finance_year = fy
+    handler.finance_month = fm
+
+    async def _noop_push(self):
+        pass
+
+    handler.push_state = _noop_push.__get__(handler, WebViewHandler)
+
+    async def run():
+        await handler._on_add_finance({
+            "type": "expense",
+            "title": "test",
+            "amount": "1000",
+            "category": "عمومی",
+        })
+
+    asyncio.run(run())
+
+    entries = db.get_finance_entries_for_month(fy, fm)
+    assert len(entries) == 1
+    assert entries[0].date.startswith(f"{fy}-{fm:02d}")
+
+
 def test_validate_backup_rejects_bad_important_dates():
     db = Database(":memory:")
     data = db.export_json()
@@ -465,6 +515,42 @@ def test_validate_backup_rejects_bad_important_dates():
     ok, err = db.validate_backup(data)
     assert not ok
     assert "تاریخ" in err
+
+
+def test_pay_installment_creates_finance_expense(db):
+    import asyncio
+    from dailyplanner.webview_handler import WebViewHandler
+
+    d = datetime.date.today()
+    inst = db.add_installment("loan", 50000, 6, d.isoformat(), 10)
+
+    class _App:
+        pass
+
+    app = _App()
+    app.db = db
+    app.main_window = type("W", (), {"dialog": lambda *a, **k: True})()
+    handler = WebViewHandler(app)
+    handler._shell_loaded = True
+
+    async def _noop_push(self):
+        pass
+
+    handler.push_state = _noop_push.__get__(handler, WebViewHandler)
+
+    async def run():
+        await handler._on_pay_installment({"id": str(inst.id)})
+
+    asyncio.run(run())
+
+    entries = db.get_finance_entries_for_month(d.year, d.month)
+    assert len(entries) == 1
+    assert entries[0].amount == 50000
+    assert entries[0].entry_type == "expense"
+    assert entries[0].category == "اقساط"
+    assert "قسط" in entries[0].title
+    updated = db.get_installment_by_id(inst.id)
+    assert updated.paid_count == 1
 
 
 def test_edit_installment_rejects_total_below_paid(db):

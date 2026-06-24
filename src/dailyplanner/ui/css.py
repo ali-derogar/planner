@@ -214,6 +214,8 @@ textarea:focus-visible, select:focus-visible {{
     content: '';
     position: absolute;
     bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
     width: 4px;
     height: 4px;
     border-radius: 50%;
@@ -1935,6 +1937,8 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     font-variant-numeric: tabular-nums; line-height: 1.2;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }}
+.analytics-metric.total .analytics-metric-icon {{ background: rgba(129, 140, 248, 0.12); }}
+.analytics-metric.total .analytics-metric-val {{ color: #A5B4FC; }}
 .analytics-metric.useful .analytics-metric-icon {{ background: rgba(110, 231, 183, 0.12); }}
 .analytics-metric.useful .analytics-metric-val {{ color: #6EE7B7; }}
 .analytics-metric.not .analytics-metric-icon {{ background: rgba(253, 186, 116, 0.12); }}
@@ -2123,6 +2127,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     box-shadow: var(--elevation-1);
     border-color: var(--border-subtle);
 }}
+[data-theme="light"] .analytics-metric.total .analytics-metric-val {{ color: var(--primary); }}
 [data-theme="light"] .analytics-metric.useful .analytics-metric-val {{ color: var(--success); }}
 [data-theme="light"] .analytics-metric.not .analytics-metric-val {{ color: var(--warning); }}
 [data-theme="light"] .analytics-metric.eff .analytics-metric-val {{ color: #7C3AED; }}
@@ -3034,6 +3039,17 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     animation: finTxnIn 0.35s var(--ease-out) both;
     animation-delay: calc(var(--fin-stagger, 0) * 40ms);
 }}
+.fin-inst-edit {{
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+}}
+.fin-inst-edit:active {{ background: var(--surface); color: var(--primary); }}
 .fin-inst-footer {{
     margin-top: 8px; padding-top: 10px;
     border-top: 1px solid var(--divider);
@@ -3698,6 +3714,7 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
 .proj-bar::after {{
     content: ''; position: absolute; inset: 0;
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    background-size: 200% 100%;
     animation: shimmer 2.5s ease-in-out infinite;
 }}
 .proj-bar-lg {{ height: 7px; border-radius: 999px; margin-top: 4px; }}

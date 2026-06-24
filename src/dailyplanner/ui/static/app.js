@@ -11,9 +11,22 @@ function flushPendingNote() {
     }
 }
 
+function flushPendingSearch() {
+    if (!_searchTimer) return;
+    clearTimeout(_searchTimer);
+    _searchTimer = null;
+    var el = document.querySelector('.search-input');
+    if (el) {
+        window._actions.push({ cmd: 'set_search', params: { q: el.value } });
+    }
+}
+
 function action(cmd, params) {
     if (cmd !== 'set_note') {
         flushPendingNote();
+    }
+    if (cmd !== 'set_search') {
+        flushPendingSearch();
     }
     window._actions.push({ cmd: cmd, params: params || {} });
 }
@@ -65,6 +78,7 @@ function escJs(s) {
 }
 
 function pd(n) {
+    if (n == null || (typeof n === 'number' && isNaN(n))) return '۰';
     var d = '۰۱۲۳۴۵۶۷۸۹';
     return String(n).replace(/\d/g, function(c) { return d[+c]; });
 }
@@ -1559,7 +1573,7 @@ function renderHome(h) {
         homeStatCard('not', '⚠️', 'نامفید', esc(h.not_useful_fmt)) +
         homeStatCard('tasks', '📝', 'تسک', pd(taskCount)) +
         homeStatCard('tracked', '⏱', 'کل زمان', homeFmtSecs(classified)) +
-        '</div></div></div></div>';
+        '</div></div></div></div></div>';
 
     if (h.show_calendar && h.calendar) {
         html += '<div class="home-calendar-wrap">' + renderCalendar(h.calendar, h.date) + '</div>';
@@ -1602,7 +1616,7 @@ function renderHome(h) {
     if (taskCount > 0) {
         html += '<button type="button" class="home-fab" onclick="' + addTaskModal + '" aria-label="افزودن تسک">' + ico('plus', 'ico') + '</button>';
     }
-    return html + '</div></div>';
+    return html + '</div>';
 }
 
 function renderCalendar(cal, selectedDate) {
@@ -1644,8 +1658,12 @@ function showEditFinance(entry) {
 }
 
 function showEditFinanceById(id) {
-    var entry = (window._finEntries || []).find(function(e) { return e.id === id; });
-    if (entry) showEditFinance(entry);
+    var entry = (window._finEntries || []).find(function(e) { return e.id == id; });
+    if (!entry) {
+        showToast('تراکنش یافت نشد — صفحه را تازه کنید', 'error');
+        return;
+    }
+    showEditFinance(entry);
 }
 
 function showAddFinance(type) {
@@ -1853,7 +1871,7 @@ function renderAnalytics(a) {
         '<div class="analytics-hero-stats">' +
         '<div class="analytics-hero-stat streak">' + finEmoji('🔥', 'sm') + '<div><span class="analytics-stat-lbl">استریک</span><span class="analytics-stat-val">' + pd(s.streak) + '</span></div></div>' +
         '<div class="analytics-hero-stat time">' + finEmoji('⏱️', 'sm') + '<div><span class="analytics-stat-lbl">کل زمان</span><span class="analytics-stat-val">' + esc(s.total_fmt) + '</span></div></div>' +
-        '</div></div></div></div></div>' +
+        '</div></div></div></div></div></div>' +
         '<div class="analytics-body">';
 
     html += '<div class="fin-card fin-card-animate analytics-card" style="--fin-card-delay:0">' +
@@ -2088,6 +2106,8 @@ function renderInstallmentCard(inst) {
             return '<div class="fin-inst-row" style="--fin-stagger:' + idx + '">'
                 + '<span class="inst-title">' + esc(i.title) + '</span>'
                 + '<span class="inst-amount">' + esc(i.amount_fmt) + '</span>'
+                + '<button type="button" class="fin-inst-edit" onclick="showEditInstallmentById('
+                + i.id + ')" aria-label="ویرایش">✎</button>'
                 + statusBtn + '</div>';
         }).join('');
     }
@@ -2107,6 +2127,9 @@ function renderInstallmentCard(inst) {
 function renderFinanceScreen(f) {
     var entries = f.entries || [];
     window._finEntries = entries;
+    if (f.installments && f.installments.items) {
+        window._installmentsList = f.installments.items;
+    }
     var t = f.totals || { balance: 0, balance_fmt: '۰', income: 0, expense: 0, income_fmt: '۰', expense_fmt: '۰', investment: 0, investment_fmt: '۰' };
     var balCls = t.balance >= 0 ? 'positive' : 'negative';
     var budgetCats = f.by_category || [];
@@ -2146,7 +2169,7 @@ function renderFinanceScreen(f) {
         '<div class="fin-hero-stat expense">' + finEmoji('💸', 'sm') + '<div><span class="fin-stat-lbl">هزینه</span><span class="fin-stat-val">' + esc(t.expense_fmt) + '</span></div></div>' +
         '</div>' +
         (t.investment > 0 ? '<div class="fin-hero-invest">' + finEmoji('💎', 'sm') + ' سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + ' <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
-        '</div></div></div></div>';
+        '</div></div></div></div></div>';
 
     html += '<div class="fin-body">';
 
@@ -2282,6 +2305,7 @@ function renderFinanceScreen(f) {
 }
 
 function renderInstallments(data) {
+    window._installmentsList = data.list || [];
     var html = '<div class="page-header">' + finIcon('inst', '📋') + ' مدیریت اقساط</div>';
 
     html += '<div class="section">'
@@ -2312,6 +2336,7 @@ function renderInstallments(data) {
 }
 
 function renderImportantDates(data) {
+    window._importantDateItems = data.items || [];
     var html = '<div class="page-header">🔔 تاریخ\u200cهای مهم</div>';
 
     html += '<a href="javascript:void(0)" class="add-btn"'
@@ -2325,7 +2350,9 @@ function renderImportantDates(data) {
         var overdue = data.items.filter(function(i) { return i.urgency === 'overdue'; });
         var urgent  = data.items.filter(function(i) { return i.urgency === 'urgent'; });
         var soon    = data.items.filter(function(i) { return i.urgency === 'soon'; });
-        var ok      = data.items.filter(function(i) { return i.urgency === 'ok'; });
+        var ok      = data.items.filter(function(i) {
+            return i.urgency === 'ok' || ['overdue', 'urgent', 'soon', 'ok'].indexOf(i.urgency) < 0;
+        });
 
         if (overdue.length || urgent.length) {
             html += '<div class="dates-group-label urgent-label">فوری</div>';
@@ -2348,19 +2375,20 @@ function renderImportantDates(data) {
 }
 
 function renderDateItem(i) {
+    var urgency = i.urgency || 'ok';
     var urgencyCls = {
         overdue: 'date-dot overdue',
         urgent:  'date-dot urgent',
         soon:    'date-dot soon',
         ok:      'date-dot ok',
-    }[i.urgency] || 'date-dot ok';
+    }[urgency] || 'date-dot ok';
 
     var renewBtn = '<button class="chip chip-edit"'
         + ' onclick="action(\'renew_important_date\',{id:' + i.id + '})">'
         + (i.is_repeating ? 'تمدید کردم' : 'تموم شد') + '</button>';
 
     var editBtn = '<button class="chip chip-neutral"'
-        + ' onclick="showEditImportantDate(' + JSON.stringify(i) + ')">✎</button>';
+        + ' onclick="showEditImportantDateById(' + i.id + ')">✎</button>';
 
     var delBtn = '<button class="chip chip-delete"'
         + ' onclick="action(\'delete_important_date\',{id:' + i.id + '})">حذف</button>';
@@ -2374,10 +2402,10 @@ function renderDateItem(i) {
         + '<div class="date-item-top">'
         + '<span class="' + urgencyCls + '"></span>'
         + '<span class="date-item-title">' + esc(i.title) + '</span>'
-        + '<span class="date-item-countdown ' + i.urgency + '">'
-        + esc(i.countdown) + '</span></div>'
+        + '<span class="date-item-countdown ' + urgency + '">'
+        + esc(i.countdown || '') + '</span></div>'
         + '<div class="date-item-meta">'
-        + esc(i.category) + ' · ' + esc(i.date_fmt) + repeatLabel
+        + esc(i.category || '') + ' · ' + esc(i.date_fmt || '') + repeatLabel
         + (i.notes ? ' · ' + esc(i.notes) : '') + '</div>'
         + '<div class="date-item-actions">'
         + renewBtn + editBtn + delBtn + '</div></div>';
@@ -2422,7 +2450,19 @@ function showEditImportantDate(i) {
     });
 }
 
+function showEditImportantDateById(id) {
+    var item = (window._importantDateItems || []).find(function(x) { return x.id == id; });
+    if (!item) {
+        showToast('تاریخ مهم یافت نشد — از صفحه تاریخ\u200cها دوباره تلاش کنید', 'error');
+        return;
+    }
+    showEditImportantDate(item);
+}
+
 function renderInstallmentItem(i) {
+    var progress = i.progress != null ? i.progress : 0;
+    var paidCount = i.paid_count != null ? i.paid_count : 0;
+    var totalCount = i.total_count != null ? i.total_count : 0;
     var settledBadge = i.is_settled
         ? '<span class="inst-settled">✓ تسویه شد</span>' : '';
     var dueBadge = !i.is_settled
@@ -2440,15 +2480,15 @@ function renderInstallmentItem(i) {
         + '<span class="sec-title">' + esc(i.title) + '</span>'
         + '<div style="display:flex;gap:6px;align-items:center">'
         + settledBadge + dueBadge
-        + '<button class="chip chip-edit" onclick="showEditInstallment('
-        + JSON.stringify(i) + ')">✎</button>'
+        + '<button class="chip chip-edit" onclick="showEditInstallmentById('
+        + i.id + ')">✎</button>'
         + '<button class="chip chip-delete" onclick="action(\'delete_installment\',{id:'
         + i.id + '})">حذف</button>'
         + '</div></div>'
         + '<div class="inst-bar"><div class="inst-bar-fill" style="width:'
-        + i.progress + '%' + (i.is_settled ? ';background:var(--success)' : '') + '"></div></div>'
+        + progress + '%' + (i.is_settled ? ';background:var(--success)' : '') + '"></div></div>'
         + '<div class="inst-stats">'
-        + '<span>' + pd(i.paid_count) + ' از ' + pd(i.total_count) + ' قسط</span>'
+        + '<span>' + pd(paidCount) + ' از ' + pd(totalCount) + ' قسط</span>'
         + '<span>' + esc(i.amount_fmt) + ' / ماه</span>'
         + '<span style="color:var(--error)">باقیمانده: '
         + esc(i.remaining_fmt) + '</span></div>'
@@ -2495,6 +2535,15 @@ function showEditInstallment(i) {
               type: 'number', value: i.due_day, validate: 'dueDay' },
         ]),
     });
+}
+
+function showEditInstallmentById(id) {
+    var item = (window._installmentsList || []).find(function(x) { return x.id == id; });
+    if (!item) {
+        showToast('قسط یافت نشد — از صفحه اقساط دوباره تلاش کنید', 'error');
+        return;
+    }
+    showEditInstallment(item);
 }
 
 var _showCompletedProjects = false;
@@ -2718,7 +2767,7 @@ function renderProjects(data) {
         '</div>' +
         '<button type="button" class="proj-header-add" onclick="showAddProject(window._projectColors)">' +
         ico('plus', 'ico') + '<span>پروژه جدید</span></button>' +
-        '</div></div></div></div>';
+        '</div></div></div></div></div>';
 
     html += '<div class="proj-body">';
 
@@ -3129,7 +3178,7 @@ function trackingHeader(t, heroInner, opts) {
     html += '</div>';
     html += '<div class="track-date-label">' + esc(t.date_label) + '</div>';
     if (heroInner) html += '<div class="track-hero-panel">' + heroInner + '</div>';
-    html += '</div>';
+    html += '</div></div>';
     return html;
 }
 
@@ -3335,7 +3384,7 @@ function renderTracking(t) {
             '</div>';
         html += '<div class="track-tips"><div class="track-tip">' + finEmoji('💡', 'sm') +
             ' عنوان را بنویسید یا از دکمه «انتخاب» یکی از فعالیت\u200cهای رایج را برگزینید</div></div>';
-        return html + '</div></div>';
+        return html + '</div>';
     }
 
     var sid = session ? session.id : null;
@@ -3422,7 +3471,7 @@ function renderTracking(t) {
             '<span class="track-restart-plus" aria-hidden="true">+</span> شروع ردیابی جدید</button></div>';
     }
 
-    html += '</div></div>';
+    html += '</div>';
     return html;
 }
 

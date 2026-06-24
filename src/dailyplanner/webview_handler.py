@@ -1,6 +1,7 @@
 """WebView action handler — SPA state + JS→Python actions."""
 import asyncio
 import base64
+import calendar
 import datetime
 import json
 from typing import Optional, Set
@@ -34,6 +35,24 @@ def _param_int(params: dict, key: str, default=None) -> Optional[int]:
         return int(cleaned)
     except (TypeError, ValueError):
         return None
+
+
+def _finance_entry_date(
+    screen: str,
+    current_date: datetime.date,
+    finance_year: int,
+    finance_month: int,
+) -> datetime.date:
+    """Pick entry date: viewed finance month when on finance screen, else current day."""
+    today = datetime.date.today()
+    if screen != "finance":
+        return current_date
+    if today.year == finance_year and today.month == finance_month:
+        return today
+    if (finance_year, finance_month) < (today.year, today.month):
+        last = calendar.monthrange(finance_year, finance_month)[1]
+        return datetime.date(finance_year, finance_month, last)
+    return datetime.date(finance_year, finance_month, 1)
 
 
 class WebViewHandler:
@@ -447,10 +466,11 @@ class WebViewHandler:
         category = p.get("category", "عمومی")
         amount = resolve_amount(p.get("amount"), p.get("sms"))
         if title and amount > 0:
-            entry_date = (
-                datetime.date.today()
-                if self.current_screen == "finance"
-                else self.current_date
+            entry_date = _finance_entry_date(
+                self.current_screen,
+                self.current_date,
+                self.finance_year,
+                self.finance_month,
             )
             self.db.add_finance_entry(
                 entry_date, entry_type, title, amount, category
@@ -903,13 +923,34 @@ class WebViewHandler:
         if inst_id is None:
             await self.push_state()
             return
+        inst = self.db.get_installment_by_id(inst_id)
+        if inst is None:
+            await self.push_state()
+            return
+        if inst.is_settled:
+            self.toast("این قسط قبلاً تسویه شده", "error")
+            await self.push_state()
+            return
+        today = datetime.date.today()
+        if self.db.is_paid_this_month(inst_id, today.year, today.month):
+            self.toast("این قسط این ماه قبلاً پرداخت شده", "error")
+            await self.push_state()
+            return
         result = self.db.pay_installment(inst_id)
         if result is None:
             self.toast("این قسط قبلاً تسویه شده", "error")
-        elif result.is_settled:
-            self.toast("تبریک! این قسط تسویه شد ✓")
         else:
-            self.toast(f"پرداخت ثبت شد — {result.remaining_count} قسط مانده")
+            self.db.add_finance_entry(
+                today,
+                "expense",
+                f"قسط — {inst.title}",
+                inst.amount,
+                "اقساط",
+            )
+            if result.is_settled:
+                self.toast("تبریک! این قسط تسویه شد ✓")
+            else:
+                self.toast(f"پرداخت ثبت شد — {result.remaining_count} قسط مانده")
         await self.push_state()
 
     # ── important dates ─────────────────────────────────────────────────────

@@ -398,7 +398,11 @@ def build_state(
                 "total_fmt": format_duration(t_total),
                 "useful_fmt": format_duration(t_useful),
                 "eff": t_eff,
-                "mood": MOOD_EMOJIS[w.mood_score - 1] if w and w.mood_score else "",
+                "mood": (
+                    MOOD_EMOJIS[w.mood_score - 1]
+                    if w and w.mood_score and 1 <= w.mood_score <= len(MOOD_EMOJIS)
+                    else ""
+                ),
                 "sleep": format_sleep_duration(w.sleep_duration_minutes()) if w and w.sleep_duration_minutes() else "",
             })
 
@@ -558,13 +562,7 @@ def build_state(
                 "total_due_fmt": format_money(inst_summary["total_due"]),
                 "total_unpaid_fmt": format_money(inst_summary["total_unpaid"]),
                 "items": [
-                    {
-                        "id": x["installment"].id,
-                        "title": x["installment"].title,
-                        "amount_fmt": format_money(x["installment"].amount),
-                        "paid_this_month": x["paid_this_month"],
-                        "is_settled": x["installment"].is_settled,
-                    }
+                    _installment_dict(x["installment"], db, fy, fm)
                     for x in inst_summary["items"]
                 ],
             },

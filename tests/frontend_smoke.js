@@ -117,6 +117,21 @@ vm.runInContext(appJs, vm.createContext(ctx));
 
 const errors = [];
 
+function balanceDivs(html) {
+    let depth = 0;
+    const re = /<\/?div[\s>]/g;
+    let m;
+    while ((m = re.exec(html))) {
+        if (m[0].startsWith('</')) {
+            if (depth <= 0) return false;
+            depth--;
+        } else {
+            depth++;
+        }
+    }
+    return depth === 0;
+}
+
 if (ctx.escJs('a\nb') !== 'a\\nb') errors.push('escJs: newline not escaped');
 if (ctx.escJs("a'b") !== "a\\'b") errors.push('escJs: quote not escaped');
 if (!ctx._modalValidators.hms('25:00:00')) errors.push('hms: 25h should be valid');
@@ -159,7 +174,24 @@ const SECTIONS = [
     ['project_detail', () => ctx.renderProjectDetail({ id: 1, title: 'P', color: '#5E5CE6', progress: 50, done: 0, total: 1, is_done: false, deadline_label: '', deadline_overdue: false, tasks: [], colors: ['#5E5CE6'] })],
     ['installments', () => ctx.renderInstallments({ list: [], month_label: 'تیر', month_total_due_fmt: '0', month_total_unpaid_fmt: '0', total_remaining_fmt: '0' })],
     ['important_dates', () => ctx.renderImportantDates({ items: [], categories: ['سایر'] })],
+    ['important_dates+edit', () => ctx.renderImportantDates({
+        items: [{
+            id: 1, title: 'a"b', date_label: '1', category: 'سایر', urgency: 'ok',
+            countdown: '5 روز', date_fmt: '1404/01/01', repeat_type: 'none', is_repeating: false,
+        }],
+        categories: ['سایر'],
+    })],
+    ['installments+edit', () => ctx.renderInstallments({
+        list: [{
+            id: 2, title: 'loan', amount_fmt: '10', remaining_fmt: '50', progress: 50,
+            paid_count: 1, total_count: 6, is_settled: false, is_overdue: false,
+            due_label: 'ماه جاری', paid_this_month: false,
+        }],
+        month_label: 'تیر', month_total_due_fmt: '10', month_total_unpaid_fmt: '10', total_remaining_fmt: '50',
+    })],
     ['calendar', () => ctx.renderCalendar({ month_name: 'تیر', year: 1404, weekday_offset: 2, cells: [{ day: 1, date: '2026-06-22', eff: 0, has_data: false }] }, '2026-06-22')],
+    ['tracking-empty', () => ctx.renderTracking({ has_data: false, session: null, date_label: 't', intervals: [] })],
+    ['tracking-active', () => ctx.renderTracking({ has_data: true, session: { id: 1, is_active: true, started_label: '10:00' }, date_label: 't', intervals: [{ id: 1, session_id: 1, is_active: true, started_label: '10:00' }], day_total_secs: 0, day_total_label: '0', completed_count: 0, session_count: 1, efficiency: 50, useful_label: '1h' })],
     ['taskCard', () => ctx.taskCard({ id: 1, title: 'x', display_fmt: '0:00', estimated_fmt: '—', estimated: 0, display_sec: 0, progress: 0, is_useful: true, is_starred: true, is_running: true, is_expanded: true, remaining_fmt: '1h' })],
     ['finChart', () => ctx.financeLineChartSvg({ income: [1, 2], expense: [1, 1], balance: [0, 1], investment: [0, 0] }, 320, 130)],
 ];
@@ -168,7 +200,9 @@ for (const [name, fn] of SECTIONS) {
     try {
         const html = fn();
         if (!html || html.length < 10) errors.push(`section ${name}: empty`);
+        if (!balanceDivs(html)) errors.push(`section ${name}: unbalanced divs`);
         if (/undefined|NaN|\[object Object\]/.test(html)) errors.push(`section ${name}: bad token`);
+        if (/showEdit(ImportantDate|Installment)\(\{/.test(html)) errors.push(`section ${name}: broken JSON onclick`);
         if (html.includes('<script>')) errors.push(`section ${name}: XSS`);
     } catch (e) {
         errors.push(`section ${name}: ${e.message}`);
@@ -191,7 +225,7 @@ for (const [name, fn] of MODALS) {
 }
 
 // Jalali-date modals need full DOM; covered by Python build_state + renderApp tests.
-['showAddProject', 'showAddInstallment', 'showAddImportantDate'].forEach((fnName) => {
+['showAddProject', 'showAddInstallment', 'showAddImportantDate', 'showEditImportantDateById', 'showEditInstallmentById', 'flushPendingSearch'].forEach((fnName) => {
     if (typeof ctx[fnName] !== 'function') errors.push(`missing ${fnName}`);
 });
 
@@ -200,6 +234,7 @@ for (const [screen, state] of Object.entries(states)) {
         ctx.renderApp(state);
         const html = appRoot.innerHTML;
         if (!html || html.length < 50) errors.push(`${screen}: empty render`);
+        if (!balanceDivs(html)) errors.push(`${screen}: unbalanced divs`);
         if (/undefined|NaN|\[object Object\]/.test(html)) errors.push(`${screen}: bad token`);
         if (html.includes('<script>')) errors.push(`${screen}: XSS leak`);
     } catch (e) {
