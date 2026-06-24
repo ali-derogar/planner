@@ -2531,6 +2531,54 @@ var TRACK_ACTIVITIES = [
     { e: '🖌️', l: 'رنگ\u200cآمیزی' }, { e: '🪟', l: 'شستن پنجره' }, { e: '🧽', l: 'ظرفشویی' },
 ];
 var TRACK_COLORS = ['#2DD4BF', '#818CF8', '#F472B6', '#FBBF24', '#FB7185', '#34D399', '#38BDF8'];
+var _dayTrackLabelColors = {};
+
+function trackLabelKey(label) {
+    return (label || '').trim() || 'بدون عنوان';
+}
+
+function buildTrackingLabelColors(intervals) {
+    var colors = {};
+    var idx = 0;
+    var sorted = (intervals || []).slice().sort(function(a, b) {
+        return (a.started_epoch || 0) - (b.started_epoch || 0);
+    });
+    for (var i = 0; i < sorted.length; i++) {
+        var lbl = trackLabelKey(sorted[i].label);
+        if (!colors[lbl]) {
+            colors[lbl] = TRACK_COLORS[idx % TRACK_COLORS.length];
+            idx += 1;
+        }
+    }
+    return colors;
+}
+
+function trackColorForLabel(label) {
+    var key = trackLabelKey(label);
+    if (_dayTrackLabelColors[key]) return _dayTrackLabelColors[key];
+    if (!key || key === 'بدون عنوان') return '#71717A';
+    var hash = 0;
+    for (var i = 0; i < key.length; i++) {
+        hash = ((hash << 5) - hash) + key.charCodeAt(i);
+        hash |= 0;
+    }
+    return TRACK_COLORS[Math.abs(hash) % TRACK_COLORS.length];
+}
+
+function trackEmojiForLabel(label) {
+    var s = (label || '').trim();
+    if (!s) return '⏱';
+    for (var i = 0; i < TRACK_ACTIVITIES.length; i++) {
+        var a = TRACK_ACTIVITIES[i];
+        if (trackActivityLabel(a) === s || a.l === s) return a.e;
+    }
+    var sp = s.indexOf(' ');
+    if (sp > 0) {
+        var prefix = s.slice(0, sp);
+        if (prefix.length <= 4) return prefix;
+    }
+    return '⏱';
+}
 
 function trackActivityLabel(a) {
     return a.e + ' ' + a.l;
@@ -2605,31 +2653,6 @@ function showActivityPicker(intervalId) {
     overlay.onclick = closeActivityPicker;
     syncBodyScrollLock();
     syncKeyboardLayout();
-}
-
-function trackColorForLabel(label) {
-    if (!label) return '#71717A';
-    var hash = 0;
-    for (var i = 0; i < label.length; i++) {
-        hash = ((hash << 5) - hash) + label.charCodeAt(i);
-        hash |= 0;
-    }
-    return TRACK_COLORS[Math.abs(hash) % TRACK_COLORS.length];
-}
-
-function trackEmojiForLabel(label) {
-    var s = (label || '').trim();
-    if (!s) return '⏱';
-    for (var i = 0; i < TRACK_ACTIVITIES.length; i++) {
-        var a = TRACK_ACTIVITIES[i];
-        if (trackActivityLabel(a) === s || a.l === s) return a.e;
-    }
-    var sp = s.indexOf(' ');
-    if (sp > 0) {
-        var prefix = s.slice(0, sp);
-        if (prefix.length <= 4) return prefix;
-    }
-    return '⏱';
 }
 
 function trackSecTitle(icon, text) {
@@ -2757,7 +2780,7 @@ function trackingIntervalCard(iv, totalSecs, opts) {
     var isExpanded = !!_expandedTrackingIntervals[iv.id];
     var pct = totalSecs > 0 && iv.duration_secs ? Math.round(iv.duration_secs / totalSecs * 100) : 0;
     var label = (iv.label || '').trim();
-    var color = trackColorForLabel(label || 'بدون عنوان');
+    var color = trackColorForLabel(label);
     var emoji = trackEmojiForLabel(label);
     var displayLabel = label || 'بدون عنوان';
     var cardCls = 'track-interval' + (isExpanded ? ' is-open' : '');
@@ -2834,7 +2857,7 @@ function trackingActivePanel(iv, opts) {
     if (!iv) return '';
     var label = (iv.label || '').trim();
     var emoji = trackEmojiForLabel(label);
-    var color = trackColorForLabel(label || 'فعالیت');
+    var color = trackColorForLabel(label);
     var displayLabel = label || 'عنوان فعالیت را وارد کنید';
     var panelCls = 'track-active-panel' + (opts.inHeader ? ' track-active-in-header' : '');
     var html = '<div class="' + panelCls + '">';
@@ -2937,6 +2960,7 @@ function trackingBreakdownSection(breakdown, totalSecs) {
 }
 
 function renderTracking(t) {
+    _dayTrackLabelColors = buildTrackingLabelColors(t.intervals || []);
     var session = t.session;
     var hasData = t.has_data;
     var dayTotalSecs = t.day_total_secs || 0;
