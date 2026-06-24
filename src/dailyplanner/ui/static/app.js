@@ -233,6 +233,41 @@ function normalizeNumber(text) {
     return stripGroupSeparators(normalizeDigits(text));
 }
 
+function formatNumberGrouped(text) {
+    var raw = normalizeNumber(text).replace(/[^\d]/g, '');
+    if (!raw) return '';
+    return raw.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function isGroupedAmountField(f) {
+    return f.validate === 'amount' || f.validate === 'budget';
+}
+
+function bindGroupedNumberInput(el) {
+    function applyFormat() {
+        var start = el.selectionStart;
+        var end = el.selectionEnd;
+        var before = el.value;
+        var digitsBefore = before.slice(0, start).replace(/[^\d]/g, '').length;
+        var formatted = formatNumberGrouped(before);
+        el.value = formatted;
+        var pos = formatted.length;
+        var count = 0;
+        for (var i = 0; i < formatted.length; i++) {
+            if (/\d/.test(formatted[i])) {
+                count++;
+                if (count >= digitsBefore) {
+                    pos = i + 1;
+                    break;
+                }
+            }
+        }
+        el.setSelectionRange(pos, pos);
+    }
+    el.addEventListener('input', applyFormat);
+    el.addEventListener('paste', function() { setTimeout(applyFormat, 0); });
+}
+
 function parseBankSms(text) {
     var empty = { amount: 0, direction: null };
     if (!text || !String(text).trim()) return empty;
@@ -305,7 +340,7 @@ function bindSmsAmountAutofill(amountKey) {
         hint.dataset.hasText = smsEl.value.trim() ? '1' : '0';
         var parsed = parseBankSms(smsEl.value);
         var amountEl = document.getElementById('mf-' + amountKey);
-        if (parsed.amount > 0 && amountEl) amountEl.value = String(parsed.amount);
+        if (parsed.amount > 0 && amountEl) amountEl.value = formatNumberGrouped(String(parsed.amount));
         updateSmsParseHint(parsed);
     }
     smsEl.addEventListener('input', apply);
@@ -975,12 +1010,21 @@ function showModal(config) {
             grp.appendChild(ta);
         } else {
             var inp = document.createElement('input');
-            inp.type = f.type || 'text';
+            var grouped = isGroupedAmountField(f);
+            inp.type = grouped ? 'text' : (f.type || 'text');
             inp.className = 'modal-input';
             inp.id = 'mf-' + f.key;
             inp.placeholder = f.placeholder || '';
-            if (f.value !== undefined && f.value !== null) inp.value = f.value;
+            if (grouped) {
+                inp.inputMode = 'numeric';
+                inp.autocomplete = 'off';
+                inp.className = 'modal-input modal-input-grouped';
+            }
+            if (f.value !== undefined && f.value !== null) {
+                inp.value = grouped ? formatNumberGrouped(String(f.value)) : f.value;
+            }
             grp.appendChild(inp);
+            if (grouped) bindGroupedNumberInput(inp);
         }
         fc.appendChild(grp);
     });
@@ -1165,13 +1209,15 @@ function sparklineSvg(points, w, h) {
         '</svg>';
 }
 
+var FIN_CHART_COLORS = ['#4DD980', '#FF7359', '#FFB020', '#818CF8', '#2DD4BF', '#F472B6', '#A3E635'];
+
 function financeLineChartSvg(chart, w, h) {
     if (!chart || !chart.income || !chart.income.length) return '';
     var lines = [
-        { points: chart.income, color: '#4DD980', label: 'درآمد', width: 1.5, opacity: 0.85 },
-        { points: chart.expense, color: '#FF7359', label: 'هزینه', width: 1.5, opacity: 0.85 },
-        { points: chart.investment || chart.income.map(function() { return 0; }), color: '#FFB020', label: 'سرمایه\u200cگذاری', width: 1.5, opacity: 0.85 },
-        { points: chart.balance, color: '#5E5CE6', label: 'موجودی', width: 2.5, opacity: 1, fill: true },
+        { points: chart.income, color: '#4DD980', label: 'درآمد', width: 1.8, opacity: 0.9, glow: 'rgba(77,217,128,0.35)' },
+        { points: chart.expense, color: '#FF7359', label: 'هزینه', width: 1.8, opacity: 0.9, glow: 'rgba(255,115,89,0.35)' },
+        { points: chart.investment || chart.income.map(function() { return 0; }), color: '#FFB020', label: 'سرمایه\u200cگذاری', width: 1.8, opacity: 0.85, glow: 'rgba(255,176,32,0.3)' },
+        { points: chart.balance, color: '#818CF8', label: 'موجودی', width: 2.8, opacity: 1, fill: true, glow: 'rgba(129,140,248,0.45)' },
     ];
     var allVals = [];
     lines.forEach(function(l) { allVals = allVals.concat(l.points); });
@@ -1179,8 +1225,7 @@ function financeLineChartSvg(chart, w, h) {
     var max = Math.max.apply(null, allVals.concat([1]));
     var range = max - min || 1;
     var n = chart.income.length;
-    var step = w / (n - 1 || 1);
-    var padT = 14, padB = 8, padX = 4;
+    var padT = 16, padB = 10, padX = 6;
 
     function toY(v) {
         return padT + (h - padT - padB) * (1 - (v - min) / range);
@@ -1192,14 +1237,17 @@ function financeLineChartSvg(chart, w, h) {
     }
 
     var svg = '<svg class="finance-line-chart" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">';
-    svg += '<defs><linearGradient id="finGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5E5CE6"/><stop offset="100%" stop-color="#5E5CE6" stop-opacity="0"/></linearGradient></defs>';
+    svg += '<defs>';
+    svg += '<linearGradient id="finGradBal" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#818CF8" stop-opacity="0.35"/><stop offset="100%" stop-color="#818CF8" stop-opacity="0"/></linearGradient>';
+    svg += '<filter id="finGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+    svg += '</defs>';
     for (var g = 0; g <= 3; g++) {
         var gy = padT + (h - padT - padB) * g / 3;
-        svg += '<line x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (w - padX) + '" y2="' + gy.toFixed(1) + '" stroke="#2C2C2E" stroke-width="0.5"/>';
+        svg += '<line class="fin-chart-grid" x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (w - padX) + '" y2="' + gy.toFixed(1) + '"/>';
     }
     if (min < 0 && max > 0) {
         var zeroY = toY(0).toFixed(1);
-        svg += '<line x1="' + padX + '" y1="' + zeroY + '" x2="' + (w - padX) + '" y2="' + zeroY + '" stroke="#5E5CE6" stroke-width="1" stroke-dasharray="4,3" opacity="0.4"/>';
+        svg += '<line class="fin-chart-zero" x1="' + padX + '" y1="' + zeroY + '" x2="' + (w - padX) + '" y2="' + zeroY + '"/>';
     }
     var balPts = toPts(chart.balance);
     var areaPath = 'M' + balPts[0];
@@ -1207,19 +1255,82 @@ function financeLineChartSvg(chart, w, h) {
     var zeroLine = min < 0 ? toY(0) : toY(min);
     areaPath += ' L' + (padX + (n - 1) * (w - padX * 2) / (n - 1 || 1)).toFixed(1) + ',' + zeroLine.toFixed(1);
     areaPath += ' L' + padX + ',' + zeroLine.toFixed(1) + ' Z';
-    svg += '<path d="' + areaPath + '" fill="url(#finGrad)" opacity="0.25"/>';
+    svg += '<path class="fin-chart-area" d="' + areaPath + '" fill="url(#finGradBal)"/>';
     lines.forEach(function(line) {
         var pts = toPts(line.points).join(' ');
-        svg += '<polyline fill="none" stroke="' + line.color + '" stroke-width="' + line.width + '" stroke-linejoin="round" stroke-linecap="round" opacity="' + line.opacity + '" points="' + pts + '"/>';
+        var filter = line.fill ? ' filter="url(#finGlow)"' : '';
+        svg += '<polyline class="fin-chart-line" fill="none" stroke="' + line.color + '" stroke-width="' + line.width + '" stroke-linejoin="round" stroke-linecap="round" opacity="' + line.opacity + '" points="' + pts + '"' + filter + '/>';
     });
     svg += '</svg>';
 
     var legend = '<div class="fin-chart-legend">';
     lines.forEach(function(line) {
-        legend += '<span class="fin-legend-item"><span class="fin-legend-dot" style="background:' + line.color + '"></span>' + line.label + '</span>';
+        legend += '<span class="fin-legend-item"><span class="fin-legend-dot" style="background:' + line.color + ';box-shadow:0 0 6px ' + (line.glow || line.color) + '"></span>' + line.label + '</span>';
     });
     legend += '</div>';
     return legend + '<div class="fin-chart-wrap">' + svg + '</div>';
+}
+
+function finBalanceRing(income, expense, balance) {
+    var savingsRate = income > 0 ? Math.round((balance / income) * 100) : (balance >= 0 ? 100 : 0);
+    savingsRate = Math.max(0, Math.min(100, savingsRate));
+    var r = 36, cx = 42, cy = 42, sw = 7;
+    var circ = 2 * Math.PI * r;
+    var offset = circ * (1 - savingsRate / 100);
+    var ringColor = balance >= 0 ? '#4DD980' : '#FF7359';
+    return '<div class="fin-balance-ring" aria-hidden="true">' +
+        '<div class="fin-ring-glow"></div>' +
+        '<svg viewBox="0 0 84 84" class="fin-ring-svg">' +
+        '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" class="fin-ring-track"/>' +
+        '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" class="fin-ring-arc"' +
+        ' stroke="' + ringColor + '" stroke-dasharray="' + circ.toFixed(1) + '" stroke-dashoffset="' + offset.toFixed(1) + '"' +
+        ' stroke-width="' + sw + '" transform="rotate(-90 ' + cx + ' ' + cy + ')"/>' +
+        '</svg>' +
+        '<div class="fin-ring-center">' +
+        '<span class="fin-ring-pct">' + pd(savingsRate) + '٪</span>' +
+        '<span class="fin-ring-lbl">پس\u200cانداز</span></div></div>';
+}
+
+function finCashFlowBar(income, expense) {
+    var total = income + expense;
+    if (total <= 0) return '';
+    var incPct = Math.round(income / total * 100);
+    var expPct = 100 - incPct;
+    return '<div class="fin-cashflow">' +
+        '<div class="fin-cashflow-bar">' +
+        '<div class="fin-cashflow-inc" style="width:' + incPct + '%"></div>' +
+        '<div class="fin-cashflow-exp" style="width:' + expPct + '%"></div></div>' +
+        '<div class="fin-cashflow-labels">' +
+        '<span class="fin-cf-inc">درآمد ' + pd(incPct) + '٪</span>' +
+        '<span class="fin-cf-exp">هزینه ' + pd(expPct) + '٪</span></div></div>';
+}
+
+function finExpenseDonut(categories) {
+    var expenses = (categories || []).filter(function(c) { return c.expense > 0; });
+    if (!expenses.length) return '';
+    expenses.sort(function(a, b) { return b.expense - a.expense; });
+    var top = expenses.slice(0, 5);
+    var total = expenses.reduce(function(s, c) { return s + c.expense; }, 0);
+    var segs = [];
+    var start = 0;
+    var gradientParts = [];
+    top.forEach(function(c, i) {
+        var pct = c.expense / total * 100;
+        var color = FIN_CHART_COLORS[i % FIN_CHART_COLORS.length];
+        segs.push({ cat: c.category, pct: pct, color: color, expense_fmt: c.expense_fmt });
+        gradientParts.push(color + ' ' + start.toFixed(1) + '% ' + (start + pct).toFixed(1) + '%');
+        start += pct;
+    });
+    var legend = segs.map(function(s) {
+        return '<div class="fin-donut-legend-item">' +
+            '<span class="fin-donut-dot" style="background:' + s.color + '"></span>' +
+            '<span class="fin-donut-cat">' + esc(s.cat) + '</span>' +
+            '<span class="fin-donut-amt">' + esc(s.expense_fmt) + '</span></div>';
+    }).join('');
+    return '<div class="fin-donut-wrap">' +
+        '<div class="fin-donut-chart" style="background:conic-gradient(' + gradientParts.join(', ') + ')">' +
+        '<div class="fin-donut-hole"><span class="fin-donut-total-lbl">کل هزینه</span></div></div>' +
+        '<div class="fin-donut-legend">' + legend + '</div></div>';
 }
 
 var FIN_CAT_ICONS = {
@@ -1828,32 +1939,32 @@ function renderInstallmentCard(inst) {
     inst = inst || { count: 0, items: [], total_unpaid_fmt: pd(0) };
     var rows;
     if (inst.count === 0) {
-        rows = '<div class="empty-mini">هنوز قسطی ثبت نشده — '
+        rows = '<div class="fin-inst-empty">هنوز قسطی ثبت نشده — '
             + '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'installments\'})">'
             + '+ افزودن قسط</a></div>';
     } else {
-        rows = (inst.items || []).map(function(i) {
+        rows = (inst.items || []).map(function(i, idx) {
             var statusBtn = i.is_settled
                 ? '<span class="inst-settled">✓ تسویه</span>'
                 : i.paid_this_month
                     ? '<span class="inst-paid-month">✓ این ماه پرداخت شد</span>'
                     : '<button class="btn-sm-green" onclick="action(\'pay_installment\',{id:'
                       + i.id + '})">پرداخت کردم</button>';
-            return '<div class="inst-row">'
+            return '<div class="fin-inst-row" style="--fin-stagger:' + idx + '">'
                 + '<span class="inst-title">' + esc(i.title) + '</span>'
                 + '<span class="inst-amount">' + esc(i.amount_fmt) + '</span>'
                 + statusBtn + '</div>';
         }).join('');
     }
-    return '<div class="section fin-inst-card">'
-        + '<div class="sec-header">'
-        + '<span class="sec-title">اقساط این ماه</span>'
+    return '<div class="fin-card fin-inst-card">'
+        + '<div class="fin-card-head">'
+        + finCardTitle('inst', '📋', 'اقساط این ماه')
         + '<a href="javascript:void(0)"'
         + ' onclick="action(\'navigate\',{screen:\'installments\'})"'
-        + ' class="chip chip-edit">مدیریت</a></div>'
+        + ' class="fin-chip-btn primary">مدیریت</a></div>'
         + rows
         + (inst.count > 0
-            ? '<div class="inst-footer">جمع پرداخت نشده: ' + esc(inst.total_unpaid_fmt) + '</div>'
+            ? '<div class="fin-inst-footer">جمع پرداخت نشده: <strong>' + esc(inst.total_unpaid_fmt) + '</strong></div>'
             : '')
         + '</div>';
 }
@@ -1943,39 +2054,49 @@ function renderFinanceScreen(f) {
     }
     html += '</div>';
 
-    html += '<div class="fin-card"><div class="fin-card-head">' +
-        finCardTitle('budget', '🎯', 'بودجه دسته\u200cها') +
-        '<div class="fin-card-actions">' +
-        '<button class="fin-chip-btn" onclick="showAddCategory()">+ دسته</button>' +
-        '<button class="fin-chip-btn primary" onclick="showAddBudget()">+ بودجه</button>' +
-        '</div></div>';
-    if (!(f.by_category && f.by_category.length)) {
-        html += finEmptyState('🎯', 'بودجه ماهانه برای دسته‌ها تعیین نشده', '+ تعیین بودجه', 'showAddBudget()', 'budget');
-    } else {
-        f.by_category.forEach(function(c) {
-            var barCls = c.over_budget ? 'fin-budget-fill over' : 'fin-budget-fill';
-            var barWidth = c.budget > 0 ? Math.min(c.used_pct, 100) : 0;
-            var pctLbl = c.budget > 0 ? pd(c.used_pct) + '٪' : '—';
-            html += '<div class="fin-budget-item' + (c.over_budget ? ' over' : '') + '">' +
-                '<div class="fin-budget-top">' +
-                '<span class="fin-budget-icon">' + finCatIconHtml(c.category) + '</span>' +
-                '<div class="fin-budget-info">' +
-                '<div class="fin-budget-name">' + esc(c.category) + '</div>' +
-                '<div class="fin-budget-sub">' + esc(c.expense_fmt) + ' از ' + (c.budget > 0 ? esc(c.budget_fmt) : '—') + '</div>' +
-                '</div>' +
-                '<span class="fin-budget-pct">' + pctLbl + '</span>' +
-                '<div class="fin-txn-btns">' +
-                '<button class="fin-txn-btn" onclick="showAddBudget(\'' + escJs(c.category) + '\',' + c.budget + ')">✎</button>' +
-                (c.budget > 0
-                    ? '<button class="fin-txn-btn del" onclick="action(\'delete_budget\',{category:\'' + escJs(c.category) + '\'})">×</button>'
-                    : '') +
-                '</div></div>' +
-                (c.budget > 0
-                    ? '<div class="fin-budget-track"><div class="' + barCls + '" style="width:' + barWidth + '%"></div></div>'
-                    : '<div class="fin-budget-empty">بودجه تعیین نشده — <a href="javascript:void(0)" onclick="showAddBudget(\'' + escJs(c.category) + '\',0)">تنظیم</a></div>') +
-                (c.over_budget ? '<div class="fin-budget-warn">⚠ بیش از بودجه</div>' : '') +
-                '</div>';
-        });
+    var budgetCats = f.by_category || [];
+    html += '<div class="fin-card fin-card-collapsible' + (_showFinanceBudgets ? ' open' : '') + '">'
+        + '<div class="fin-card-head">'
+        + '<button type="button" class="fin-card-toggle fin-card-toggle-grow"'
+        + ' onclick="_showFinanceBudgets=!_showFinanceBudgets;renderApp(window._lastState)">'
+        + finCardTitle('budget', '🎯', 'بودجه دسته\u200cها')
+        + '<span class="fin-card-head-end">'
+        + '<span class="fin-card-badge">' + pd(budgetCats.length) + '</span>'
+        + '<span class="fin-card-chevron">' + collapseChevron(_showFinanceBudgets) + '</span>'
+        + '</span></button>'
+        + '<div class="fin-card-actions">'
+        + '<button type="button" class="fin-chip-btn" onclick="event.stopPropagation();showAddCategory()">+ دسته</button>'
+        + '<button type="button" class="fin-chip-btn primary" onclick="event.stopPropagation();showAddBudget()">+ بودجه</button>'
+        + '</div></div>';
+    if (_showFinanceBudgets) {
+        if (!budgetCats.length) {
+            html += finEmptyState('🎯', 'بودجه ماهانه برای دسته‌ها تعیین نشده', '+ تعیین بودجه', 'showAddBudget()', 'budget');
+        } else {
+            budgetCats.forEach(function(c) {
+                var barCls = c.over_budget ? 'fin-budget-fill over' : 'fin-budget-fill';
+                var barWidth = c.budget > 0 ? Math.min(c.used_pct, 100) : 0;
+                var pctLbl = c.budget > 0 ? pd(c.used_pct) + '٪' : '—';
+                html += '<div class="fin-budget-item' + (c.over_budget ? ' over' : '') + '">' +
+                    '<div class="fin-budget-top">' +
+                    '<span class="fin-budget-icon">' + finCatIconHtml(c.category) + '</span>' +
+                    '<div class="fin-budget-info">' +
+                    '<div class="fin-budget-name">' + esc(c.category) + '</div>' +
+                    '<div class="fin-budget-sub">' + esc(c.expense_fmt) + ' از ' + (c.budget > 0 ? esc(c.budget_fmt) : '—') + '</div>' +
+                    '</div>' +
+                    '<span class="fin-budget-pct">' + pctLbl + '</span>' +
+                    '<div class="fin-txn-btns">' +
+                    '<button class="fin-txn-btn" onclick="showAddBudget(\'' + escJs(c.category) + '\',' + c.budget + ')">✎</button>' +
+                    (c.budget > 0
+                        ? '<button class="fin-txn-btn del" onclick="action(\'delete_budget\',{category:\'' + escJs(c.category) + '\'})">×</button>'
+                        : '') +
+                    '</div></div>' +
+                    (c.budget > 0
+                        ? '<div class="fin-budget-track"><div class="' + barCls + '" style="width:' + barWidth + '%"></div></div>'
+                        : '<div class="fin-budget-empty">بودجه تعیین نشده — <a href="javascript:void(0)" onclick="showAddBudget(\'' + escJs(c.category) + '\',0)">تنظیم</a></div>') +
+                    (c.over_budget ? '<div class="fin-budget-warn">⚠ بیش از بودجه</div>' : '') +
+                    '</div>';
+            });
+        }
     }
     html += '</div>';
 
@@ -2216,6 +2337,7 @@ function showEditInstallment(i) {
 
 var _showCompletedProjects = false;
 var _showFinanceTransactions = false;
+var _showFinanceBudgets = false;
 var _expandedTrackingIntervals = {};
 
 function toggleTrackingInterval(id) {

@@ -1445,6 +1445,10 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     outline: none;
 }}
 .modal-input:focus {{ border-color: var(--primary); }}
+.modal-input-grouped {{
+    direction: ltr;
+    text-align: left;
+}}
 
 .color-picker {{ margin-bottom: 12px; }}
 .color-picker-grid {{
@@ -2493,6 +2497,10 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     text-align: inherit;
 }}
 .fin-card-toggle:active {{ opacity: 0.75; }}
+.fin-card-toggle-grow {{
+    flex: 1; min-width: 0; width: auto;
+    display: flex; align-items: center; justify-content: space-between;
+}}
 .fin-card-head-end {{ display: flex; align-items: center; gap: 8px; }}
 .fin-card-chevron {{ color: var(--text-muted); }}
 .fin-card-title {{
