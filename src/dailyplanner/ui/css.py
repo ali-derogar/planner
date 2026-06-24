@@ -108,8 +108,12 @@ input:not([type="hidden"]), textarea, select {{
     scroll-margin-bottom: calc(var(--keyboard-inset) + 24px);
 }}
 @media (hover: none) and (pointer: coarse) {{
-    .modal-input, .note-input, .search-input, .backup-ta {{
+    .modal-input, .note-input, .search-input, .backup-ta,
+    .track-label-input, .track-act-search {{
         font-size: 16px;
+    }}
+    .track-label-input-prominent {{
+        font-size: 16px !important;
     }}
 }}
 button {{ cursor: pointer; }}

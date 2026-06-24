@@ -1153,7 +1153,9 @@ class WebViewHandler:
         label = p.get("label", "").strip()
         if interval_id is not None:
             self.db.set_tracking_label(interval_id, label)
-        await self.push_state()
+        if p.get("sync"):
+            await self.push_state()
+        # no push while typing — avoids re-render interrupting mobile keyboard
 
     async def _on_set_tracking_useful(self, p):
         interval_id = _param_int(p, "interval_id")

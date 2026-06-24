@@ -1528,7 +1528,7 @@ function onRoleButtonKey(e) {
 function flushTrackLabelOnBlur(intervalId, input) {
     clearTimeout(_trackLabelTimers[intervalId]);
     delete _trackLabelTimers[intervalId];
-    setTrackLabel(intervalId, input.value);
+    setTrackLabel(intervalId, input.value, true);
     hideTrackLabelSuggestionsDelayed(intervalId);
 }
 
@@ -3105,7 +3105,7 @@ function closeActivityPicker() {
 
 function pickTrackActivity(intervalId, label) {
     closeActivityPicker();
-    setTrackLabel(intervalId, label);
+    setTrackLabel(intervalId, label, true);
 }
 
 function showActivityPicker(intervalId) {
@@ -3130,6 +3130,14 @@ function showActivityPicker(intervalId) {
     overlay.onclick = closeActivityPicker;
     syncBodyScrollLock();
     syncKeyboardLayout();
+    var searchInput = overlay.querySelector('.track-act-search');
+    if (searchInput) {
+        setTimeout(function() {
+            syncKeyboardLayout();
+            try { searchInput.focus({ preventScroll: true }); } catch (e) { searchInput.focus(); }
+            ensureFieldVisible(searchInput);
+        }, 150);
+    }
 }
 
 function trackSecTitle(icon, text) {
@@ -3178,8 +3186,10 @@ function trackLiveTimerHtml(startedEpoch) {
         '</div></div></div>';
 }
 
-function setTrackLabel(intervalId, label) {
-    action('set_tracking_label', { interval_id: intervalId, label: label });
+function setTrackLabel(intervalId, label, sync) {
+    var params = { interval_id: intervalId, label: label };
+    if (sync) params.sync = true;
+    action('set_tracking_label', params);
 }
 
 function hideTrackLabelSuggestions(intervalId) {
@@ -3198,7 +3208,7 @@ function pickTrackLabelSuggestion(intervalId, label) {
     var input = document.querySelector('.track-label-input[data-interval-id="' + intervalId + '"]');
     if (input) input.value = label;
     hideTrackLabelSuggestions(intervalId);
-    setTrackLabel(intervalId, label);
+    setTrackLabel(intervalId, label, true);
 }
 
 function onTrackLabelInput(intervalId, input) {
@@ -3324,7 +3334,7 @@ function trackingIntervalCard(iv, totalSecs, opts) {
             'placeholder="عنوان فعالیت..." value="' + esc(label) + '" autocomplete="off" ' +
             'oninput="onTrackLabelInput(' + iv.id + ', this)" onfocus="onTrackLabelInput(' + iv.id + ', this)" ' +
             'onblur="flushTrackLabelOnBlur(' + iv.id + ', this)" ' +
-            'onchange="action(\'set_tracking_label\',{interval_id:' + iv.id + ',label:this.value})">';
+            'onchange="setTrackLabel(' + iv.id + ', this.value, true)">';
         html += '<div class="track-label-suggestions" id="track-label-sug-' + iv.id + '"></div>';
         html += '</div>';
         html += '<button type="button" class="track-pick-btn" onclick="showActivityPicker(' + iv.id + ')" aria-label="انتخاب از لیست فعالیت\u200cها">' +
@@ -3359,7 +3369,7 @@ function trackingActivePanel(iv, opts) {
         'placeholder="چه کاری انجام می\u200cدهید؟" value="' + esc(label) + '" autocomplete="off" ' +
         'oninput="onTrackLabelInput(' + iv.id + ', this)" onfocus="onTrackLabelInput(' + iv.id + ', this)" ' +
         'onblur="flushTrackLabelOnBlur(' + iv.id + ', this)" ' +
-        'onchange="action(\'set_tracking_label\',{interval_id:' + iv.id + ',label:this.value})">';
+        'onchange="setTrackLabel(' + iv.id + ', this.value, true)">';
     html += '<div class="track-label-suggestions" id="track-label-sug-' + iv.id + '"></div>';
     html += '</div>';
     html += '<button type="button" class="track-pick-btn track-pick-btn-lg" onclick="showActivityPicker(' + iv.id + ')" aria-label="انتخاب فعالیت">' +
@@ -3631,6 +3641,9 @@ function renderApp(state) {
     var restoreTrackLabel = focused && focused.classList && focused.classList.contains('track-label-input');
     var trackLabelIntervalId = restoreTrackLabel ? focused.dataset.intervalId : null;
     var trackLabelCaret = restoreTrackLabel ? focused.selectionStart : null;
+    var restoreTrackActSearch = focused && focused.classList && focused.classList.contains('track-act-search');
+    var trackActSearchValue = restoreTrackActSearch ? focused.value : null;
+    var trackActSearchCaret = restoreTrackActSearch ? focused.selectionStart : null;
     var restoreModal = isModalVisible() && focused && focused.id && focused.id.indexOf('mf-') === 0;
     var modalFocusId = restoreModal ? focused.id : null;
     var modalCaret = restoreModal && focused.selectionStart != null ? focused.selectionStart : null;
@@ -3698,6 +3711,17 @@ function renderApp(state) {
             }
             syncKeyboardLayout();
             ensureFieldVisible(exportInput);
+        }
+    } else if (restoreTrackActSearch && isActivityPickerVisible()) {
+        var actSearch = document.querySelector('.track-act-search');
+        if (actSearch) {
+            if (trackActSearchValue != null) actSearch.value = trackActSearchValue;
+            actSearch.focus();
+            if (trackActSearchCaret != null) {
+                try { actSearch.setSelectionRange(trackActSearchCaret, trackActSearchCaret); } catch (e) {}
+            }
+            syncKeyboardLayout();
+            ensureFieldVisible(actSearch);
         }
     } else if (restoreTrackLabel && trackLabelIntervalId) {
         var trackInput = document.querySelector('.track-label-input[data-interval-id="' + trackLabelIntervalId + '"]');
