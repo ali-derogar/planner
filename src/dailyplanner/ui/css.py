@@ -4267,7 +4267,7 @@ body.kb-open .proj-sheet-overlay {{
     .analytics-orb, .analytics-header::after,
     .analytics-hero-panel, .analytics-body, .analytics-metrics-section,
     .analytics-days-section, .analytics-day-card {{ animation: none; }}
-    .track-orb, .track-header::after,
+    .track-orb,
     .track-hero-panel {{ animation: none; }}
 }}
 
@@ -4402,10 +4402,6 @@ body.kb-open .proj-sheet-overlay {{
 @keyframes trackOrbFloat {{
     0%, 100% {{ transform: translate(0, 0) scale(1); }}
     50% {{ transform: translate(6px, -8px) scale(1.06); }}
-}}
-@keyframes trackGlowPulse {{
-    0%, 100% {{ opacity: 0.6; transform: scale(1); }}
-    50% {{ opacity: 1; transform: scale(1.08); }}
 }}
 @keyframes trackHeroIn {{
     from {{ opacity: 0; transform: translateY(10px) scale(0.98); }}
