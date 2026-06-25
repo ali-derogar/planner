@@ -5493,8 +5493,20 @@ body.kb-open .proj-sheet-overlay {{
     padding: 0 0 calc(var(--safe-bottom));
     overflow: hidden; touch-action: auto;
 }}
-body.kb-open .track-act-overlay {{
+.track-act-overlay.track-act-viewport-sync {{
+    top: var(--vv-top);
+    left: var(--vv-left);
+    width: var(--vv-width);
+    height: var(--vv-height);
+    right: auto;
+    bottom: auto;
+    padding-bottom: 0;
+}}
+body.kb-open .track-act-overlay:not(.track-act-viewport-sync) {{
     padding-bottom: calc(var(--safe-bottom) + var(--keyboard-inset));
+}}
+body.kb-open .track-act-overlay.track-act-viewport-sync {{
+    padding-bottom: 0;
 }}
 .track-act-sheet {{
     width: 100%; max-width: 520px; background: var(--surface);

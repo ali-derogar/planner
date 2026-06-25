@@ -363,7 +363,7 @@ class WebViewHandler:
 
     async def _on_set_search(self, p):
         self.search_query = p.get("q", "")
-        await self.push_state()
+        # no push — filter runs client-side; avoids keyboard flicker while typing
 
     # ── tasks ─────────────────────────────────────────────────────────────────
 
@@ -1153,9 +1153,7 @@ class WebViewHandler:
         label = p.get("label", "").strip()
         if interval_id is not None:
             self.db.set_tracking_label(interval_id, label)
-        if p.get("sync"):
-            await self.push_state()
-        # no push while typing — avoids re-render interrupting mobile keyboard
+        # no push — UI updates client-side; avoids header flicker / keyboard trap
 
     async def _on_set_tracking_useful(self, p):
         interval_id = _param_int(p, "interval_id")

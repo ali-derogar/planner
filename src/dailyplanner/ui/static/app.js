@@ -35,7 +35,39 @@ function action(cmd, params) {
 }
 
 var _searchTimer = null;
+function applyHomeSearchFilter(q) {
+    q = (q || '').trim().toLowerCase();
+    var list = document.querySelector('.home-task-list');
+    if (!list) return;
+    var cards = list.querySelectorAll('.task-card');
+    var visible = 0;
+    cards.forEach(function(card) {
+        var titleEl = card.querySelector('.task-title-wrap');
+        var text = titleEl
+            ? (titleEl.getAttribute('title') || titleEl.textContent || '').toLowerCase()
+            : '';
+        var show = !q || text.indexOf(q) !== -1;
+        card.style.display = show ? '' : 'none';
+        if (show) visible += 1;
+    });
+    var empty = list.querySelector('.home-search-empty');
+    if (q && cards.length && visible === 0) {
+        if (!empty) {
+            empty = document.createElement('div');
+            empty.className = 'empty-state home-search-empty';
+            empty.innerHTML = '<div class="empty-title">نتیجه\u200cای یافت نشد</div>' +
+                '<div class="empty-sub">عبارت جستجو را تغییر دهید</div>';
+            list.appendChild(empty);
+        }
+        empty.style.display = '';
+    } else if (empty) {
+        empty.style.display = 'none';
+    }
+}
+
 function debounceSearch(q) {
+    window._liveSearchQuery = q;
+    applyHomeSearchFilter(q);
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(function() { action('set_search', { q: q }); }, 350);
 }
@@ -1657,7 +1689,7 @@ function renderHome(h) {
     }
 
     html += '<div class="search-row home-search-row"><div class="search-wrap home-search-wrap">' + ico('search', 'ico-search') +
-        '<input class="search-input home-search-input" placeholder="جستجو در تسک\u200cها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" aria-label="جستجو در تسک\u200cها" /></div></div>';
+        '<input class="search-input home-search-input" placeholder="جستجو در تسک\u200cها..." value="' + esc(h.search) + '" oninput="debounceSearch(this.value)" onblur="flushPendingSearch()" aria-label="جستجو در تسک\u200cها" /></div></div>';
 
     html += '<div class="task-list home-task-list">';
     if (!(h.tasks && h.tasks.length)) {
@@ -3097,18 +3129,26 @@ function filterActivityPicker(query) {
 
 function closeActivityPicker() {
     var o = document.getElementById('track-act-sheet');
-    if (o) o.style.display = 'none';
+    if (o) {
+        o.style.display = 'none';
+        o.classList.remove('track-act-viewport-sync');
+    }
     window._trackActIntervalId = null;
+    _sheetOpenVvHeight = null;
     syncBodyScrollLock();
     setTimeout(syncKeyboardLayout, 150);
 }
 
 function pickTrackActivity(intervalId, label) {
+    document.querySelectorAll('.track-label-input').forEach(function(el) { el.blur(); });
     closeActivityPicker();
+    var input = document.querySelector('.track-label-input[data-interval-id="' + intervalId + '"]');
+    if (input) input.value = label;
     setTrackLabel(intervalId, label, true);
 }
 
 function showActivityPicker(intervalId) {
+    document.querySelectorAll('.track-label-input').forEach(function(el) { el.blur(); });
     closeActivityPicker();
     closeProjectSheet();
     window._trackActIntervalId = intervalId;
@@ -3116,9 +3156,10 @@ function showActivityPicker(intervalId) {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'track-act-sheet';
-        overlay.className = 'track-act-overlay';
+        overlay.className = 'track-act-overlay track-act-viewport-sync';
         document.body.appendChild(overlay);
     }
+    overlay.classList.add('track-act-viewport-sync');
     overlay.innerHTML =
         '<div class="track-act-sheet" onclick="event.stopPropagation()">' +
         '<div class="track-act-handle"></div>' +
@@ -3128,16 +3169,10 @@ function showActivityPicker(intervalId) {
         '<button type="button" class="track-act-cancel" onclick="closeActivityPicker()">بستن</button></div>';
     overlay.style.display = 'flex';
     overlay.onclick = closeActivityPicker;
+    _sheetOpenVvHeight = visibleViewportHeight();
     syncBodyScrollLock();
+    syncSheetViewport();
     syncKeyboardLayout();
-    var searchInput = overlay.querySelector('.track-act-search');
-    if (searchInput) {
-        setTimeout(function() {
-            syncKeyboardLayout();
-            try { searchInput.focus({ preventScroll: true }); } catch (e) { searchInput.focus(); }
-            ensureFieldVisible(searchInput);
-        }, 150);
-    }
 }
 
 function trackSecTitle(icon, text) {
@@ -3186,10 +3221,45 @@ function trackLiveTimerHtml(startedEpoch) {
         '</div></div></div>';
 }
 
-function setTrackLabel(intervalId, label, sync) {
-    var params = { interval_id: intervalId, label: label };
-    if (sync) params.sync = true;
-    action('set_tracking_label', params);
+function refreshTrackLabelDisplay(intervalId, label) {
+    var trimmed = (label || '').trim();
+    var displayLabel = trimmed || 'بدون عنوان';
+    var emoji = trackEmojiForLabel(trimmed);
+    var color = trackColorForLabel(trimmed);
+
+    var input = document.querySelector('.track-label-input[data-interval-id="' + intervalId + '"]');
+    if (!input) return;
+
+    var activePanel = input.closest('.track-active-panel');
+    if (activePanel) {
+        var title = activePanel.querySelector('.track-active-title');
+        var emojiEl = activePanel.querySelector('.track-active-emoji');
+        if (title) title.textContent = trimmed ? displayLabel : 'عنوان فعالیت را وارد کنید';
+        if (emojiEl) {
+            emojiEl.textContent = emoji;
+            emojiEl.style.setProperty('--avatar-color', color);
+        }
+    }
+
+    var card = input.closest('.track-interval');
+    if (card) {
+        var lbl = card.querySelector('.track-interval-label');
+        var avatar = card.querySelector('.track-interval-avatar');
+        var accent = card.querySelector('.track-interval-accent');
+        var node = card.querySelector('.track-timeline-node');
+        if (lbl) lbl.textContent = displayLabel;
+        if (avatar) {
+            avatar.textContent = emoji;
+            avatar.style.setProperty('--avatar-color', color);
+        }
+        if (accent) accent.style.background = color;
+        if (node) node.style.setProperty('--node-color', color);
+    }
+}
+
+function setTrackLabel(intervalId, label, updateUi) {
+    action('set_tracking_label', { interval_id: intervalId, label: label });
+    if (updateUi) refreshTrackLabelDisplay(intervalId, label);
 }
 
 function hideTrackLabelSuggestions(intervalId) {
@@ -3206,13 +3276,17 @@ function hideTrackLabelSuggestionsDelayed(intervalId) {
 
 function pickTrackLabelSuggestion(intervalId, label) {
     var input = document.querySelector('.track-label-input[data-interval-id="' + intervalId + '"]');
-    if (input) input.value = label;
+    if (input) {
+        input.value = label;
+        input.blur();
+    }
     hideTrackLabelSuggestions(intervalId);
     setTrackLabel(intervalId, label, true);
 }
 
 function onTrackLabelInput(intervalId, input) {
     debounceTrackLabel(intervalId, input.value);
+    refreshTrackLabelDisplay(intervalId, input.value);
     var trimmed = (input.value || '').trim();
     var query = trackLabelQuery(trimmed);
     var box = document.getElementById('track-label-sug-' + intervalId);
@@ -3332,7 +3406,7 @@ function trackingIntervalCard(iv, totalSecs, opts) {
         html += '<div class="track-label-wrap">';
         html += '<input type="text" class="track-label-input" data-interval-id="' + iv.id + '" ' +
             'placeholder="عنوان فعالیت..." value="' + esc(label) + '" autocomplete="off" ' +
-            'oninput="onTrackLabelInput(' + iv.id + ', this)" onfocus="onTrackLabelInput(' + iv.id + ', this)" ' +
+            'oninput="onTrackLabelInput(' + iv.id + ', this)" ' +
             'onblur="flushTrackLabelOnBlur(' + iv.id + ', this)" ' +
             'onchange="setTrackLabel(' + iv.id + ', this.value, true)">';
         html += '<div class="track-label-suggestions" id="track-label-sug-' + iv.id + '"></div>';
@@ -3367,7 +3441,7 @@ function trackingActivePanel(iv, opts) {
     html += '<div class="track-label-wrap">';
     html += '<input type="text" class="track-label-input track-label-input-prominent" data-interval-id="' + iv.id + '" ' +
         'placeholder="چه کاری انجام می\u200cدهید؟" value="' + esc(label) + '" autocomplete="off" ' +
-        'oninput="onTrackLabelInput(' + iv.id + ', this)" onfocus="onTrackLabelInput(' + iv.id + ', this)" ' +
+        'oninput="onTrackLabelInput(' + iv.id + ', this)" ' +
         'onblur="flushTrackLabelOnBlur(' + iv.id + ', this)" ' +
         'onchange="setTrackLabel(' + iv.id + ', this.value, true)">';
     html += '<div class="track-label-suggestions" id="track-label-sug-' + iv.id + '"></div>';
@@ -3723,7 +3797,7 @@ function renderApp(state) {
             syncKeyboardLayout();
             ensureFieldVisible(actSearch);
         }
-    } else if (restoreTrackLabel && trackLabelIntervalId) {
+    } else if (restoreTrackLabel && trackLabelIntervalId && !isActivityPickerVisible()) {
         var trackInput = document.querySelector('.track-label-input[data-interval-id="' + trackLabelIntervalId + '"]');
         if (trackInput) {
             trackInput.focus();
@@ -3757,6 +3831,12 @@ function renderApp(state) {
 
     if (state.toast) showToast(state.toast.message, state.toast.type);
 
+    if (state.screen === 'home' && state.home) {
+        applyHomeSearchFilter(
+            window._liveSearchQuery != null ? window._liveSearchQuery : (state.home.search || '')
+        );
+    }
+
     syncTrackingTicker();
 
     if (isModalVisible()) {
@@ -3769,6 +3849,7 @@ function renderApp(state) {
 /* Mobile keyboard — keep text fields visible above the virtual keyboard */
 var KEYBOARD_THRESHOLD = 80;
 var _modalOpenVvHeight = null;
+var _sheetOpenVvHeight = null;
 
 function lockBodyForModal() {
     document.documentElement.classList.add('modal-open');
@@ -3826,7 +3907,7 @@ function keyboardHeight() {
     if (vv) {
         var gap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
         if (gap >= KEYBOARD_THRESHOLD) return gap;
-        var baseline = _modalOpenVvHeight || window.innerHeight;
+        var baseline = _sheetOpenVvHeight || _modalOpenVvHeight || window.innerHeight;
         var measured = Math.max(0, baseline - vv.height);
         if (measured >= KEYBOARD_THRESHOLD) return measured;
         return 0;
@@ -3891,6 +3972,29 @@ function syncModalViewport() {
     root.style.setProperty('--vv-height', height + 'px');
 }
 
+function syncSheetViewport() {
+    if (!isActivityPickerVisible()) return;
+    var root = document.documentElement;
+    var vv = window.visualViewport;
+    var kb = keyboardHeight();
+    if (!vv) {
+        var fallbackH = window.innerHeight - (kb >= KEYBOARD_THRESHOLD && !viewportHandlesKeyboard() ? kb : 0);
+        root.style.setProperty('--vv-top', '0px');
+        root.style.setProperty('--vv-left', '0px');
+        root.style.setProperty('--vv-width', window.innerWidth + 'px');
+        root.style.setProperty('--vv-height', fallbackH + 'px');
+        return;
+    }
+    var height = vv.height;
+    if (!viewportHandlesKeyboard() && kb >= KEYBOARD_THRESHOLD && height >= window.innerHeight - kb - 20) {
+        height = window.innerHeight - kb;
+    }
+    root.style.setProperty('--vv-top', vv.offsetTop + 'px');
+    root.style.setProperty('--vv-left', vv.offsetLeft + 'px');
+    root.style.setProperty('--vv-width', vv.width + 'px');
+    root.style.setProperty('--vv-height', height + 'px');
+}
+
 function syncKeyboardLayout() {
     var kb = keyboardHeight();
     var open = kb >= KEYBOARD_THRESHOLD;
@@ -3900,6 +4004,9 @@ function syncKeyboardLayout() {
     document.body.classList.toggle('kb-open', open);
     if (document.body.classList.contains('modal-open')) {
         syncModalViewport();
+    }
+    if (isActivityPickerVisible()) {
+        syncSheetViewport();
     }
 }
 
