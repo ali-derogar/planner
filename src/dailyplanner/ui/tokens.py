@@ -147,15 +147,9 @@ BUDGET_EXCLUDED_CATEGORIES = {
     "\u062d\u0642\u0648\u0642",
 }
 
-INVESTMENT_CATEGORIES = [
-    "\u0633\u0647\u0627\u0645",
-    "\u0637\u0644\u0627",
-    "\u0631\u0645\u0632\u0627\u0631\u0632",
-    "\u0633\u067e\u0631\u062f\u0647 \u0628\u0627\u0646\u06a9\u06cc",
-    "\u0635\u0646\u062f\u0648\u0642",
-    "\u0627\u0645\u0644\u0627\u06a9",
-    "\u0633\u0627\u06cc\u0631",
-]
+from dailyplanner.investments import all_investment_asset_labels, get_investment_taxonomy
+
+INVESTMENT_CATEGORIES = all_investment_asset_labels()
 
 MOOD_EMOJIS = [
     "\U0001F62D", "\U0001F61E", "\U0001F615", "\U0001F610", "\U0001F642",

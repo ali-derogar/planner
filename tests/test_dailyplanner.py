@@ -58,6 +58,11 @@ def test_finance_investment_not_expense(db):
     assert monthly["by_category"]["سهام"]["investment"] == 200000
     assert "expense" not in monthly["by_category"].get("سهام", {}) or monthly["by_category"]["سهام"]["expense"] == 0
 
+    entries = db.get_investment_entries_between(d.replace(day=1), d)
+    assert len(entries) == 1
+    assert entries[0].title == "stocks"
+    assert db.get_total_investment_until(d) == 200000
+
 
 def test_daily_note(db):
     d = datetime.date.today()
@@ -323,7 +328,7 @@ def test_build_state_all_screens(db):
 
     screens = [
         "home", "finance", "analytics", "settings", "recurring", "tracking",
-        "projects", "project_detail", "installments", "important_dates",
+        "projects", "project_detail", "installments", "investments", "important_dates",
     ]
     for screen in screens:
         state = build_state(
@@ -440,7 +445,7 @@ def test_frontend_render_smoke(db, tmp_path):
     states = {}
     for screen in (
         "home", "finance", "analytics", "settings", "recurring", "tracking",
-        "projects", "project_detail", "installments", "important_dates",
+        "projects", "project_detail", "installments", "investments", "important_dates",
     ):
         states[screen] = build_state(
             db=db,
@@ -513,6 +518,552 @@ def test_finance_entry_uses_viewed_month(db):
     assert month_start.isoformat() <= entries[0].date <= month_end.isoformat()
 
 
+def test_investment_entry_respects_month_filter(db):
+    import asyncio
+    from dailyplanner.utils.jalali import current_jalali_ym, jalali_month_bounds, prev_jalali_month
+    from dailyplanner.webview_handler import WebViewHandler
+
+    today = datetime.date.today()
+    cur_jy, cur_jm = current_jalali_ym(today)
+    fy, fm = prev_jalali_month(cur_jy, cur_jm)
+    month_start, month_end = jalali_month_bounds(fy, fm)
+
+    class _App:
+        pass
+
+    app = _App()
+    app.db = db
+    app.main_window = type("W", (), {"dialog": lambda *a, **k: True})()
+    handler = WebViewHandler(app)
+    handler._shell_loaded = True
+    handler.current_screen = "investments"
+    handler.invest_filter_mode = "month"
+    handler.invest_filter_year = fy
+    handler.invest_filter_month = fm
+
+    async def _noop_push(self):
+        pass
+
+    handler.push_state = _noop_push.__get__(handler, WebViewHandler)
+
+    async def run():
+        await handler._on_add_finance({
+            "type": "investment",
+            "title": "gold",
+            "amount": "500000",
+            "invest_risk": "کم ریسک",
+            "invest_market": "فیزیکی",
+            "invest_asset": "طلا",
+        })
+
+    asyncio.run(run())
+
+    entries = db.get_investment_entries_between(month_start, month_end)
+    assert len(entries) == 1
+    assert entries[0].date == month_end.isoformat()
+    assert entries[0].entry_type == "investment"
+    from dailyplanner.investments import decode_investment_category
+    meta = decode_investment_category(entries[0].category)
+    assert meta["asset"] == "طلا"
+    assert meta["market"] == "فیزیکی"
+
+
+def test_investment_entry_uses_explicit_date(db):
+    import asyncio
+    from dailyplanner.webview_handler import WebViewHandler
+
+    today = datetime.date.today()
+
+    class _App:
+        pass
+
+    app = _App()
+    app.db = db
+    app.main_window = type("W", (), {"dialog": lambda *a, **k: True})()
+    handler = WebViewHandler(app)
+    handler._shell_loaded = True
+    handler.current_screen = "investments"
+
+    async def _noop_push(self):
+        pass
+
+    handler.push_state = _noop_push.__get__(handler, WebViewHandler)
+
+    async def run():
+        await handler._on_add_finance({
+            "type": "investment",
+            "title": "gold",
+            "amount": "500000",
+            "date": today.isoformat(),
+            "invest_risk": "کم ریسک",
+            "invest_market": "فیزیکی",
+            "invest_asset": "طلا",
+        })
+
+    asyncio.run(run())
+
+    today_entries = db.get_investment_entries_between(today, today)
+    assert len(today_entries) == 1
+    assert today_entries[0].date == today.isoformat()
+
+
+def test_investments_state_past_month_snapshot(db):
+    from dailyplanner.ui.state import build_state
+    from dailyplanner.services.timer import TimerService
+    from dailyplanner.utils.jalali import current_jalali_ym, jalali_month_bounds, prev_jalali_month
+
+    today = datetime.date.today()
+    cur_jy, cur_jm = current_jalali_ym(today)
+    fy, fm = prev_jalali_month(cur_jy, cur_jm)
+    month_start, month_end = jalali_month_bounds(fy, fm)
+
+    db.add_finance_entry(month_start, "income", "salary", 1000000, "حقوق")
+    db.add_finance_entry(month_end, "investment", "gold", 200000, "طلا")
+    db.add_finance_entry(today, "investment", "stocks", 300000, "سهام")
+
+    all_state = build_state(
+        db=db,
+        timer=TimerService(),
+        screen="investments",
+        current_date=today,
+        expanded_tasks=set(),
+        analytics_period=7,
+    )
+    assert all_state["investments"]["totals"]["portfolio_total"] == 500000
+    assert all_state["investments"]["totals"]["balance"] == 500000
+    assert len(all_state["investments"]["entries"]) == 2
+
+    month_state = build_state(
+        db=db,
+        timer=TimerService(),
+        screen="investments",
+        current_date=today,
+        expanded_tasks=set(),
+        analytics_period=7,
+        invest_filter_mode="month",
+        invest_filter_year=fy,
+        invest_filter_month=fm,
+    )
+    assert month_state["investments"]["totals"]["portfolio_total"] == 500000
+    assert month_state["investments"]["totals"]["balance"] == 500000
+    assert len(month_state["investments"]["entries"]) == 1
+
+
+def test_investment_taxonomy_encode_decode():
+    from dailyplanner.investments import (
+        decode_investment_category,
+        encode_investment_category,
+        get_investment_taxonomy,
+        investment_group_key,
+        investment_meta_dict,
+        is_valid_risk_market,
+        markets_for_risk,
+    )
+
+    raw = encode_investment_category("کم ریسک", "صندوق", "عیار")
+    meta = decode_investment_category(raw)
+    assert meta == {"risk": "کم ریسک", "market": "صندوق", "asset": "عیار"}
+    assert investment_group_key(raw) == "عیار"
+
+    legacy = decode_investment_category("سهام")
+    assert legacy["market"] == "بورس"
+    assert legacy["asset"] == "سهام عمومی"
+
+    display = investment_meta_dict(meta)
+    assert "عیار" in display["display"]
+    assert display["asset_emoji"] == "✨"
+
+    tax = get_investment_taxonomy()
+    assert len(tax["risks"]) == 4
+    assert len(tax["markets"]) == 8
+    assert "رمزارز" in tax["assets"]
+    assert any(x["label"] == "BTC/USDT" for x in tax["assets"]["رمزارز"])
+
+    low_markets = [m["value"] for m in markets_for_risk("کم ریسک")]
+    assert low_markets == ["فیزیکی", "صندوق"]
+    assert "رمزارز" not in low_markets
+    high_markets = [m["value"] for m in tax["markets_by_risk"]["پر ریسک"]]
+    assert high_markets == ["بورس", "رمزارز"]
+    assert is_valid_risk_market("کم ریسک", "صندوق")
+    assert not is_valid_risk_market("کم ریسک", "رمزارز")
+
+
+def test_investment_sell_restores_balance(db):
+    d = datetime.date.today()
+    db.add_finance_entry(d, "income", "salary", 1000000, "حقوق")
+    db.add_finance_entry(
+        d, "investment", "gold", 300000, '{"risk":"کم ریسک","market":"فیزیکی","asset":"طلا"}',
+        investment_direction="buy",
+    )
+    assert db.get_finance_balance_until(d) == 700000
+    assert db.get_total_investment_until(d) == 300000
+
+    db.add_finance_entry(
+        d, "investment", "gold sell", 100000, '{"risk":"کم ریسک","market":"فیزیکی","asset":"طلا"}',
+        investment_direction="sell",
+    )
+    assert db.get_finance_balance_until(d) == 800000
+    assert db.get_total_investment_until(d) == 200000
+
+
+def test_investment_quantity_unit_price(db):
+    d = datetime.date.today()
+    entry = db.add_finance_entry(
+        d, "investment", "BTC", 3000000, '{"risk":"پر ریسک","market":"رمزارز","asset":"BTC/USDT"}',
+        quantity=2.0,
+        unit_price=1500000,
+    )
+    assert entry.quantity == 2.0
+    assert entry.unit_price == 1500000
+    assert entry.amount == 3000000
+
+
+def test_investment_current_price_and_pnl(db):
+    from dailyplanner.investments import investment_pnl_percent
+
+    d = datetime.date.today()
+    entry = db.add_finance_entry(
+        d, "investment", "gold", 2000000, '{"risk":"کم ریسک","market":"فیزیکی","asset":"طلا"}',
+        quantity=1.0,
+        unit_price=2000000,
+        current_unit_price=2400000,
+    )
+    assert entry.current_unit_price == 2400000
+    assert investment_pnl_percent(entry.unit_price, entry.current_unit_price) == 20.0
+
+    db.update_finance_entry(
+        entry.id,
+        entry.title,
+        entry.amount,
+        entry.entry_type,
+        entry.category,
+        quantity=1.0,
+        unit_price=2000000,
+        current_unit_price=1800000,
+    )
+    updated = db.get_finance_entry_by_id(entry.id)
+    assert updated.current_unit_price == 1800000
+    assert investment_pnl_percent(updated.unit_price, updated.current_unit_price) == -10.0
+
+
+def test_investment_goal_and_custom_asset(db):
+    from dailyplanner.investments import merge_custom_assets, get_investment_taxonomy
+
+    db.set_investment_goal(1404, 1, 5000000)
+    assert db.get_investment_goal(1404, 1) == 5000000
+
+    assert db.add_investment_custom_asset("بورس", "فملی", "فملی", "🏭")
+    assert not db.add_investment_custom_asset("بورس", "فملی", "فملی")
+    custom = db.get_investment_custom_assets()
+    assert custom[0]["value"] == "فملی"
+
+    tax = merge_custom_assets(get_investment_taxonomy(), custom)
+    assert any(a["value"] == "فملی" for a in tax["assets"]["بورس"])
+
+
+def test_migrate_legacy_investment_goals_schema(db):
+    db.conn.executescript(
+        """
+        DROP TABLE IF EXISTS investment_goals;
+        CREATE TABLE investment_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            target_amount INTEGER NOT NULL,
+            target_date TEXT,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        );
+        """
+    )
+    db.conn.commit()
+    db._migrate_schema()
+    cols = {
+        row[1] for row in db.conn.execute("PRAGMA table_info(investment_goals)")
+    }
+    assert cols == {"month_key", "monthly_limit"}
+    db.set_investment_goal(1404, 3, 250000)
+    assert db.get_investment_goal(1404, 3) == 250000
+
+
+def test_investment_portfolio_breakdown(db):
+    from dailyplanner.investments import encode_investment_category, portfolio_breakdown
+
+    d = datetime.date.today()
+    db.add_finance_entry(
+        d, "investment", "gold", 200000,
+        encode_investment_category("کم ریسک", "فیزیکی", "طلا"),
+    )
+    db.add_finance_entry(
+        d, "investment", "fund", 300000,
+        encode_investment_category("کم ریسک", "صندوق", "عیار"),
+    )
+    entries = db.get_investment_entries_until(d)
+    breakdown = portfolio_breakdown(entries)
+    assert breakdown["by_asset"]["طلا"] == 200000
+    assert breakdown["by_asset"]["عیار"] == 300000
+    assert breakdown["by_risk"]["کم ریسک"] == 500000
+
+
+def test_investment_positions_and_sell_validation(db):
+    from dailyplanner.investments import (
+        compute_positions,
+        encode_investment_category,
+        merge_asset_prices,
+        validate_investment_sell,
+    )
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "gold", 300000, cat,
+        quantity=2.0, unit_price=150000, current_unit_price=180000,
+    )
+
+    entries = db.get_investment_entries_until(d)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    assert len(positions) == 1
+    assert positions[0]["quantity"] == 2.0
+    assert positions[0]["cost_basis"] == 300000
+    assert positions[0]["estimated_value"] == 360000
+    assert positions[0]["unrealized_pnl"] == 60000
+
+    assert validate_investment_sell(cat, 400000, None, entries)
+    assert validate_investment_sell(cat, 100000, 3.0, entries)
+
+    db.add_finance_entry(
+        d, "investment", "sell", 100000, cat,
+        investment_direction="sell", quantity=1.0,
+    )
+    entries2 = db.get_investment_entries_until(d)
+    positions2 = compute_positions(entries2, prices)
+    assert positions2[0]["quantity"] == 1.0
+    assert positions2[0]["cost_basis"] == 150000
+
+
+def test_investment_asset_price_setting(db):
+    assert db.set_investment_asset_price("فیزیکی", "طلا", 2000000)
+    prices = db.get_investment_asset_prices()
+    assert prices["فیزیکی|طلا"] == 2000000
+
+
+def test_investments_state_has_positions(db):
+    from dailyplanner.investments import encode_investment_category
+    from dailyplanner.ui.state import build_state
+    from dailyplanner.services.timer import TimerService
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "gold", 200000, cat,
+        quantity=1.0, unit_price=200000, current_unit_price=240000,
+    )
+    db.set_investment_asset_price("فیزیکی", "طلا", 240000)
+
+    state = build_state(
+        db=db,
+        timer=TimerService(),
+        screen="investments",
+        current_date=d,
+        expanded_tasks=set(),
+        analytics_period=7,
+    )
+    inv = state["investments"]
+    assert len(inv["positions"]) == 1
+    assert inv["totals"]["net_invested"] == 200000
+    assert inv["totals"]["estimated_value"] == 240000
+    assert inv["totals"]["has_market_values"] is True
+
+
+def test_investment_goal_uses_buys_only(db):
+    from dailyplanner.investments import encode_investment_category
+    from dailyplanner.ui.state import build_state
+    from dailyplanner.services.timer import TimerService
+    from dailyplanner.utils.jalali import current_jalali_ym, jalali_month_bounds
+
+    today = datetime.date.today()
+    cur_jy, cur_jm = current_jalali_ym(today)
+    month_start, _ = jalali_month_bounds(cur_jy, cur_jm)
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+
+    db.add_finance_entry(month_start, "investment", "buy", 300000, cat)
+    db.add_finance_entry(
+        month_start, "investment", "sell", 100000, cat, investment_direction="sell",
+    )
+    db.set_investment_goal(cur_jy, cur_jm, 500000)
+
+    state = build_state(
+        db=db,
+        timer=TimerService(),
+        screen="investments",
+        current_date=today,
+        expanded_tasks=set(),
+        analytics_period=7,
+        invest_filter_mode="month",
+        invest_filter_year=cur_jy,
+        invest_filter_month=cur_jm,
+    )
+    inv = state["investments"]
+    assert inv["totals"]["period_buys"] == 300000
+    assert inv["goal_pct"] == 60
+    assert not inv["over_goal"]
+
+
+def test_investments_state_includes_goal_and_chart(db):
+    from dailyplanner.ui.state import build_state
+    from dailyplanner.services.timer import TimerService
+    from dailyplanner.utils.jalali import current_jalali_ym, jalali_month_bounds
+
+    today = datetime.date.today()
+    cur_jy, cur_jm = current_jalali_ym(today)
+    month_start, month_end = jalali_month_bounds(cur_jy, cur_jm)
+
+    db.add_finance_entry(month_start, "investment", "gold", 100000, "طلا")
+    db.set_investment_goal(cur_jy, cur_jm, 500000)
+
+    state = build_state(
+        db=db,
+        timer=TimerService(),
+        screen="investments",
+        current_date=today,
+        expanded_tasks=set(),
+        analytics_period=7,
+        invest_filter_mode="month",
+        invest_filter_year=cur_jy,
+        invest_filter_month=cur_jm,
+        finance_year=cur_jy,
+        finance_month=cur_jm,
+    )
+    inv = state["investments"]
+    assert inv["goal"] == 500000
+    assert inv["chart"]["has_data"] is True
+    assert len(inv["all_entries"]) == 1
+    assert "portfolio_by_category" in inv
+    assert "portfolio_by_risk" in inv
+
+
+def test_investments_all_mode_includes_all_entries(db):
+    from dailyplanner.ui.state import build_state
+    from dailyplanner.services.timer import TimerService
+    from dailyplanner.utils.jalali import current_jalali_ym, jalali_month_bounds
+
+    today = datetime.date.today()
+    cur_jy, cur_jm = current_jalali_ym(today)
+    month_start, _ = jalali_month_bounds(cur_jy, cur_jm)
+
+    db.add_finance_entry(month_start, "investment", "gold", 100000, "طلا")
+    db.add_finance_entry(today, "investment", "stocks", 200000, "سهام")
+
+    state = build_state(
+        db=db,
+        timer=TimerService(),
+        screen="investments",
+        current_date=today,
+        expanded_tasks=set(),
+        analytics_period=7,
+        invest_filter_mode="all",
+        finance_year=cur_jy,
+        finance_month=cur_jm,
+    )
+    inv = state["investments"]
+    assert len(inv["entries"]) == 2
+    assert len(inv["all_entries"]) == 2
+
+
+def test_investment_allocation_targets(db):
+    from dailyplanner.investments import (
+        compute_allocation_comparison,
+        encode_investment_category,
+        compute_positions,
+        merge_asset_prices,
+    )
+    from dailyplanner.ui.state import build_state
+    from dailyplanner.services.timer import TimerService
+
+    d = datetime.date.today()
+    cat_gold = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    cat_fund = encode_investment_category("کم ریسک", "صندوق", "عیار")
+    db.add_finance_entry(
+        d, "investment", "gold", 300000, cat_gold,
+        quantity=1.0, unit_price=300000, current_unit_price=300000,
+    )
+    db.add_finance_entry(
+        d, "investment", "fund", 700000, cat_fund,
+        quantity=1.0, unit_price=700000, current_unit_price=700000,
+    )
+    db.set_investment_asset_price("فیزیکی", "طلا", 300000)
+    db.set_investment_asset_price("صندوق", "عیار", 700000)
+    db.set_investment_allocation_target("فیزیکی", "طلا", 30)
+    db.set_investment_allocation_target("صندوق", "عیار", 70)
+
+    entries = db.get_investment_entries_until(d)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    comparison = compute_allocation_comparison(positions, db.get_investment_allocation_targets())
+    gold = next(c for c in comparison if c["asset"] == "طلا")
+    assert gold["target_pct"] == 30
+    assert gold["actual_pct"] == 30.0
+
+    state = build_state(
+        db=db, timer=TimerService(), screen="investments",
+        current_date=d, expanded_tasks=set(), analytics_period=7,
+    )
+    inv = state["investments"]
+    assert inv["allocation_targets_total"] == 100
+    assert any(a["asset"] == "طلا" and a["target_pct"] == 30 for a in inv["allocation"])
+
+
+def test_investment_custom_asset_edit_delete(db):
+    from dailyplanner.investments import is_builtin_asset
+
+    assert db.add_investment_custom_asset("بورس", "فملی", "فملی", "🏭")
+    assert db.update_investment_custom_asset("بورس", "فملی", label="فولاد مبارکه", emoji="🔩")
+    custom = db.get_investment_custom_assets()
+    assert custom[0]["label"] == "فولاد مبارکه"
+    assert custom[0]["emoji"] == "🔩"
+    assert is_builtin_asset("بورس", "فولاد") is True
+    assert is_builtin_asset("بورس", "فملی") is False
+    assert db.delete_investment_custom_asset("بورس", "فملی")
+    assert not db.get_investment_custom_assets()
+
+
+def test_investment_custom_asset_delete_blocked_with_entries(db):
+    from dailyplanner.investments import encode_investment_category
+
+    d = datetime.date.today()
+    cat = encode_investment_category("ریسک متوسط", "بورس", "فملی")
+    db.add_investment_custom_asset("بورس", "فملی", "فملی")
+    db.add_finance_entry(d, "investment", "buy", 100000, cat)
+    assert db.count_investment_entries_for_asset("بورس", "فملی") == 1
+    assert not db.delete_investment_custom_asset("بورس", "فملی")
+    assert db.get_investment_custom_assets()
+
+
+def test_investment_price_sync_mocked(db, monkeypatch):
+    from dailyplanner.investment_prices import sync_prices_for_assets
+    from dailyplanner.investments import encode_investment_category
+    from dailyplanner.webview_handler import _run_investment_price_sync
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "gold", 200000, cat,
+        quantity=1.0, unit_price=200000,
+    )
+
+    def fake_sync(assets):
+        return {"فیزیکی|طلا": 2500000}, []
+
+    monkeypatch.setattr(
+        "dailyplanner.webview_handler.sync_prices_for_assets", fake_sync
+    )
+    count, err = _run_investment_price_sync(db)
+    assert count == 1
+    assert err == ""
+    assert db.get_investment_asset_prices()["فیزیکی|طلا"] == 2500000
+    assert db.get_investment_prices_synced_at()
+
+
 def test_validate_backup_rejects_bad_important_dates():
     db = Database(":memory:")
     data = db.export_json()
@@ -520,6 +1071,24 @@ def test_validate_backup_rejects_bad_important_dates():
     ok, err = db.validate_backup(data)
     assert not ok
     assert "تاریخ" in err
+
+
+def test_validate_backup_accepts_investment_sell():
+    db = Database(":memory:")
+    data = db.export_json()
+    data["finance"] = [{
+        "id": 1,
+        "date": "2026-06-22",
+        "entry_type": "investment",
+        "title": "sell gold",
+        "amount": 1000,
+        "category": "طلا",
+        "investment_direction": "sell",
+        "quantity": 2,
+        "unit_price": 500,
+    }]
+    ok, err = db.validate_backup(data)
+    assert ok, err
 
 
 def test_pay_installment_creates_finance_expense(db):

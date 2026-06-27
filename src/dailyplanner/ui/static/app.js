@@ -200,6 +200,7 @@ var ICON = {
     list: '<svg viewBox="0 0 24 24"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
     check: '<svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg>',
     tracking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"/><path d="M12 10v3l2 2"/><path d="M9 3h6"/><path d="M12 3v3"/></svg>',
+    invest: '<svg viewBox="0 0 24 24"><path d="M12 2 15 9h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>',
 };
 
 function ico(name, cls) {
@@ -239,7 +240,7 @@ function collapseChevron(open) {
 
 function themeColorForScreen(screen, theme) {
     if (theme === 'light') return '#FAFAFC';
-    var map = { home: '#0C4A6E', finance: '#0F2E28', projects: '#6366F1', analytics: '#1A1A24', tracking: '#0F2A2E' };
+    var map = { home: '#0C4A6E', finance: '#0F2E28', investments: '#2A1F0A', projects: '#6366F1', analytics: '#1A1A24', tracking: '#0F2A2E' };
     return map[screen] || '#0A0A0F';
 }
 
@@ -309,7 +310,7 @@ function formatNumberGrouped(text) {
 }
 
 function isGroupedAmountField(f) {
-    return f.validate === 'amount' || f.validate === 'budget';
+    return f.validate === 'amount' || f.validate === 'budget' || f.grouped === true;
 }
 
 function bindGroupedNumberInput(el) {
@@ -1049,6 +1050,9 @@ function showModal(config) {
     if (!fc) return;
     fc.innerHTML = '';
     fc.removeAttribute('data-cond-bound');
+    if (config.html) {
+        fc.innerHTML = config.html;
+    } else {
     (config.fields || []).forEach(function(f) {
         var grp = document.createElement('div');
         grp.className = 'modal-field-group';
@@ -1110,10 +1114,17 @@ function showModal(config) {
         }
         fc.appendChild(grp);
     });
+    }
     bindModalConditionalListeners(fc);
     syncModalConditionalFields();
+    if (config.investmentCascade !== undefined) {
+        bindInvestmentCascade(config.investmentCascade);
+        bindInvestmentFieldSync();
+    }
     var errEl = document.getElementById('modal-error');
     if (errEl) errEl.textContent = '';
+    var confirmBtn = document.querySelector('#modal .modal-confirm');
+    if (confirmBtn) confirmBtn.style.display = config.hideSubmit ? 'none' : '';
     var modalEl = document.getElementById('modal');
     if (!modalEl) return;
     var useCenter = shouldUseCenterModal(config);
@@ -1210,6 +1221,15 @@ function confirmModal() {
         var modalBody = document.getElementById('modal-body');
         if (modalBody) modalBody.scrollTop = modalBody.scrollHeight;
         return;
+    }
+    if (_modal.onSubmit) {
+        params = _modal.onSubmit(params, Object.assign({}, _modal.params || {})) || params;
+    }
+    if (_modal.cmd === 'set_investment_allocation_target' && params.asset_key && !params.market) {
+        var akParts = String(params.asset_key).split('|');
+        params.market = akParts[0] || '';
+        params.asset = akParts[1] || '';
+        delete params.asset_key;
     }
     var cmd = _modal.cmd;
     _modalConfirming = true;
@@ -1427,6 +1447,401 @@ function finExpenseDonut(categories) {
         '<div class="fin-donut-chart" style="background:conic-gradient(' + gradientParts.join(', ') + ')">' +
         '<div class="fin-donut-hole"><span class="fin-donut-total-lbl">کل هزینه</span></div></div>' +
         '<div class="fin-donut-legend">' + legend + '</div></div>';
+}
+
+function invCategoryDonut(categories, totalFmt, centerLabel) {
+    centerLabel = centerLabel || 'این ماه';
+    var items = (categories || []).filter(function(c) { return Math.abs(c.amount) > 0; });
+    if (!items.length) return '';
+    items.sort(function(a, b) { return b.amount - a.amount; });
+    var top = items.slice(0, 5);
+    var total = items.reduce(function(s, c) { return s + c.amount; }, 0);
+    var segs = [];
+    var start = 0;
+    var gradientParts = [];
+    top.forEach(function(c, i) {
+        var pct = c.amount / total * 100;
+        var color = FIN_CHART_COLORS[i % FIN_CHART_COLORS.length];
+        segs.push({ cat: c.category, pct: pct, color: color, amount_fmt: c.amount_fmt });
+        gradientParts.push(color + ' ' + start.toFixed(1) + '% ' + (start + pct).toFixed(1) + '%');
+        start += pct;
+    });
+    var legend = segs.map(function(s) {
+        return '<div class="fin-donut-legend-item">' +
+            '<span class="fin-donut-dot" style="background:' + s.color + '"></span>' +
+            '<span class="fin-donut-cat">' + finIcon('investment', findInvestAssetEmoji(s.cat)) + ' ' + esc(s.cat) + '</span>' +
+            '<span class="fin-donut-amt">' + esc(s.amount_fmt) + '</span></div>';
+    }).join('');
+    return '<div class="fin-donut-wrap">' +
+        '<div class="fin-donut-chart" style="background:conic-gradient(' + gradientParts.join(', ') + ')">' +
+        '<div class="fin-donut-hole inv-donut-hole"><span class="fin-donut-total-lbl">' + esc(centerLabel) + '</span>' +
+        (totalFmt ? '<span class="inv-donut-total">' + esc(totalFmt) + '</span>' : '') +
+        '</div></div>' +
+        '<div class="fin-donut-legend">' + legend + '</div></div>';
+}
+
+function investSignedAmount(e) {
+    return e.is_sell ? -e.amount : e.amount;
+}
+
+function investAssetKey(e) {
+    var m = e.investment_meta || {};
+    return m.group_key || m.asset || m.market || e.category || 'سایر';
+}
+
+function investAssetLabel(e) {
+    var m = e.investment_meta || {};
+    var emoji = m.asset_emoji || '💎';
+    var name = m.asset || m.market || e.category || 'سایر';
+    return emoji + ' ' + name;
+}
+
+function investChartEntryAmount(e, chartMode) {
+    if (chartMode === 'sell') return e.amount;
+    if (chartMode === 'buy') return e.is_sell ? 0 : e.amount;
+    return investSignedAmount(e);
+}
+
+function addGregorianDays(iso, days) {
+    var p = parseIsoDate(iso);
+    if (!p) return null;
+    var dt = new Date(p.y, p.m - 1, p.d);
+    dt.setDate(dt.getDate() + days);
+    return isoFromGregorian(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+}
+
+function jalaliDayLabel(iso) {
+    var p = parseIsoDate(iso);
+    if (!p) return '';
+    var j = toJalaali(p.y, p.m, p.d);
+    return pd(j.jd);
+}
+
+function jalaliDateLabel(iso) {
+    var p = parseIsoDate(iso);
+    if (!p) return '';
+    var j = toJalaali(p.y, p.m, p.d);
+    var jm = j.jm < 10 ? '0' + j.jm : String(j.jm);
+    var jd = j.jd < 10 ? '0' + j.jd : String(j.jd);
+    return pd(j.jy + '/' + jm + '/' + jd);
+}
+
+function fmtInvAmount(n) {
+    if (n == null || (typeof n === 'number' && isNaN(n))) return '۰';
+    var neg = n < 0;
+    var abs = Math.abs(Math.round(n));
+    var s = String(abs);
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+        if (i > 0 && (s.length - i) % 3 === 0) out += ',';
+        out += s[i];
+    }
+    return (neg ? '\u2212' : '') + pd(out);
+}
+
+window._investChartMode = window._investChartMode || 'both';
+
+function setInvestChartMode(mode) {
+    window._investChartMode = mode;
+    if (window._lastState) renderApp(window._lastState);
+}
+
+function buildInvestmentChart(d) {
+    var f = d.filter || {};
+    var chartMode = window._investChartMode || 'both';
+    var source = d.all_entries || d.entries || [];
+    var categoryFiltered = filterInvestEntries(source);
+    var entries = categoryFiltered;
+    if (chartMode === 'buy') {
+        entries = entries.filter(function(e) { return !e.is_sell; });
+    } else if (chartMode === 'sell') {
+        entries = entries.filter(function(e) { return e.is_sell; });
+    }
+    if (!entries.length) {
+        return { has_data: false, investment: [], portfolio: [], labels: [], dates: [], assets: [] };
+    }
+
+    var now = new Date();
+    var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    var startIso;
+    var endIso = todayIso;
+    if (f.mode === 'month' || f.mode === 'range') {
+        if (!f.start) return { has_data: false, investment: [], portfolio: [], labels: [], dates: [], assets: [] };
+        startIso = f.start;
+        endIso = f.end || todayIso;
+    } else {
+        var sortedDates = entries.map(function(e) { return e.date; }).sort();
+        startIso = sortedDates[0];
+    }
+    if (startIso > endIso) {
+        var tmp = startIso;
+        startIso = endIso;
+        endIso = tmp;
+    }
+
+    var dailyAmt = {};
+    var dailyByAsset = {};
+    var assetInfo = {};
+    entries.forEach(function(e) {
+        var amt = investChartEntryAmount(e, chartMode);
+        var key = investAssetKey(e);
+        assetInfo[key] = investAssetLabel(e);
+        dailyAmt[e.date] = (dailyAmt[e.date] || 0) + amt;
+        if (!dailyByAsset[key]) dailyByAsset[key] = {};
+        dailyByAsset[key][e.date] = (dailyByAsset[key][e.date] || 0) + amt;
+    });
+
+    var portfolioBase = 0;
+    var assetBase = {};
+    entries.forEach(function(e) {
+        if (e.date >= startIso) return;
+        var amt = investChartEntryAmount(e, chartMode);
+        var key = investAssetKey(e);
+        portfolioBase += amt;
+        assetBase[key] = (assetBase[key] || 0) + amt;
+    });
+
+    var cumPeriod = 0;
+    var labels = [];
+    var dates = [];
+    var investment = [];
+    var portfolio = [];
+    var cursor = startIso;
+    while (cursor && cursor <= endIso) {
+        var dayAmt = dailyAmt[cursor] || 0;
+        cumPeriod += dayAmt;
+        portfolioBase += dayAmt;
+        investment.push(cumPeriod);
+        portfolio.push(portfolioBase);
+        labels.push(jalaliDayLabel(cursor));
+        dates.push(cursor);
+        cursor = addGregorianDays(cursor, 1);
+    }
+
+    var assets = Object.keys(dailyByAsset).sort().map(function(key, i) {
+        var base = assetBase[key] || 0;
+        var points = [];
+        var day = startIso;
+        while (day && day <= endIso) {
+            base += dailyByAsset[key][day] || 0;
+            points.push(base);
+            day = addGregorianDays(day, 1);
+        }
+        return {
+            key: key,
+            label: assetInfo[key] || key,
+            points: points,
+            color: FIN_CHART_COLORS[i % FIN_CHART_COLORS.length],
+        };
+    });
+
+    var hasData = investment.some(function(v, i) {
+        return v !== 0 || portfolio[i] !== 0;
+    }) || assets.some(function(a) {
+        return a.points.some(function(v) { return v !== 0; });
+    });
+    return {
+        has_data: hasData,
+        investment: investment,
+        portfolio: portfolio,
+        assets: assets,
+        labels: labels,
+        dates: dates,
+        mode: chartMode,
+    };
+}
+
+function onInvestChartLineClick(ev, lineIdx) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    var snap = window._investChartSnapshot;
+    if (!snap || !snap.lines[lineIdx]) return;
+    var svg = (ev.currentTarget && ev.currentTarget.ownerSVGElement) ||
+        (ev.currentTarget && ev.currentTarget.closest && ev.currentTarget.closest('svg'));
+    if (!svg) {
+        selectInvestChartLine(lineIdx, null);
+        return;
+    }
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width) {
+        selectInvestChartLine(lineIdx, null);
+        return;
+    }
+    var clientX = ev.clientX;
+    if (clientX == null && ev.touches && ev.touches[0]) clientX = ev.touches[0].clientX;
+    var x = (clientX - rect.left) / rect.width * snap.width;
+    var n = snap.lines[lineIdx].points.length;
+    var span = snap.width - snap.padX * 2;
+    var idx = Math.round((x - snap.padX) / (span / (Math.max(n - 1, 1))));
+    idx = Math.max(0, Math.min(n - 1, idx));
+    selectInvestChartLine(lineIdx, idx);
+}
+
+function selectInvestChartLine(lineIdx, pointIdx) {
+    var snap = window._investChartSnapshot;
+    if (!snap || !snap.lines[lineIdx]) return;
+    var n = snap.lines[lineIdx].points.length;
+    if (pointIdx == null || pointIdx < 0) pointIdx = n - 1;
+    pointIdx = Math.max(0, Math.min(n - 1, pointIdx));
+    window._investChartSelected = { lineIdx: lineIdx, pointIdx: pointIdx };
+
+    var line = snap.lines[lineIdx];
+    var val = line.points[pointIdx];
+    var dateIso = (snap.dates && snap.dates[pointIdx]) || '';
+
+    var tooltip = document.getElementById('invChartTooltip');
+    if (tooltip) {
+        tooltip.hidden = false;
+        tooltip.innerHTML =
+            '<span class="inv-chart-tip-dot" style="background:' + esc(line.color) + '"></span>' +
+            '<div class="inv-chart-tip-body">' +
+            '<span class="inv-chart-tip-name">' + esc(line.label) + '</span>' +
+            '<span class="inv-chart-tip-val">' + esc(fmtInvAmount(val)) +
+            '<span class="inv-chart-tip-unit">تومان</span></span>' +
+            (dateIso ? '<span class="inv-chart-tip-date">' + esc(jalaliDateLabel(dateIso)) + '</span>' : '') +
+            '</div>';
+    }
+
+    var wrap = document.querySelector('.inv-chart-interactive');
+    if (!wrap) return;
+    wrap.querySelectorAll('.inv-chart-line-group').forEach(function(g, i) {
+        g.classList.toggle('active', i === lineIdx);
+        g.classList.toggle('dimmed', i !== lineIdx);
+    });
+    wrap.querySelectorAll('.inv-chart-legend-item').forEach(function(el, i) {
+        el.classList.toggle('active', i === lineIdx);
+    });
+    var marker = wrap.querySelector('.inv-chart-marker');
+    if (marker && snap.coords && snap.coords[lineIdx] && snap.coords[lineIdx][pointIdx]) {
+        var pt = snap.coords[lineIdx][pointIdx];
+        marker.setAttribute('cx', pt[0]);
+        marker.setAttribute('cy', pt[1]);
+        marker.setAttribute('fill', line.color);
+        marker.removeAttribute('hidden');
+    }
+}
+
+function renderInvestChartModeChips() {
+    var modes = [
+        { id: 'both', label: 'هر دو' },
+        { id: 'period', label: 'خالص بازه' },
+        { id: 'portfolio', label: 'کل پرتفوی' },
+        { id: 'buy', label: 'خرید' },
+        { id: 'sell', label: 'فروش' },
+    ];
+    var active = window._investChartMode || 'both';
+    var html = '<div class="inv-chart-mode-row">';
+    modes.forEach(function(m) {
+        html += '<button type="button" class="inv-chart-mode-chip' +
+            (active === m.id ? ' active' : '') +
+            '" onclick="setInvestChartMode(\'' + escJs(m.id) + '\')">' +
+            esc(m.label) + '</button>';
+    });
+    return html + '</div>';
+}
+
+function investmentTrendChartSvg(chart, w, h) {
+    if (!chart || !chart.investment || !chart.investment.length) return '';
+    var mode = chart.mode || window._investChartMode || 'both';
+    var assetLines = chart.assets || [];
+    var lines = [];
+    if (mode === 'both' || mode === 'period') {
+        lines.push({ points: chart.investment, color: '#FFB020', label: 'خالص بازه', width: 2.4, opacity: 1 });
+    }
+    if (mode === 'both' || mode === 'portfolio') {
+        if (assetLines.length) {
+            assetLines.forEach(function(a) {
+                lines.push({ points: a.points, color: a.color, label: a.label, width: 2, opacity: 0.92 });
+            });
+        } else {
+            lines.push({
+                points: chart.portfolio || chart.investment,
+                color: '#818CF8',
+                label: 'کل پرتفوی',
+                width: 2,
+                opacity: 0.9,
+            });
+        }
+    }
+    if (mode === 'buy' || mode === 'sell') {
+        if (assetLines.length) {
+            assetLines.forEach(function(a) {
+                lines.push({ points: a.points, color: a.color, label: a.label, width: 2.2, opacity: 0.95 });
+            });
+        } else {
+            lines.push({
+                points: chart.investment,
+                color: mode === 'sell' ? '#4DD980' : '#FFB020',
+                label: mode === 'sell' ? 'فروش تجمعی' : 'خرید تجمعی',
+                width: 2.4,
+                opacity: 1,
+            });
+        }
+    }
+    if (!lines.length) return '';
+    var allVals = [];
+    lines.forEach(function(l) { allVals = allVals.concat(l.points); });
+    var min = Math.min.apply(null, allVals.concat([0]));
+    var max = Math.max.apply(null, allVals.concat([1]));
+    var range = max - min || 1;
+    var n = chart.investment.length;
+    var padT = 16, padB = 10, padX = 6;
+    function toY(v) {
+        return padT + (h - padT - padB) * (1 - (v - min) / range);
+    }
+    function toPts(arr) {
+        return arr.map(function(v, i) {
+            return (padX + i * (w - padX * 2) / (n - 1 || 1)).toFixed(1) + ',' + toY(v).toFixed(1);
+        });
+    }
+    function ptsToCoords(pts) {
+        return pts.map(function(p) {
+            var parts = p.split(',');
+            return [parseFloat(parts[0]), parseFloat(parts[1])];
+        });
+    }
+    var coords = [];
+    lines.forEach(function(line) {
+        coords.push(ptsToCoords(toPts(line.points)));
+    });
+    window._investChartSnapshot = {
+        lines: lines,
+        labels: chart.labels || [],
+        dates: chart.dates || [],
+        width: w,
+        padX: padX,
+        coords: coords,
+    };
+
+    var svg = '<svg class="finance-line-chart inv-trend-chart" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">';
+    for (var g = 0; g <= 3; g++) {
+        var gy = padT + (h - padT - padB) * g / 3;
+        svg += '<line class="fin-chart-grid" x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (w - padX) + '" y2="' + gy.toFixed(1) + '"/>';
+    }
+    if (min < 0 && max > 0) {
+        var zeroY = toY(0).toFixed(1);
+        svg += '<line class="fin-chart-zero" x1="' + padX + '" y1="' + zeroY + '" x2="' + (w - padX) + '" y2="' + zeroY + '"/>';
+    }
+    lines.forEach(function(line, idx) {
+        var pts = toPts(line.points);
+        var d = 'M' + pts.join(' L');
+        svg += '<g class="inv-chart-line-group" data-idx="' + idx + '">' +
+            '<path class="inv-chart-line-hit" d="' + d + '" fill="none" stroke="transparent" stroke-width="18" ' +
+            'stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke" ' +
+            'onclick="onInvestChartLineClick(event,' + idx + ')" ontouchstart="onInvestChartLineClick(event,' + idx + ')"/>' +
+            '<path class="inv-chart-line" d="' + d + '" fill="none" stroke="' + line.color + '" stroke-width="' + line.width + '" ' +
+            'stroke-linecap="round" stroke-linejoin="round" opacity="' + (line.opacity || 1) + '" pointer-events="none"/></g>';
+    });
+    svg += '<circle class="inv-chart-marker" r="4.5" stroke="#fff" stroke-width="1.5" hidden="hidden"/>';
+    svg += '</svg>';
+
+    var tooltip = '<div class="inv-chart-tooltip" id="invChartTooltip" hidden></div>';
+    var legend = lines.map(function(l, idx) {
+        return '<button type="button" class="inv-chart-legend-item" onclick="selectInvestChartLine(' + idx + ',null)">' +
+            '<span class="inv-chart-dot" style="background:' + l.color + '"></span>' + esc(l.label) + '</button>';
+    }).join('');
+    return '<div class="inv-chart-interactive">' +
+        '<div class="inv-chart-wrap">' + svg + tooltip + '</div>' +
+        '<div class="inv-chart-legend">' + legend + '</div></div>';
 }
 
 var FIN_CAT_ICONS = {
@@ -1743,7 +2158,10 @@ function renderCalendar(cal, selectedDate) {
 }
 
 function showEditFinance(entry) {
-    var isInvest = entry.type === 'investment';
+    if (entry && entry.type === 'investment') {
+        showInvestmentModal(entry);
+        return;
+    }
     showModal({
         title: 'ویرایش',
         cmd: 'edit_finance',
@@ -1751,7 +2169,7 @@ function showEditFinance(entry) {
         fields: insertSmsField([
             { label: 'عنوان', key: 'title', value: entry.title, validate: 'required' },
             { label: 'مبلغ', key: 'amount', value: String(entry.amount), type: 'number', validate: 'amount' },
-            { label: isInvest ? 'نوع سرمایه' : 'دسته', key: 'category', type: 'select', value: entry.category, options: isInvest ? window._investCategories : window._categories },
+            { label: 'دسته', key: 'category', type: 'select', value: entry.category, options: window._categories },
         ]),
     });
 }
@@ -1765,19 +2183,689 @@ function showEditFinanceById(id) {
     showEditFinance(entry);
 }
 
+function showAddInvestment() {
+    showInvestmentModal();
+}
+
+function investOptionLabel(item) {
+    if (!item) return '';
+    return (item.emoji ? item.emoji + ' ' : '') + (item.label || item.value || '');
+}
+
+function investMarketsForRisk(riskValue) {
+    var tax = window._investTaxonomy || {};
+    var byRisk = tax.markets_by_risk || {};
+    if (byRisk[riskValue] && byRisk[riskValue].length) return byRisk[riskValue];
+    return tax.markets || [];
+}
+
+function rebuildInvestMarketSelect(riskValue, selectedMarket) {
+    var marketSel = document.getElementById('mf-invest_market');
+    if (!marketSel) return;
+    var markets = investMarketsForRisk(riskValue);
+    if (selectedMarket && !markets.some(function(m) { return (m.value || m.label) === selectedMarket; })) {
+        var all = (window._investTaxonomy || {}).markets || [];
+        for (var i = 0; i < all.length; i++) {
+            if ((all[i].value || all[i].label) === selectedMarket) {
+                markets = markets.concat([all[i]]);
+                break;
+            }
+        }
+    }
+    marketSel.innerHTML = '';
+    markets.forEach(function(m) {
+        var o = document.createElement('option');
+        o.value = m.value || m.label;
+        o.textContent = investOptionLabel(m);
+        if (selectedMarket && selectedMarket === o.value) o.selected = true;
+        marketSel.appendChild(o);
+    });
+    if (!selectedMarket && marketSel.options.length) marketSel.selectedIndex = 0;
+    rebuildInvestAssetSelect(marketSel.value, null);
+}
+
+function rebuildInvestAssetSelect(marketValue, selectedAsset) {
+    var assetSel = document.getElementById('mf-invest_asset');
+    if (!assetSel) return;
+    var tax = window._investTaxonomy || {};
+    var assets = (tax.assets && tax.assets[marketValue]) || [];
+    assetSel.innerHTML = '';
+    if (!assets.length) {
+        var empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = '—';
+        assetSel.appendChild(empty);
+        return;
+    }
+    assets.forEach(function(a) {
+        var o = document.createElement('option');
+        o.value = a.value || a.label;
+        o.textContent = investOptionLabel(a);
+        if (selectedAsset && selectedAsset === o.value) o.selected = true;
+        assetSel.appendChild(o);
+    });
+    if (!selectedAsset && assetSel.options.length) assetSel.selectedIndex = 0;
+}
+
+function bindInvestmentCascade(initial) {
+    initial = initial || {};
+    var riskSel = document.getElementById('mf-invest_risk');
+    var marketSel = document.getElementById('mf-invest_market');
+    if (!riskSel || !marketSel) return;
+    rebuildInvestMarketSelect(riskSel.value, initial.market);
+    rebuildInvestAssetSelect(marketSel.value, initial.asset);
+    riskSel.onchange = function() {
+        rebuildInvestMarketSelect(riskSel.value, null);
+    };
+    marketSel.onchange = function() {
+        rebuildInvestAssetSelect(marketSel.value, null);
+    };
+}
+
+function bindInvestmentFieldSync() {
+    var lastTouch = null;
+    var lock = false;
+
+    function fieldEl(key) {
+        return document.getElementById('mf-' + key);
+    }
+
+    function readFieldNum(key, asFloat) {
+        var el = fieldEl(key);
+        if (!el || el.value === '') return null;
+        var n = parseFloat(normalizeNumber(el.value));
+        if (isNaN(n)) return null;
+        return asFloat ? n : Math.round(n);
+    }
+
+    function writeFieldNum(key, val, grouped) {
+        var el = fieldEl(key);
+        if (!el) return;
+        lock = true;
+        if (val == null || val === '' || !isFinite(val)) {
+            el.value = '';
+        } else if (grouped) {
+            el.value = formatNumberGrouped(String(Math.round(val)));
+        } else {
+            var text = val % 1 === 0 ? String(val) : String(parseFloat(val.toFixed(4)));
+            el.value = text;
+        }
+        lock = false;
+    }
+
+    function recompute() {
+        if (lock) return;
+        var qty = readFieldNum('quantity', true);
+        var unit = readFieldNum('unit_price', false);
+        var amt = readFieldNum('amount', false);
+        var cur = readFieldNum('current_unit_price', false);
+        var pnl = readFieldNum('pnl_percent', true);
+
+        if (lastTouch === 'quantity' || lastTouch === 'unit_price') {
+            if (qty > 0 && unit > 0) writeFieldNum('amount', qty * unit, true);
+        } else if (lastTouch === 'amount') {
+            if (qty > 0 && amt > 0) writeFieldNum('unit_price', amt / qty, true);
+            else if (unit > 0 && amt > 0) writeFieldNum('quantity', amt / unit, false);
+        }
+
+        if (unit > 0) {
+            if (lastTouch === 'current_unit_price' && cur != null) {
+                writeFieldNum('pnl_percent', ((cur - unit) / unit) * 100, false);
+            } else if (lastTouch === 'pnl_percent' && pnl != null) {
+                writeFieldNum('current_unit_price', unit * (1 + pnl / 100), true);
+            } else if (lastTouch === 'unit_price') {
+                if (cur != null) writeFieldNum('pnl_percent', ((cur - unit) / unit) * 100, false);
+                else if (pnl != null) writeFieldNum('current_unit_price', unit * (1 + pnl / 100), true);
+            }
+        }
+    }
+
+    ['quantity', 'unit_price', 'amount', 'current_unit_price', 'pnl_percent'].forEach(function(key) {
+        var el = fieldEl(key);
+        if (!el) return;
+        el.addEventListener('input', function() {
+            lastTouch = key;
+            recompute();
+        });
+    });
+
+    var dirSel = fieldEl('invest_direction');
+    function syncPnlVisibility() {
+        var sell = dirSel && dirSel.value === 'sell';
+        ['current_unit_price', 'pnl_percent'].forEach(function(key) {
+            var grp = document.getElementById('mfg-' + key);
+            if (grp) grp.style.display = sell ? 'none' : '';
+        });
+    }
+    if (dirSel) {
+        dirSel.addEventListener('change', syncPnlVisibility);
+        syncPnlVisibility();
+    }
+
+    var unit = readFieldNum('unit_price', false);
+    var cur = readFieldNum('current_unit_price', false);
+    if (unit > 0 && cur != null && !readFieldNum('pnl_percent', true)) {
+        writeFieldNum('pnl_percent', ((cur - unit) / unit) * 100, false);
+    }
+}
+
+function buildInvestmentFields(entry) {
+    entry = entry || {};
+    var meta = entry.investment_meta || {};
+    var tax = window._investTaxonomy || { risks: [], markets: [], assets: {} };
+    var riskVal = meta.risk || (tax.risks[0] && tax.risks[0].value) || '';
+    var marketsForRisk = investMarketsForRisk(riskVal);
+    var marketVal = meta.market || (marketsForRisk[0] && marketsForRisk[0].value) || '';
+    var assetVal = meta.asset || '';
+    var direction = entry.investment_direction || 'buy';
+    var pnlVal = '';
+    if (entry.unit_price > 0 && entry.current_unit_price > 0) {
+        pnlVal = String(((entry.current_unit_price - entry.unit_price) / entry.unit_price * 100).toFixed(2));
+    }
+    var now = new Date();
+    var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    var invState = (window._lastState && window._lastState.investments) || {};
+    var invFilter = invState.filter || {};
+    var defaultDate = todayIso;
+    if (invFilter.mode === 'month' && invFilter.is_current_month) {
+        defaultDate = todayIso;
+    } else if (invFilter.start) {
+        defaultDate = invFilter.start;
+    }
+    return [
+        { label: 'تاریخ', key: 'date', type: 'jalali-date', value: entry.date || defaultDate, validate: 'required' },
+        { label: 'نوع تراکنش', key: 'invest_direction', type: 'select', value: direction, validate: 'required',
+            options: [
+                { value: 'buy', label: '📥 خرید / واریز' },
+                { value: 'sell', label: '📤 فروش / برداشت' },
+            ] },
+        { label: 'عنوان (اختیاری)', key: 'title', value: entry.title || '', placeholder: 'مثلاً خرید دوره\u200cای' },
+        { label: 'سطح ریسک', key: 'invest_risk', type: 'select', value: riskVal, validate: 'required',
+            options: (tax.risks || []).map(function(r) { return { value: r.value, label: investOptionLabel(r) }; }) },
+        { label: 'نوع بازار', key: 'invest_market', type: 'select', value: marketVal, validate: 'required',
+            options: marketsForRisk.map(function(m) { return { value: m.value, label: investOptionLabel(m) }; }) },
+        { label: 'انتخاب دارایی', key: 'invest_asset', type: 'select', value: assetVal, validate: 'required', options: [] },
+        { label: 'تعداد (اختیاری)', key: 'quantity', type: 'number', value: entry.quantity != null ? String(entry.quantity) : '', placeholder: 'مثلاً 2' },
+        { label: 'قیمت خرید واحد (تومان)', key: 'unit_price', type: 'number', grouped: true,
+            value: entry.unit_price != null ? String(entry.unit_price) : '', placeholder: 'مثلاً 1500000' },
+        { label: 'قیمت فعلی واحد (تومان)', key: 'current_unit_price', type: 'number', grouped: true,
+            value: entry.current_unit_price != null ? String(entry.current_unit_price) : '', placeholder: 'قیمت الان بازار' },
+        { label: 'درصد سود/ضرر', key: 'pnl_percent', type: 'number',
+            value: pnlVal, placeholder: 'مثلاً ۱۲ یا -۵' },
+        { label: 'مبلغ (تومان)', key: 'amount', type: 'number', validate: 'amount', grouped: true,
+            value: entry.amount ? String(entry.amount) : '' },
+    ];
+}
+
+function showInvestmentModal(entry) {
+    var isEdit = !!(entry && entry.id);
+    var meta = (entry && entry.investment_meta) || {};
+    showModal({
+        title: isEdit ? 'ویرایش سرمایه\u200cگذاری' : 'ثبت سرمایه\u200cگذاری',
+        cmd: isEdit ? 'edit_finance' : 'add_finance',
+        params: isEdit ? { id: entry.id, type: 'investment' } : { type: 'investment' },
+        fields: insertSmsField(buildInvestmentFields(entry)),
+        investmentCascade: meta,
+    });
+}
+
+function showEditInvestmentById(id) {
+    var entry = (window._investEntries || []).find(function(e) { return e.id == id; });
+    if (!entry) {
+        showToast('سرمایه\u200cگذاری یافت نشد — صفحه را تازه کنید', 'error');
+        return;
+    }
+    showInvestmentModal(entry);
+}
+
+function renderInvestPeriodFilter(d) {
+    var f = d.filter || { mode: 'all', label: 'همه' };
+    var mode = f.mode || 'all';
+    var isCurrentMonth = mode === 'month' && f.is_current_month;
+    var html = '<div class="inv-period-filter">' +
+        '<div class="inv-period-chips">' +
+        '<button type="button" class="inv-period-chip' + (mode === 'all' ? ' active' : '') +
+            '" onclick="action(\'invest_set_filter\',{mode:\'all\'})">همه</button>' +
+        '<button type="button" class="inv-period-chip' + (isCurrentMonth ? ' active' : '') +
+            '" onclick="action(\'invest_set_filter\',{mode:\'month\'})">این ماه</button>' +
+        '<button type="button" class="inv-period-chip' + (mode === 'month' && !isCurrentMonth ? ' active' : '') +
+            '" onclick="showInvestMonthFilter()">📅 ماه</button>' +
+        '<button type="button" class="inv-period-chip' + (mode === 'range' ? ' active' : '') +
+            '" onclick="showInvestRangeFilter()">📆 بازه</button>' +
+        '</div>';
+    if (mode !== 'all' && f.label) {
+        html += '<div class="inv-period-label">' + esc(f.label) + '</div>';
+    }
+    return html + '</div>';
+}
+
+function showInvestMonthFilter() {
+    var d = (window._lastState && window._lastState.investments) || {};
+    var f = d.filter || {};
+    var now = new Date();
+    var cur = toJalaali(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    var yearVal = f.year || cur.jy;
+    var monthVal = f.month || cur.jm;
+    var years = [];
+    for (var y = cur.jy - 5; y <= cur.jy + 1; y++) years.push(y);
+    var monthOpts = [];
+    for (var m = 1; m <= 12; m++) {
+        monthOpts.push({ value: String(m), label: JALALI_MONTH_NAMES[m] });
+    }
+    showModal({
+        title: 'فیلتر بر اساس ماه',
+        cmd: 'invest_set_filter',
+        params: { mode: 'month' },
+        fields: [
+            { label: 'سال', key: 'year', type: 'select', validate: 'required', value: String(yearVal),
+                options: years.map(function(y) { return { value: String(y), label: pd(y) }; }) },
+            { label: 'ماه', key: 'month', type: 'select', validate: 'required', value: String(monthVal),
+                options: monthOpts },
+        ],
+    });
+}
+
+function showInvestRangeFilter() {
+    var d = (window._lastState && window._lastState.investments) || {};
+    var f = d.filter || {};
+    var now = new Date();
+    var todayIso = isoFromGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    showModal({
+        title: 'فیلتر بازه زمانی',
+        cmd: 'invest_set_filter',
+        params: { mode: 'range' },
+        fields: [
+            { label: 'از تاریخ', key: 'start', type: 'jalali-date', validate: 'required',
+                value: f.start || todayIso },
+            { label: 'تا تاریخ', key: 'end', type: 'jalali-date', validate: 'required',
+                value: f.end || todayIso },
+        ],
+    });
+}
+
+window._investFilter = window._investFilter || { risk: '', market: '', asset: '' };
+
+function setInvestFilter(key, value) {
+    if (!window._investFilter) window._investFilter = { risk: '', market: '', asset: '' };
+    window._investFilter[key] = window._investFilter[key] === value ? '' : value;
+    if (window._lastState) renderApp(window._lastState);
+}
+
+function filterInvestEntries(entries) {
+    var f = window._investFilter || {};
+    return (entries || []).filter(function(e) {
+        var m = e.investment_meta || {};
+        if (f.risk && m.risk !== f.risk) return false;
+        if (f.market && m.market !== f.market) return false;
+        if (f.asset && m.asset !== f.asset) return false;
+        return true;
+    });
+}
+
+function renderInvestFilterChips(scope) {
+    var tax = window._investTaxonomy || { risks: [], markets: [], assets: {} };
+    var f = window._investFilter || {};
+    var scopeCls = scope ? ' inv-filter-row-' + scope : '';
+    var html = '<div class="inv-filter-row' + scopeCls + '">';
+    (tax.risks || []).forEach(function(r) {
+        var val = r.value || r.label;
+        var active = f.risk === val ? ' active' : '';
+        html += '<button type="button" class="inv-filter-chip' + active + '" onclick="setInvestFilter(\'risk\',\'' + escJs(val) + '\')">' + esc(investOptionLabel(r)) + '</button>';
+    });
+    html += '<span class="inv-filter-sep"></span>';
+    (tax.markets || []).forEach(function(m) {
+        var val = m.value || m.label;
+        var active = f.market === val ? ' active' : '';
+        html += '<button type="button" class="inv-filter-chip' + active + '" onclick="setInvestFilter(\'market\',\'' + escJs(val) + '\')">' + esc(investOptionLabel(m)) + '</button>';
+    });
+    var assetSet = {};
+    (window._investEntries || []).forEach(function(e) {
+        var m = e.investment_meta || {};
+        if (m.asset) assetSet[m.asset] = m.asset_emoji || '💎';
+    });
+    var assetKeys = Object.keys(assetSet);
+    if (assetKeys.length) {
+        html += '<span class="inv-filter-sep"></span>';
+        assetKeys.sort().forEach(function(asset) {
+            var active = f.asset === asset ? ' active' : '';
+            html += '<button type="button" class="inv-filter-chip' + active + '" onclick="setInvestFilter(\'asset\',\'' + escJs(asset) + '\')">' +
+                esc((assetSet[asset] || '💎') + ' ' + asset) + '</button>';
+        });
+    }
+    if (f.risk || f.market || f.asset) {
+        html += '<button type="button" class="inv-filter-clear" onclick="window._investFilter={risk:\'\',market:\'\',asset:\'\'};renderApp(window._lastState)">پاک کردن</button>';
+    }
+    html += '</div>';
+    return html;
+}
+
+function showSetInvestmentGoal(currentAmount) {
+    showModal({
+        title: 'هدف واریز ماهانه',
+        cmd: 'set_investment_goal',
+        fields: [
+            { label: 'حداقل واریز ماه (تومان)', key: 'amount', type: 'number', validate: 'budget',
+                value: currentAmount !== undefined && currentAmount !== null ? String(currentAmount) : '', placeholder: '۰' },
+        ],
+    });
+}
+
+window._investTab = window._investTab || 'summary';
+
+function setInvestTab(tab) {
+    window._investTab = tab;
+    if (window._lastState) renderApp(window._lastState);
+}
+
+function renderInvestTabs(active) {
+    active = active || window._investTab || 'summary';
+    return '<div class="inv-tabs">' +
+        '<button type="button" class="inv-tab' + (active === 'summary' ? ' active' : '') +
+            '" onclick="setInvestTab(\'summary\')">خلاصه</button>' +
+        '<button type="button" class="inv-tab' + (active === 'transactions' ? ' active' : '') +
+            '" onclick="setInvestTab(\'transactions\')">تراکنش\u200cها</button>' +
+        '</div>';
+}
+
+function showUpdateAssetPrice(market, asset, currentPrice) {
+    showModal({
+        title: 'به\u200cروزرسانی قیمت — ' + asset,
+        cmd: 'set_investment_asset_price',
+        params: { market: market, asset: asset },
+        fields: [
+            { label: 'قیمت فعلی واحد (تومان)', key: 'price', type: 'number', validate: 'amount', grouped: true,
+                value: currentPrice ? String(currentPrice) : '', placeholder: 'قیمت بازار' },
+        ],
+    });
+}
+
+function renderInvestPositions(positions) {
+    positions = positions || [];
+    if (!positions.length) {
+        return '<div class="fin-card inv-card fin-card-animate" style="--fin-card-delay:1">' +
+            '<div class="fin-card-head">' + finCardTitle('investment', '💼', 'دارایی\u200cهای من') + '</div>' +
+            finEmptyState('💼', 'با ثبت خرید، موقعیت دارایی اینجا نمایش داده می\u200cشود', '+ ثبت سرمایه\u200cگذاری', 'showAddInvestment()', 'investment') +
+            '</div>';
+    }
+    var html = '<div class="fin-card inv-card fin-card-animate" style="--fin-card-delay:1">' +
+        '<div class="fin-card-head">' + finCardTitle('investment', '💼', 'دارایی\u200cهای من') +
+        '<span class="fin-card-badge">' + pd(positions.length) + '</span></div>' +
+        '<div class="inv-pos-list">';
+    positions.forEach(function(p, idx) {
+        var pnlLine = '';
+        if (p.unrealized_pnl_fmt && p.has_market_price) {
+            pnlLine = '<div class="inv-pos-pnl ' + (p.pnl_positive ? 'profit' : 'loss') + '">' +
+                esc(p.unrealized_pnl_fmt) +
+                (p.unrealized_pnl_pct_fmt ? ' (' + esc(p.unrealized_pnl_pct_fmt) + ')' : '') +
+                '</div>';
+        } else if (p.qty_display || p.quantity_fmt) {
+            pnlLine = '<div class="inv-pos-qty">' + esc(p.qty_display || p.quantity_fmt) + '</div>';
+        }
+        html += '<div class="inv-pos-item" style="--fin-stagger:' + idx + '">' +
+            '<div class="inv-pos-icon">' + finEmoji(p.asset_emoji || '💎', 'sm') + '</div>' +
+            '<div class="inv-pos-body">' +
+            '<div class="inv-pos-title">' + esc(p.display || p.asset) + '</div>' +
+            pnlLine +
+            '<div class="inv-pos-cost">بهای تمام\u200cشده: ' + esc(p.cost_basis_fmt) + '</div>' +
+            '</div>' +
+            '<div class="inv-pos-right">' +
+            '<div class="inv-pos-val">' + esc(p.estimated_value_fmt) + '</div>' +
+            '<button type="button" class="inv-pos-price-btn" onclick="showUpdateAssetPrice(\'' +
+                escJs(p.market) + '\',\'' + escJs(p.asset) + '\',' + (p.current_unit_price || 0) + ')">قیمت</button>' +
+            '</div></div>';
+    });
+    return html + '</div></div>';
+}
+
+function renderInvestActions(d) {
+    return '<div class="inv-actions">' +
+        '<button type="button" class="inv-add-btn" onclick="showAddInvestment()">' +
+        ico('plus', 'ico') + '<span>سرمایه\u200cگذاری جدید</span></button>' +
+        '<button type="button" class="inv-action-chip" onclick="showSetInvestmentGoal(' + (d.goal || 0) + ')">🎯 هدف ماه</button>' +
+        '<button type="button" class="inv-action-chip" onclick="showAllocationTargets()">📊 تخصیص</button>' +
+        '<button type="button" class="inv-action-chip" onclick="action(\'sync_investment_prices\')">🔄 قیمت API</button>' +
+        '<button type="button" class="inv-action-chip" onclick="showAddInvestmentAsset()">+ دارایی</button>' +
+        '<button type="button" class="inv-action-chip" onclick="showManageCustomAssets()">⚙️ دارایی\u200cها</button>' +
+        '<button type="button" class="inv-action-chip" onclick="exportInvestmentsCsv()">⬇ CSV</button>' +
+        '</div>';
+}
+
+function showAddInvestmentAsset() {
+    var tax = window._investTaxonomy || { markets: [] };
+    var markets = tax.markets || [];
+    showModal({
+        title: 'افزودن دارایی سفارشی',
+        cmd: 'add_investment_asset',
+        fields: [
+            { label: 'نوع بازار', key: 'market', type: 'select', validate: 'required',
+                options: markets.map(function(m) { return { value: m.value, label: investOptionLabel(m) }; }) },
+            { label: 'نام دارایی', key: 'name', validate: 'required', placeholder: 'مثلاً فملی' },
+            { label: 'ایموجی (اختیاری)', key: 'emoji', placeholder: '💎' },
+        ],
+    });
+}
+
+function showManageCustomAssets() {
+    var assets = (window._lastState && window._lastState.investments && window._lastState.investments.custom_assets) || [];
+    if (!assets.length) {
+        showToast('دارایی سفارشی ثبت نشده', 'error');
+        return;
+    }
+    var html = '<div class="inv-custom-list">';
+    assets.forEach(function(a) {
+        html += '<div class="inv-custom-item">' +
+            '<div class="inv-custom-info">' +
+            finEmoji(a.emoji || '💎', 'sm') +
+            '<span class="inv-custom-name">' + esc(a.label || a.value) + '</span>' +
+            '<span class="inv-custom-market">' + esc(a.market) + '</span>' +
+            '</div>' +
+            '<div class="inv-custom-actions">' +
+            '<button type="button" class="inv-custom-btn" onclick="showEditCustomAsset(\'' +
+                escJs(a.market) + '\',\'' + escJs(a.value) + '\',\'' + escJs(a.label || a.value) + '\',\'' +
+                escJs(a.emoji || '💎') + '\')">ویرایش</button>' +
+            '<button type="button" class="inv-custom-btn danger" onclick="confirmDeleteCustomAsset(\'' +
+                escJs(a.market) + '\',\'' + escJs(a.value) + '\',\'' + escJs(a.label || a.value) + '\')">حذف</button>' +
+            '</div></div>';
+    });
+    html += '</div>';
+    showModal({
+        title: 'دارایی\u200cهای سفارشی',
+        html: html,
+        hideSubmit: true,
+    });
+}
+
+function showEditCustomAsset(market, value, label, emoji) {
+    closeModal();
+    showModal({
+        title: 'ویرایش دارایی — ' + label,
+        cmd: 'edit_investment_asset',
+        params: { market: market, value: value },
+        fields: [
+            { label: 'نام نمایشی', key: 'label', validate: 'required', value: label || value },
+            { label: 'شناسه (انگلیسی/فارسی)', key: 'new_value', value: value, placeholder: value },
+            { label: 'ایموجی', key: 'emoji', value: emoji || '💎' },
+        ],
+    });
+}
+
+function confirmDeleteCustomAsset(market, value, label) {
+    closeModal();
+    if (!confirm('حذف دارایی «' + label + '»؟\n(فقط اگر در تراکنش استفاده نشده باشد)')) return;
+    action('delete_investment_asset', { market: market, value: value });
+}
+
+function showAllocationTargets() {
+    var inv = (window._lastState && window._lastState.investments) || {};
+    var positions = inv.positions || [];
+    var allocation = inv.allocation || [];
+    var targetsTotal = inv.allocation_targets_total || 0;
+    var html = '';
+    if (allocation.length) {
+        html += '<div class="inv-alloc-list">';
+        allocation.forEach(function(a) {
+            if (!a.target_pct) return;
+            var driftCls = a.over_target ? ' over' : (a.under_target ? ' under' : '');
+            html += '<div class="inv-alloc-item' + driftCls + '">' +
+                '<div class="inv-alloc-head">' +
+                finEmoji(a.asset_emoji || '💎', 'sm') +
+                '<span class="inv-alloc-name">' + esc(a.asset) + '</span>' +
+                '<span class="inv-alloc-pcts">' + pd(a.actual_pct) + '٪ / ' + pd(a.target_pct) + '٪</span>' +
+                '</div>' +
+                '<div class="inv-alloc-bar">' +
+                '<div class="inv-alloc-fill actual" style="width:' + Math.min(a.actual_pct, 100) + '%"></div>' +
+                '<div class="inv-alloc-marker" style="left:' + Math.min(a.target_pct, 100) + '%"></div>' +
+                '</div>' +
+                (a.drift_fmt ? '<div class="inv-alloc-drift">انحراف: ' + esc(a.drift_fmt) + '</div>' : '') +
+                '<button type="button" class="inv-alloc-edit" onclick="showSetAllocationTarget(\'' +
+                    escJs(a.market) + '\',\'' + escJs(a.asset) + '\',' + (a.target_pct || 0) + ')">ویرایش</button>' +
+                '</div>';
+        });
+        html += '</div>';
+    }
+    if (targetsTotal > 100) {
+        html += '<div class="inv-alloc-warn">⚠️ جمع اهداف ' + pd(targetsTotal) + '٪ است — باید حداکثر ۱۰۰٪ باشد</div>';
+    }
+    html += '<button type="button" class="inv-alloc-add" onclick="showSetAllocationTarget()">+ هدف تخصیص جدید</button>';
+    showModal({
+        title: 'اهداف تخصیص پرتفوی',
+        html: html,
+        hideSubmit: true,
+    });
+}
+
+function showSetAllocationTarget(market, asset, currentPct) {
+    closeModal();
+    var inv = (window._lastState && window._lastState.investments) || {};
+    var positions = inv.positions || [];
+    var tax = window._investTaxonomy || { assets: {} };
+    var options = [];
+    positions.forEach(function(p) {
+        if (!p.market || !p.asset) return;
+        options.push({ value: p.market + '|' + p.asset, label: (p.display || p.asset) + ' (' + p.market + ')' });
+    });
+    if (!options.length) {
+        Object.keys(tax.assets || {}).forEach(function(mkt) {
+            (tax.assets[mkt] || []).forEach(function(a) {
+                options.push({ value: mkt + '|' + a.value, label: a.label + ' (' + mkt + ')' });
+            });
+        });
+    }
+    var fields = [
+        { label: 'هدف تخصیص (٪)', key: 'pct', type: 'number', validate: 'required',
+            value: currentPct !== undefined && currentPct !== null ? String(currentPct) : '', placeholder: 'مثلاً ۳۰' },
+    ];
+    if (!market || !asset) {
+        fields.unshift({ label: 'دارایی', key: 'asset_key', type: 'select', validate: 'required', options: options });
+    }
+    showModal({
+        title: market && asset ? 'هدف تخصیص — ' + asset : 'هدف تخصیص جدید',
+        cmd: 'set_investment_allocation_target',
+        params: market && asset ? { market: market, asset: asset } : {},
+        fields: fields,
+    });
+}
+
+function renderAllocationCard(allocation, totals) {
+    allocation = (allocation || []).filter(function(a) { return a.target_pct > 0; });
+    if (!allocation.length) return '';
+    var html = '<div class="fin-card inv-card fin-card-animate" style="--fin-card-delay:2">' +
+        '<div class="fin-card-head">' + finCardTitle('investment', '🎯', 'هدف تخصیص') +
+        '<button type="button" class="inv-card-link" onclick="showAllocationTargets()">مدیریت</button></div>' +
+        '<div class="inv-alloc-list compact">';
+    allocation.slice(0, 5).forEach(function(a) {
+        var driftCls = a.over_target ? ' over' : (a.under_target ? ' under' : '');
+        html += '<div class="inv-alloc-item' + driftCls + '">' +
+            '<div class="inv-alloc-head">' +
+            finEmoji(a.asset_emoji || '💎', 'sm') +
+            '<span class="inv-alloc-name">' + esc(a.asset) + '</span>' +
+            '<span class="inv-alloc-pcts">' + pd(a.actual_pct) + '٪ ← ' + pd(a.target_pct) + '٪</span>' +
+            '</div>' +
+            '<div class="inv-alloc-bar">' +
+            '<div class="inv-alloc-fill actual" style="width:' + Math.min(a.actual_pct, 100) + '%"></div>' +
+            '<div class="inv-alloc-marker" style="left:' + Math.min(a.target_pct, 100) + '%"></div>' +
+            '</div></div>';
+    });
+    return html + '</div></div>';
+}
+
+function exportInvestmentsCsv() {
+    var entries = filterInvestEntries(window._investEntries || []);
+    if (!entries.length) {
+        showToast('رکوردی برای خروجی وجود ندارد', 'error');
+        return;
+    }
+    var rows = [['تاریخ', 'عنوان', 'نوع', 'ریسک', 'بازار', 'دارایی', 'تعداد', 'قیمت خرید', 'قیمت فعلی', 'سود/ضرر', 'مبلغ'].join(',')];
+    entries.forEach(function(e) {
+        var m = e.investment_meta || {};
+        rows.push([
+            e.date_label || e.date || '',
+            e.title || '',
+            e.is_sell ? 'فروش' : 'خرید',
+            m.risk || '',
+            m.market || '',
+            m.asset || '',
+            e.quantity != null ? e.quantity : '',
+            e.unit_price != null ? e.unit_price : '',
+            e.current_unit_price != null ? e.current_unit_price : '',
+            e.pnl_fmt || '',
+            e.amount || '',
+        ].map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','));
+    });
+    var blob = new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'investments.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('فایل CSV دانلود شد');
+}
+
+function findInvestAssetEmoji(assetName) {
+    var tax = window._investTaxonomy || {};
+    var markets = tax.assets || {};
+    var key;
+    for (key in markets) {
+        if (!Object.prototype.hasOwnProperty.call(markets, key)) continue;
+        var list = markets[key] || [];
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].value === assetName || list[i].label === assetName) {
+                return list[i].emoji || '💎';
+            }
+        }
+    }
+    return '💎';
+}
+
+function investEntryDisplay(e) {
+    if (e.category_display) return e.category_display;
+    if (e.investment_meta && e.investment_meta.display) return e.investment_meta.display;
+    return e.category || '—';
+}
+
+function investEntryIcon(e) {
+    var m = e.investment_meta || {};
+    return m.asset_emoji || findInvestAssetEmoji(e.category) || '💎';
+}
+
 function showAddFinance(type) {
+    if (type === 'investment') {
+        showInvestmentModal();
+        return;
+    }
     var titles = { income: 'افزودن درآمد', expense: 'افزودن هزینه', investment: 'ثبت سرمایه\u200cگذاری' };
-    var isInvest = type === 'investment';
-    var cats = isInvest ? (window._investCategories || []) : (window._categories || []);
-    var defaultCat = isInvest ? (cats[0] || 'سایر') : 'عمومی';
+    var cats = window._categories || [];
     showModal({
         title: titles[type] || 'ثبت مالی',
         cmd: 'add_finance',
         params: { type: type },
         fields: insertSmsField([
-            { label: 'عنوان', key: 'title', validate: 'required', placeholder: isInvest ? 'مثلاً خرید سهام' : '' },
+            { label: 'عنوان', key: 'title', validate: 'required', placeholder: '' },
             { label: 'مبلغ (تومان)', key: 'amount', type: 'number', validate: 'amount' },
-            { label: isInvest ? 'نوع سرمایه' : 'دسته', key: 'category', type: 'select', value: defaultCat, options: cats },
+            { label: 'دسته', key: 'category', type: 'select', value: 'عمومی', options: cats },
         ]),
     });
 }
@@ -2267,7 +3355,7 @@ function renderFinanceScreen(f) {
         '<div class="fin-hero-stat income">' + finEmoji('📈', 'sm') + '<div><span class="fin-stat-lbl">درآمد</span><span class="fin-stat-val">' + esc(t.income_fmt) + '</span></div></div>' +
         '<div class="fin-hero-stat expense">' + finEmoji('💸', 'sm') + '<div><span class="fin-stat-lbl">هزینه</span><span class="fin-stat-val">' + esc(t.expense_fmt) + '</span></div></div>' +
         '</div>' +
-        (t.investment > 0 ? '<div class="fin-hero-invest">' + finEmoji('💎', 'sm') + ' سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + ' <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
+        (t.investment > 0 ? '<div class="fin-hero-invest"><a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'investments\'})">' + finEmoji('💎', 'sm') + ' سرمایه\u200cگذاری: ' + esc(t.investment_fmt) + '</a> <span class="fin-hero-invest-note">(جزء هزینه نیست)</span></div>' : '') +
         '</div></div></div></div></div>';
 
     html += '<div class="fin-body">';
@@ -2275,7 +3363,7 @@ function renderFinanceScreen(f) {
     html += '<div class="fin-actions">' +
         '<button class="fin-action-btn income" onclick="showAddFinance(\'income\')"><span class="fin-action-glow"></span><span class="fin-action-icon">↑</span><span class="fin-action-lbl">درآمد</span></button>' +
         '<button class="fin-action-btn expense" onclick="showAddFinance(\'expense\')"><span class="fin-action-glow"></span><span class="fin-action-icon">↓</span><span class="fin-action-lbl">هزینه</span></button>' +
-        '<button class="fin-action-btn invest" onclick="showAddFinance(\'investment\')"><span class="fin-action-glow"></span><span class="fin-action-icon">◆</span><span class="fin-action-lbl">سرمایه</span></button>' +
+        '<button class="fin-action-btn invest" onclick="action(\'navigate\',{screen:\'investments\'})"><span class="fin-action-glow"></span><span class="fin-action-icon">◆</span><span class="fin-action-lbl">سرمایه</span></button>' +
         '<button class="fin-action-btn budget" onclick="showAddBudget()"><span class="fin-action-glow"></span><span class="fin-action-icon">◎</span><span class="fin-action-lbl">بودجه</span></button>' +
         '<button class="fin-action-btn inst" onclick="action(\'navigate\',{screen:\'installments\'})"><span class="fin-action-glow"></span><span class="fin-action-icon">📋</span><span class="fin-action-lbl">اقساط</span></button>' +
         '</div>';
@@ -2323,7 +3411,11 @@ function renderFinanceScreen(f) {
                     '<div class="fin-txn-icon">' + info.arrow + '</div>' +
                     '<div class="fin-txn-body">' +
                     '<div class="fin-txn-title">' + esc(e.title) + '</div>' +
-                    '<div class="fin-txn-meta"><span class="fin-txn-cat">' + finCatIconHtml(e.category) + ' ' + esc(e.category) + '</span>' +
+                    '<div class="fin-txn-meta"><span class="fin-txn-cat">' +
+                    (e.type === 'investment'
+                        ? finIcon('investment', investEntryIcon(e)) + ' ' + esc(investEntryDisplay(e))
+                        : finCatIconHtml(e.category) + ' ' + esc(e.category)) +
+                    '</span>' +
                     (e.type === 'investment' ? ' <span class="fin-txn-tag">سرمایه\u200cگذاری</span>' : '') +
                     '</div></div>' +
                     '<div class="fin-txn-right">' +
@@ -2399,6 +3491,169 @@ function renderFinanceScreen(f) {
         });
         html += '</div></div>';
     }
+
+    return html + '</div></div>';
+}
+
+function renderInvestmentsScreen(d) {
+    var entries = d.entries || [];
+    window._investEntries = entries;
+    var filtered = filterInvestEntries(entries);
+    var f = d.filter || {};
+    var periodLbl = f.period_stat_label || 'در بازه';
+    var t = d.totals || {
+        balance: 0, balance_fmt: '۰', period_investment: 0, period_investment_fmt: '۰',
+        period_buys: 0, period_buys_fmt: '۰',
+        month_investment: 0, month_investment_fmt: '۰',
+        net_invested: 0, net_invested_fmt: '۰',
+        portfolio_total: 0, portfolio_total_fmt: '۰',
+        estimated_value: 0, estimated_value_fmt: '۰', has_market_values: false,
+    };
+    var tab = window._investTab || 'summary';
+    var netFmt = t.net_invested_fmt || t.portfolio_total_fmt || '۰';
+    var ringVal = t.has_market_values ? (t.estimated_value_fmt || netFmt) : netFmt;
+    var ringLbl = t.has_market_values ? 'ارزش تخمینی' : 'سرمایه خالص';
+    var periodFmt = t.period_buys_fmt || t.period_investment_fmt || t.month_investment_fmt || '۰';
+    var balCls = t.balance >= 0 ? 'positive' : 'negative';
+    var byCat = d.by_category || [];
+    var portfolioByCat = d.portfolio_by_category || [];
+    var portfolioByRisk = d.portfolio_by_risk || [];
+    var positions = d.positions || [];
+    var chart = buildInvestmentChart(d);
+    var chartTitle = (f.mode === 'all' || !f.start) ? 'روند کل پرتفوی' : 'روند دوره';
+
+    var html = '<div class="inv-page">' +
+        '<div class="date-header inv-header">' +
+        '<div class="inv-header-orbs" aria-hidden="true">' +
+        '<div class="inv-orb inv-orb-1"></div>' +
+        '<div class="inv-orb inv-orb-2"></div>' +
+        '<div class="inv-orb inv-orb-3"></div></div>' +
+        '<div class="inv-header-brand">' +
+        '<div class="inv-header-top">' +
+        '<div class="inv-brand-mark">' + finIconSvg('investment', 'invest') + '</div>' +
+        '<div class="inv-header-titles">' +
+        '<span class="inv-header-title">سرمایه\u200cگذاری</span>' +
+        '<span class="inv-header-sub">مدیریت پرتفوی و دارایی\u200cها</span>' +
+        '</div>' +
+        '</div>' +
+        '<div class="inv-hero-panel">' +
+        '<div class="inv-hero-main">' +
+        '<div class="inv-portfolio-ring">' +
+        '<div class="inv-ring-glow"></div>' +
+        '<div class="inv-ring-inner">' +
+        '<span class="inv-ring-val">' + esc(ringVal) + '</span>' +
+        '<span class="inv-ring-lbl">' + esc(ringLbl) + '</span></div></div>' +
+        '<div class="inv-hero-side">' +
+        '<div class="inv-hero-label">موجودی قابل استفاده</div>' +
+        '<div class="inv-hero-balance ' + balCls + '">' + esc(t.balance_fmt) + '<span class="inv-hero-unit">تومان</span></div>' +
+        '<div class="inv-hero-stats">' +
+        (t.has_market_values
+            ? '<div class="inv-hero-stat net"><span class="inv-stat-lbl">سرمایه خالص</span><span class="inv-stat-val">' + esc(netFmt) + '</span></div>'
+            : '') +
+        (t.unrealized_pnl_fmt
+            ? '<div class="inv-hero-stat pnl ' + (t.unrealized_pnl_positive ? 'profit' : 'loss') + '"><span class="inv-stat-lbl">سود/ضرر</span><span class="inv-stat-val">' +
+                (t.unrealized_pnl_positive ? '+' : '') + esc(t.unrealized_pnl_fmt) + '</span></div>'
+            : '') +
+        '<div class="inv-hero-stat month">' + finEmoji('📅', 'sm') + '<div><span class="inv-stat-lbl">واریز ' + esc(periodLbl) + '</span><span class="inv-stat-val">' + esc(periodFmt) + '</span></div></div>' +
+        '<div class="inv-hero-stat count">' + finEmoji('💎', 'sm') + '<div><span class="inv-stat-lbl">دارایی</span><span class="inv-stat-val">' + pd(positions.length) + '</span></div></div>' +
+        '</div>';
+
+    if (d.goal > 0 && f.mode === 'month') {
+        var goalPct = Math.min(d.goal_pct || 0, 100);
+        var goalBarCls = d.over_goal ? ' inv-goal-over' : '';
+        html += '<div class="inv-goal-wrap' + goalBarCls + '">' +
+            '<div class="inv-goal-top"><span>هدف واریز: ' + esc(d.goal_fmt) + '</span><span>' + pd(goalPct) + '٪</span></div>' +
+            '<div class="inv-goal-bar"><div class="inv-goal-fill" style="width:' + goalPct + '%"></div></div>' +
+            '</div>';
+    }
+
+    html += '<div class="inv-hero-note">خرید از موجودی کسر می\u200cشود — فروش/برداشت به موجودی برمی\u200cگردد</div>' +
+        '</div></div></div></div></div>';
+
+    html += '<div class="inv-body">';
+    html += renderInvestPeriodFilter(d);
+    html += renderInvestTabs(tab);
+    html += renderInvestActions(d);
+
+    if (tab === 'summary') {
+        html += renderInvestPositions(positions);
+        html += renderAllocationCard(d.allocation || [], t);
+
+        html += '<div class="fin-card inv-card inv-chart-card fin-card-animate" style="--fin-card-delay:2">' +
+            '<div class="fin-card-head">' + finCardTitle('investment', '📈', chartTitle) + '</div>' +
+            renderInvestChartModeChips() +
+            (chart.has_data
+                ? investmentTrendChartSvg(chart, 320, 130)
+                : finEmptyState('📈', entries.length ? 'با این فیلتر داده\u200cای برای نمودار نیست' : 'با ثبت سرمایه\u200cگذاری نمودار نمایش داده می\u200cشود', null, null, 'investment')) +
+            '</div>';
+
+        if (portfolioByRisk.length) {
+            html += '<div class="fin-card inv-card fin-card-animate" style="--fin-card-delay:3">' +
+                '<div class="fin-card-head">' + finCardTitle('investment', '⚖️', 'تخصیص بر اساس ریسک') + '</div>' +
+                invCategoryDonut(portfolioByRisk, t.has_market_values ? t.estimated_value_fmt : netFmt, 'بر اساس ریسک') +
+                '</div>';
+        } else if (portfolioByCat.length) {
+            html += '<div class="fin-card inv-card fin-card-animate" style="--fin-card-delay:3">' +
+                '<div class="fin-card-head">' + finCardTitle('investment', '💼', 'تخصیص پرتفوی') + '</div>' +
+                invCategoryDonut(portfolioByCat, t.has_market_values ? t.estimated_value_fmt : netFmt, 'کل پرتفوی') +
+                '</div>';
+        }
+    } else {
+        html += '<div class="fin-card inv-card fin-card-animate" style="--fin-card-delay:1">' +
+            '<div class="fin-card-head">' + finCardTitle('investment', '📋', 'سرمایه\u200cگذاری\u200cها') +
+            '<span class="fin-card-badge">' + pd(filtered.length) + '</span></div>' +
+            renderInvestFilterChips('list');
+
+        if (!filtered.length) {
+            html += finEmptyState('💎', entries.length ? 'با این فیلتر موردی نیست' : 'هنوز سرمایه\u200cگذاری ثبت نشده', '+ ثبت سرمایه\u200cگذاری', 'showAddInvestment()', 'investment');
+        } else {
+            html += '<div class="fin-txn-list">';
+            var lastDate = '';
+            filtered.forEach(function(e, idx) {
+                if (e.date_label !== lastDate) {
+                    lastDate = e.date_label;
+                    html += '<div class="fin-date-chip">' + esc(e.date_label) + '</div>';
+                }
+                var sellCls = e.is_sell ? ' sell' : '';
+                var dirTag = e.is_sell
+                    ? ' <span class="fin-txn-tag inv-tag-sell">برداشت</span>'
+                    : ' <span class="fin-txn-tag">خرید</span>';
+                var qtyLine = e.qty_display
+                    ? '<div class="fin-txn-qty">' + esc(e.qty_display) + '</div>' : '';
+                var pnlLine = e.pnl_fmt && !e.is_sell
+                    ? '<div class="fin-txn-qty inv-pnl ' + (e.pnl_positive ? 'profit' : 'loss') + '">' +
+                        esc(e.pnl_fmt) +
+                        (e.current_unit_price_fmt ? ' · ' + esc(e.current_unit_price_fmt) : '') +
+                        '</div>' : '';
+                html += '<div class="fin-txn investment' + sellCls + '" style="--fin-stagger:' + idx + '">' +
+                    '<div class="fin-txn-icon">' + investEntryIcon(e) + '</div>' +
+                    '<div class="fin-txn-body">' +
+                    '<div class="fin-txn-title">' + esc(e.title) + '</div>' +
+                    '<div class="fin-txn-meta"><span class="fin-txn-cat">' + esc(investEntryDisplay(e)) + '</span>' + dirTag + '</div>' +
+                    qtyLine + pnlLine +
+                    '</div>' +
+                    '<div class="fin-txn-right">' +
+                    '<div class="fin-txn-amount">' + (e.is_sell ? '+' : '') + esc(e.amount_fmt) + '</div>' +
+                    '<div class="fin-txn-btns">' +
+                    '<button class="fin-txn-btn" onclick="showEditInvestmentById(' + e.id + ')">✎</button>' +
+                    '<button class="fin-txn-btn del" onclick="action(\'delete_finance\',{id:' + e.id + '})">×</button>' +
+                    '</div></div></div>';
+            });
+            html += '</div>';
+        }
+        html += '</div>';
+
+        if (byCat.length && (f.mode !== 'all')) {
+            html += '<div class="fin-card inv-card fin-card-animate" style="--fin-card-delay:2">' +
+                '<div class="fin-card-head">' + finCardTitle('investment', '💎', 'توزیع بازه') + '</div>' +
+                invCategoryDonut(byCat, periodFmt, periodLbl) +
+                '</div>';
+        }
+    }
+
+    html += '<div class="inv-finance-link">' +
+        '<a href="javascript:void(0)" onclick="action(\'navigate\',{screen:\'finance\'})">' +
+        finEmoji('💰', 'sm') + ' مشاهده بخش مالی</a></div>';
 
     return html + '</div></div>';
 }
@@ -3654,6 +4909,7 @@ function renderNav(screen) {
     return item('home', 'امروز', 'home') +
         item('tracking', 'ردیابی', 'tracking') +
         item('finance', 'مالی', 'wallet') +
+        item('investments', 'سرمایه', 'invest') +
         item('projects', 'پروژه\u200cها', 'folder') +
         item('analytics', 'آمار', 'chart');
 }
@@ -3677,6 +4933,7 @@ function renderApp(state) {
 
     window._categories = state.finance_categories || [];
     window._investCategories = state.investment_categories || [];
+    window._investTaxonomy = state.investment_taxonomy || window._investTaxonomy || { risks: [], markets: [], assets: {} };
     window._moodEmojis = state.mood_emojis || [];
     window._dateCategories = state.important_dates
         ? (state.important_dates.categories || []) : window._dateCategories || [];
@@ -3692,6 +4949,7 @@ function renderApp(state) {
     var html = '';
     if (state.screen === 'home' && state.home) html = renderHome(state.home);
     else if (state.screen === 'finance' && state.finance_screen) html = renderFinanceScreen(state.finance_screen);
+    else if (state.screen === 'investments' && state.investments) html = renderInvestmentsScreen(state.investments);
     else if (state.screen === 'installments' && state.installments) html = renderInstallments(state.installments);
     else if (state.screen === 'analytics' && state.analytics) html = renderAnalytics(state.analytics);
     else if (state.screen === 'settings' && state.settings) html = renderSettings(state.settings);
@@ -3812,6 +5070,7 @@ function renderApp(state) {
     document.body.classList.toggle(
         'has-bottom-nav',
         state.screen === 'home' || state.screen === 'finance'
+            || state.screen === 'investments'
             || state.screen === 'analytics' || state.screen === 'projects'
             || state.screen === 'tracking'
     );
@@ -3822,7 +5081,7 @@ function renderApp(state) {
     }
 
     var nav = document.getElementById('bottom-nav');
-    if (nav && (state.screen === 'home' || state.screen === 'finance' || state.screen === 'analytics' || state.screen === 'projects' || state.screen === 'tracking')) {
+    if (nav && (state.screen === 'home' || state.screen === 'finance' || state.screen === 'investments' || state.screen === 'analytics' || state.screen === 'projects' || state.screen === 'tracking')) {
         nav.innerHTML = renderNav(state.screen);
         nav.style.display = 'flex';
     } else if (nav) {

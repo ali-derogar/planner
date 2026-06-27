@@ -9,6 +9,13 @@ import toga
 
 from dailyplanner.database import Database
 from dailyplanner.finance_sms import normalize_digits, resolve_amount, _strip_group_separators
+from dailyplanner.investments import (
+    decode_investment_category,
+    encode_investment_category,
+    is_valid_risk_market,
+    validate_investment_sell,
+)
+from dailyplanner.investment_prices import price_source_for_asset, sync_prices_for_assets
 from dailyplanner.models import format_duration, str_to_date
 from dailyplanner.services.recurring import RecurringService
 from dailyplanner.services.timer import TimerService
@@ -62,6 +69,158 @@ def _finance_entry_date(
     return start
 
 
+def _investment_entry_date(
+    p: dict,
+    current_date: datetime.date,
+    invest_filter_mode: str,
+    invest_filter_year: int,
+    invest_filter_month: int,
+    invest_filter_start: Optional[datetime.date],
+    invest_filter_end: Optional[datetime.date],
+) -> datetime.date:
+    """Pick entry date for investments — explicit field, else filter-aware default."""
+    date_raw = str(p.get("date", "") or "").strip()
+    if date_raw:
+        try:
+            return str_to_date(date_raw)
+        except ValueError:
+            pass
+    today = datetime.date.today()
+    if invest_filter_mode == "month":
+        cur_jy, cur_jm = current_jalali_ym(today)
+        jy = invest_filter_year or cur_jy
+        jm = invest_filter_month or cur_jm
+        if jy == cur_jy and jm == cur_jm:
+            return today
+        start, end = jalali_month_bounds(jy, jm)
+        if (jy, jm) < (cur_jy, cur_jm):
+            return end
+        return start
+    if invest_filter_mode == "range" and invest_filter_end:
+        return min(invest_filter_end, today)
+    return current_date if current_date else today
+
+
+def _parse_optional_positive_int(raw) -> Optional[int]:
+    text = str(raw or "").strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        value = int(float(text))
+        return value if value > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_investment_amount(p: dict) -> tuple:
+    """Return (amount, quantity, unit_price, error_message)."""
+    qty_raw = str(p.get("quantity", "") or "").strip().replace(",", "")
+    price_raw = str(p.get("unit_price", "") or "").strip().replace(",", "")
+    if qty_raw and price_raw:
+        try:
+            qty = float(qty_raw)
+            unit_price = int(float(price_raw))
+            if qty <= 0 or unit_price <= 0:
+                return 0, None, None, "تعداد و قیمت واحد باید مثبت باشند"
+            return round(qty * unit_price), qty, unit_price, ""
+        except (TypeError, ValueError):
+            return 0, None, None, "تعداد یا قیمت واحد نامعتبر است"
+    amount = resolve_amount(p.get("amount"), p.get("sms"))
+    if amount <= 0:
+        return 0, None, None, ""
+    return amount, None, None, ""
+
+
+def _resolve_investment_entry(p: dict, db: Optional[Database] = None, exclude_id: Optional[int] = None) -> tuple:
+    """Return (title, category, direction, amount, quantity, unit_price, current_unit_price, error_message)."""
+    risk = str(p.get("invest_risk", "")).strip()
+    market = str(p.get("invest_market", "")).strip()
+    asset = str(p.get("invest_asset", "")).strip()
+    if not (risk and market and asset):
+        return "", "", "buy", 0, None, None, None, "لطفاً سطح ریسک، نوع بازار و دارایی را انتخاب کنید"
+    if not is_valid_risk_market(risk, market):
+        return "", "", "buy", 0, None, None, None, "نوع بازار با سطح ریسک انتخاب‌شده سازگار نیست"
+    direction = str(p.get("invest_direction", "buy") or "buy").strip()
+    if direction not in ("buy", "sell"):
+        direction = "buy"
+    amount, quantity, unit_price, amt_err = _resolve_investment_amount(p)
+    if amt_err:
+        return "", "", direction, 0, None, None, None, amt_err
+    if amount <= 0:
+        return "", "", direction, 0, None, None, None, "مبلغ باید بزرگ‌تر از صفر باشد"
+    current_unit_price = None
+    if direction != "sell":
+        current_unit_price = _parse_optional_positive_int(p.get("current_unit_price"))
+    title = str(p.get("title", "")).strip() or asset
+    category = encode_investment_category(risk, market, asset)
+    if direction == "sell" and db is not None:
+        as_of = datetime.date.today()
+        entries = db.get_investment_entries_until(as_of)
+        sell_err = validate_investment_sell(category, amount, quantity, entries, exclude_id)
+        if sell_err:
+            return "", "", direction, 0, None, None, None, sell_err
+    return title, category, direction, amount, quantity, unit_price, current_unit_price, ""
+
+
+def _sync_investment_asset_price(
+    db: Database, market: str, asset: str, current_unit_price: Optional[int]
+) -> None:
+    if current_unit_price and current_unit_price > 0 and market and asset:
+        db.set_investment_asset_price(market, asset, current_unit_price)
+
+
+def _investment_price_sync_assets(db: Database) -> list:
+    """Collect market+asset pairs worth syncing from open positions."""
+    from dailyplanner.investments import compute_positions, merge_asset_prices
+
+    as_of = datetime.date.today()
+    entries = db.get_investment_entries_until(as_of)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    assets = []
+    seen = set()
+    for pos in positions:
+        market = str(pos.get("market") or "").strip()
+        asset = str(pos.get("asset") or "").strip()
+        if not market or not asset:
+            continue
+        key = (market, asset)
+        if key in seen or not price_source_for_asset(market, asset):
+            continue
+        seen.add(key)
+        assets.append(key)
+    return assets
+
+
+def _fetch_investment_prices(assets: list) -> tuple:
+    """Fetch API prices (no DB). Returns ({market|asset: price}, error_message)."""
+    if not assets:
+        return {}, ""
+    prices, errors = sync_prices_for_assets(assets)
+    if not prices and errors:
+        return {}, errors[0]
+    return prices, ""
+
+
+def _apply_investment_price_sync(db: Database, prices: dict) -> int:
+    """Persist fetched prices; returns updated count."""
+    for key, price in prices.items():
+        market, asset = key.split("|", 1)
+        db.set_investment_asset_price(market, asset, price)
+    if prices:
+        db.set_investment_prices_synced_at(
+            datetime.datetime.now().isoformat(timespec="seconds")
+        )
+    return len(prices)
+
+
+def _run_investment_price_sync(db: Database) -> tuple:
+    """Sync API prices in one thread (tests). Returns (updated_count, error_message)."""
+    assets = _investment_price_sync_assets(db)
+    prices, err = _fetch_investment_prices(assets)
+    return _apply_investment_price_sync(db, prices), err
+
+
 class WebViewHandler:
     def __init__(self, app):
         self.app = app
@@ -78,6 +237,12 @@ class WebViewHandler:
         self.calendar_year: Optional[int] = None
         self.calendar_month: Optional[int] = None
         self.finance_year, self.finance_month = current_jalali_ym()
+        self.invest_filter_mode: str = "all"
+        cur_jy, cur_jm = current_jalali_ym()
+        self.invest_filter_year: int = cur_jy
+        self.invest_filter_month: int = cur_jm
+        self.invest_filter_start: Optional[datetime.date] = None
+        self.invest_filter_end: Optional[datetime.date] = None
         self.managing_installments: bool = False
         self.current_project_id: Optional[int] = None
         self._shell_requested: bool = False
@@ -153,6 +318,11 @@ class WebViewHandler:
             calendar_month=self.calendar_month,
             finance_year=self.finance_year,
             finance_month=self.finance_month,
+            invest_filter_mode=self.invest_filter_mode,
+            invest_filter_year=self.invest_filter_year,
+            invest_filter_month=self.invest_filter_month,
+            invest_filter_start=self.invest_filter_start,
+            invest_filter_end=self.invest_filter_end,
             toast=toast,
             current_project_id=self.current_project_id,
             export_path=export_path,
@@ -283,10 +453,40 @@ class WebViewHandler:
     async def _on_navigate(self, p):
         screen = p.get("screen", "home")
         self.current_screen = screen
+        if screen == "investments":
+            await self._maybe_auto_sync_investment_prices()
         await self.push_state()
         if screen == "settings":
             await asyncio.sleep(0.15)
             await self._sync_export_preview()
+
+    async def _sync_investment_prices_from_api(self) -> tuple:
+        """Fetch API prices off-thread, persist on the main thread."""
+        assets = _investment_price_sync_assets(self.db)
+        if not assets:
+            return 0, ""
+        loop = asyncio.get_event_loop()
+        prices, err = await loop.run_in_executor(None, _fetch_investment_prices, assets)
+        count = _apply_investment_price_sync(self.db, prices)
+        return count, err
+
+    async def _maybe_auto_sync_investment_prices(self) -> None:
+        """Refresh stale API prices when opening the investments screen."""
+        synced_at = self.db.get_investment_prices_synced_at()
+        stale = True
+        if synced_at:
+            try:
+                last = datetime.datetime.fromisoformat(synced_at)
+                stale = (datetime.datetime.now() - last).total_seconds() > 1800
+            except ValueError:
+                stale = True
+        if not stale:
+            return
+        count, err = await self._sync_investment_prices_from_api()
+        if count:
+            self.toast(f"قیمت {count} دارایی از API به‌روز شد")
+        elif err:
+            self.toast("خطا در دریافت قیمت از API", "error")
 
     async def _inject_export_preview(self, payload: str) -> None:
         b64 = base64.b64encode(payload.encode("utf-8")).decode("ascii")
@@ -510,19 +710,69 @@ class WebViewHandler:
         entry_type = p.get("type", "expense")
         if entry_type not in ("income", "expense", "investment"):
             entry_type = "expense"
-        title = p.get("title", "").strip()
-        category = p.get("category", "عمومی")
-        amount = resolve_amount(p.get("amount"), p.get("sms"))
-        if title and amount > 0:
+        invest_direction = "buy"
+        quantity = None
+        unit_price = None
+        current_unit_price = None
+        if entry_type == "investment":
+            title, category, invest_direction, amount, quantity, unit_price, current_unit_price, err = (
+                _resolve_investment_entry(p, db=self.db)
+            )
+            if err:
+                self.toast(err, "error")
+                await self.push_state()
+                return
+        else:
+            amount = resolve_amount(p.get("amount"), p.get("sms"))
+            if amount <= 0:
+                await self.push_state()
+                return
+            title = p.get("title", "").strip()
+            category = p.get("category", "عمومی")
+            if not title:
+                await self.push_state()
+                return
+        if entry_type == "investment":
+            entry_date = _investment_entry_date(
+                p,
+                self.current_date,
+                self.invest_filter_mode,
+                self.invest_filter_year,
+                self.invest_filter_month,
+                self.invest_filter_start,
+                self.invest_filter_end,
+            )
+        else:
             entry_date = _finance_entry_date(
                 self.current_screen,
                 self.current_date,
                 self.finance_year,
                 self.finance_month,
             )
-            self.db.add_finance_entry(
-                entry_date, entry_type, title, amount, category
+        self.db.add_finance_entry(
+            entry_date,
+            entry_type,
+            title,
+            amount,
+            category,
+            investment_direction=invest_direction if entry_type == "investment" else "buy",
+            quantity=quantity if entry_type == "investment" else None,
+            unit_price=unit_price if entry_type == "investment" else None,
+            current_unit_price=current_unit_price if entry_type == "investment" else None,
+        )
+        if entry_type == "investment":
+            meta = decode_investment_category(category) or {}
+            if invest_direction != "sell":
+                _sync_investment_asset_price(
+                    self.db,
+                    meta.get("market") or "",
+                    meta.get("asset") or "",
+                    current_unit_price,
+                )
+            self.toast(
+                "فروش/برداشت ثبت شد" if invest_direction == "sell" else "سرمایه\u200cگذاری ثبت شد"
             )
+        else:
             self.toast("ورود مالی ثبت شد")
         await self.push_state()
 
@@ -536,14 +786,48 @@ class WebViewHandler:
             self.toast("تراکنش یافت نشد", "error")
             await self.push_state()
             return
-        title = p.get("title", "").strip()
-        category = p.get("category", "عمومی")
-        amount = resolve_amount(p.get("amount"), p.get("sms"))
-        if title and amount > 0:
-            self.db.update_finance_entry(
-                entry_id, title, amount, entry.entry_type, category
+        invest_direction = entry.investment_direction or "buy"
+        quantity = entry.quantity
+        unit_price = entry.unit_price
+        current_unit_price = entry.current_unit_price
+        if entry.entry_type == "investment":
+            title, category, invest_direction, amount, quantity, unit_price, current_unit_price, err = (
+                _resolve_investment_entry(p, db=self.db, exclude_id=entry_id)
             )
-            self.toast("ویرایش شد")
+            if err:
+                self.toast(err, "error")
+                await self.push_state()
+                return
+        else:
+            amount = resolve_amount(p.get("amount"), p.get("sms"))
+            if amount <= 0:
+                await self.push_state()
+                return
+            title = p.get("title", "").strip()
+            category = p.get("category", "عمومی")
+            if not title:
+                await self.push_state()
+                return
+        self.db.update_finance_entry(
+            entry_id,
+            title,
+            amount,
+            entry.entry_type,
+            category,
+            investment_direction=invest_direction if entry.entry_type == "investment" else "buy",
+            quantity=quantity if entry.entry_type == "investment" else None,
+            unit_price=unit_price if entry.entry_type == "investment" else None,
+            current_unit_price=current_unit_price if entry.entry_type == "investment" else None,
+        )
+        if entry.entry_type == "investment" and invest_direction != "sell":
+            meta = decode_investment_category(category) or {}
+            _sync_investment_asset_price(
+                self.db,
+                meta.get("market") or "",
+                meta.get("asset") or "",
+                current_unit_price,
+            )
+        self.toast("ویرایش شد")
         await self.push_state()
 
     async def _on_delete_finance(self, p):
@@ -573,6 +857,41 @@ class WebViewHandler:
 
     async def _on_finance_current_month(self, p):
         self.finance_year, self.finance_month = current_jalali_ym()
+        await self.push_state()
+
+    async def _on_invest_set_filter(self, p):
+        mode = str(p.get("mode", "all") or "all").strip()
+        if mode not in ("all", "month", "range"):
+            mode = "all"
+        self.invest_filter_mode = mode
+        if mode == "month":
+            cur_jy, cur_jm = current_jalali_ym()
+            jy = _param_int(p, "year", cur_jy)
+            jm = _param_int(p, "month", cur_jm)
+            if jy is None:
+                jy = cur_jy
+            if jm is None or not 1 <= jm <= 12:
+                jm = cur_jm
+            self.invest_filter_year = jy
+            self.invest_filter_month = jm
+        elif mode == "range":
+            start_s = str(p.get("start", "") or "").strip()
+            end_s = str(p.get("end", "") or "").strip()
+            if not start_s or not end_s:
+                self.toast("هر دو تاریخ را وارد کنید", "error")
+                await self.push_state()
+                return
+            try:
+                start = str_to_date(start_s)
+                end = str_to_date(end_s)
+            except ValueError:
+                self.toast("تاریخ نامعتبر", "error")
+                await self.push_state()
+                return
+            if start > end:
+                start, end = end, start
+            self.invest_filter_start = start
+            self.invest_filter_end = end
         await self.push_state()
 
     async def _on_set_budget(self, p):
@@ -613,6 +932,113 @@ class WebViewHandler:
             self.toast("دسته افزوده شد")
         else:
             self.toast("خطا در افزودن دسته", "error")
+        await self.push_state()
+
+    async def _on_set_investment_goal(self, p):
+        amount = resolve_amount(p.get("amount"), p.get("sms"))
+        if amount >= 0:
+            if self.invest_filter_mode == "month":
+                jy, jm = self.invest_filter_year, self.invest_filter_month
+            else:
+                jy, jm = current_jalali_ym()
+            self.db.set_investment_goal(jy, jm, amount)
+            self.toast("هدف ماهانه ذخیره شد")
+        await self.push_state()
+
+    async def _on_add_investment_asset(self, p):
+        market = p.get("market", "").strip()
+        name = p.get("name", "").strip()
+        emoji = str(p.get("emoji", "") or "").strip() or "💎"
+        if not market or not name:
+            await self.push_state()
+            return
+        if self.db.add_investment_custom_asset(market, name, name, emoji):
+            self.toast("دارایی افزوده شد")
+        else:
+            self.toast("این دارایی قبلاً وجود دارد", "error")
+        await self.push_state()
+
+    async def _on_set_investment_asset_price(self, p):
+        market = str(p.get("market", "") or "").strip()
+        asset = str(p.get("asset", "") or "").strip()
+        price = resolve_amount(p.get("price"), p.get("sms"))
+        if not market or not asset:
+            await self.push_state()
+            return
+        if price <= 0:
+            self.toast("قیمت باید بزرگ‌تر از صفر باشد", "error")
+        elif self.db.set_investment_asset_price(market, asset, price):
+            self.toast("قیمت دارایی به‌روز شد")
+        else:
+            self.toast("خطا در ذخیره قیمت", "error")
+        await self.push_state()
+
+    async def _on_sync_investment_prices(self, p):
+        count, err = await self._sync_investment_prices_from_api()
+        if count:
+            self.toast(f"قیمت {count} دارایی از API به‌روز شد")
+        elif err:
+            self.toast("خطا در دریافت قیمت از API", "error")
+        else:
+            self.toast("دارایی قابل همگام‌سازی یافت نشد", "error")
+        await self.push_state()
+
+    async def _on_set_investment_allocation_target(self, p):
+        market = str(p.get("market", "") or "").strip()
+        asset = str(p.get("asset", "") or "").strip()
+        if not market and p.get("asset_key"):
+            parts = str(p.get("asset_key", "")).split("|", 1)
+            market = parts[0].strip()
+            asset = parts[1].strip() if len(parts) > 1 else ""
+        pct = _param_int(p, "pct", 0) or 0
+        if not market or not asset:
+            await self.push_state()
+            return
+        if pct < 0 or pct > 100:
+            self.toast("درصد باید بین ۰ تا ۱۰۰ باشد", "error")
+        elif self.db.set_investment_allocation_target(market, asset, pct):
+            self.toast("هدف تخصیص ذخیره شد" if pct > 0 else "هدف تخصیص حذف شد")
+        else:
+            self.toast("خطا در ذخیره هدف", "error")
+        await self.push_state()
+
+    async def _on_delete_investment_allocation_target(self, p):
+        market = str(p.get("market", "") or "").strip()
+        asset = str(p.get("asset", "") or "").strip()
+        if market and asset:
+            self.db.delete_investment_allocation_target(market, asset)
+            self.toast("هدف تخصیص حذف شد")
+        await self.push_state()
+
+    async def _on_edit_investment_asset(self, p):
+        market = str(p.get("market", "") or "").strip()
+        value = str(p.get("value", "") or "").strip()
+        label = str(p.get("label", "") or "").strip()
+        emoji = str(p.get("emoji", "") or "").strip()
+        new_value = str(p.get("new_value", "") or "").strip()
+        if not market or not value:
+            await self.push_state()
+            return
+        if self.db.update_investment_custom_asset(
+            market, value, label=label, emoji=emoji, new_value=new_value
+        ):
+            self.toast("دارایی ویرایش شد")
+        else:
+            self.toast("خطا در ویرایش دارایی", "error")
+        await self.push_state()
+
+    async def _on_delete_investment_asset(self, p):
+        market = str(p.get("market", "") or "").strip()
+        value = str(p.get("value", "") or "").strip()
+        if not market or not value:
+            await self.push_state()
+            return
+        if self.db.count_investment_entries_for_asset(market, value) > 0:
+            self.toast("این دارایی در تراکنش‌ها استفاده شده — ابتدا تراکنش‌ها را حذف کنید", "error")
+        elif self.db.delete_investment_custom_asset(market, value):
+            self.toast("دارایی حذف شد")
+        else:
+            self.toast("خطا در حذف دارایی", "error")
         await self.push_state()
 
     # ── wellness ──────────────────────────────────────────────────────────────

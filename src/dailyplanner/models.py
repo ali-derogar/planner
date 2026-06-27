@@ -87,6 +87,10 @@ class FinanceEntry:
     title: str
     amount: int
     category: str = "عمومی"
+    investment_direction: str = "buy"
+    quantity: Optional[float] = None
+    unit_price: Optional[int] = None
+    current_unit_price: Optional[int] = None
 
     @property
     def is_income(self) -> bool:
@@ -96,10 +100,30 @@ class FinanceEntry:
     def is_investment(self) -> bool:
         return self.entry_type == "investment"
 
+    @property
+    def is_investment_sell(self) -> bool:
+        return self.is_investment and self.investment_direction == "sell"
+
+    @property
+    def signed_amount(self) -> int:
+        if self.is_investment and self.investment_direction == "sell":
+            return -self.amount
+        return self.amount
+
     @classmethod
     def from_row(cls, row) -> "FinanceEntry":
         keys = row.keys()
         category = row["category"] if "category" in keys else "عمومی"
+        direction = row["investment_direction"] if "investment_direction" in keys else "buy"
+        quantity = row["quantity"] if "quantity" in keys else None
+        unit_price = row["unit_price"] if "unit_price" in keys else None
+        current_unit_price = row["current_unit_price"] if "current_unit_price" in keys else None
+        if quantity is not None:
+            quantity = float(quantity)
+        if unit_price is not None:
+            unit_price = int(unit_price)
+        if current_unit_price is not None:
+            current_unit_price = int(current_unit_price)
         return cls(
             id=row["id"],
             date=row["date"],
@@ -107,6 +131,10 @@ class FinanceEntry:
             title=row["title"],
             amount=row["amount"],
             category=category or "عمومی",
+            investment_direction=direction or "buy",
+            quantity=quantity,
+            unit_price=unit_price,
+            current_unit_price=current_unit_price,
         )
 
 

@@ -7,6 +7,15 @@ from typing import List, Optional
 
 from dailyplanner.models import DailyTask, DailyWellness, FinanceEntry, ImportantDate, Installment, Project, ProjectTask, RecurringTask, date_to_str, str_to_date
 
+_INVEST_NET = (
+    "CASE WHEN COALESCE(investment_direction, 'buy') = 'sell' "
+    "THEN -amount ELSE amount END"
+)
+_INVEST_BALANCE = (
+    "CASE WHEN COALESCE(investment_direction, 'buy') = 'sell' "
+    "THEN amount ELSE -amount END"
+)
+
 
 DEFAULT_SETTINGS = {"theme": "dark"}
 
@@ -74,6 +83,11 @@ class Database:
 
             CREATE TABLE IF NOT EXISTS budget_limits (
                 category TEXT PRIMARY KEY,
+                monthly_limit INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS investment_goals (
+                month_key TEXT PRIMARY KEY,
                 monthly_limit INTEGER NOT NULL DEFAULT 0
             );
 
@@ -174,6 +188,22 @@ class Database:
             self.conn.execute(
                 "ALTER TABLE finance_entries ADD COLUMN category TEXT NOT NULL DEFAULT 'عمومی'"
             )
+        if "investment_direction" not in fin_cols:
+            self.conn.execute(
+                "ALTER TABLE finance_entries ADD COLUMN investment_direction TEXT NOT NULL DEFAULT 'buy'"
+            )
+        if "quantity" not in fin_cols:
+            self.conn.execute(
+                "ALTER TABLE finance_entries ADD COLUMN quantity REAL"
+            )
+        if "unit_price" not in fin_cols:
+            self.conn.execute(
+                "ALTER TABLE finance_entries ADD COLUMN unit_price INTEGER"
+            )
+        if "current_unit_price" not in fin_cols:
+            self.conn.execute(
+                "ALTER TABLE finance_entries ADD COLUMN current_unit_price INTEGER"
+            )
 
         tables = {
             row[0]
@@ -186,6 +216,31 @@ class Database:
                 """
                 CREATE TABLE IF NOT EXISTS budget_limits (
                     category TEXT PRIMARY KEY,
+                    monthly_limit INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+        inv_goal_cols = set()
+        if "investment_goals" in tables:
+            inv_goal_cols = {
+                row[1]
+                for row in self.conn.execute("PRAGMA table_info(investment_goals)")
+            }
+        if "investment_goals" not in tables:
+            self.conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS investment_goals (
+                    month_key TEXT PRIMARY KEY,
+                    monthly_limit INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+        elif "monthly_limit" not in inv_goal_cols:
+            self.conn.execute("DROP TABLE investment_goals")
+            self.conn.execute(
+                """
+                CREATE TABLE investment_goals (
+                    month_key TEXT PRIMARY KEY,
                     monthly_limit INTEGER NOT NULL DEFAULT 0
                 )
                 """
@@ -456,14 +511,35 @@ class Database:
         return [FinanceEntry.from_row(row) for row in rows]
 
     def add_finance_entry(
-        self, d: date, entry_type: str, title: str, amount: int, category: str = "عمومی"
+        self,
+        d: date,
+        entry_type: str,
+        title: str,
+        amount: int,
+        category: str = "عمومی",
+        investment_direction: str = "buy",
+        quantity: Optional[float] = None,
+        unit_price: Optional[int] = None,
+        current_unit_price: Optional[int] = None,
     ) -> FinanceEntry:
         cursor = self.conn.execute(
             """
-            INSERT INTO finance_entries (date, entry_type, title, amount, category)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO finance_entries
+                (date, entry_type, title, amount, category, investment_direction,
+                 quantity, unit_price, current_unit_price)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (date_to_str(d), entry_type, title.strip(), amount, category or "عمومی"),
+            (
+                date_to_str(d),
+                entry_type,
+                title.strip(),
+                amount,
+                category or "عمومی",
+                investment_direction or "buy",
+                quantity,
+                unit_price,
+                current_unit_price,
+            ),
         )
         self.conn.commit()
         return self.get_finance_entry_by_id(cursor.lastrowid)
@@ -475,14 +551,30 @@ class Database:
         amount: int,
         entry_type: str,
         category: str = "عمومی",
+        investment_direction: str = "buy",
+        quantity: Optional[float] = None,
+        unit_price: Optional[int] = None,
+        current_unit_price: Optional[int] = None,
     ):
         self.conn.execute(
             """
             UPDATE finance_entries
-            SET title = ?, amount = ?, entry_type = ?, category = ?
+            SET title = ?, amount = ?, entry_type = ?, category = ?,
+                investment_direction = ?, quantity = ?, unit_price = ?,
+                current_unit_price = ?
             WHERE id = ?
             """,
-            (title.strip(), amount, entry_type, category or "عمومی", entry_id),
+            (
+                title.strip(),
+                amount,
+                entry_type,
+                category or "عمومی",
+                investment_direction or "buy",
+                quantity,
+                unit_price,
+                current_unit_price,
+                entry_id,
+            ),
         )
         self.conn.commit()
 
@@ -498,13 +590,58 @@ class Database:
         self.conn.execute("DELETE FROM finance_entries WHERE id = ?", (entry_id,))
         self.conn.commit()
 
+    def get_all_investment_entries(self) -> List[FinanceEntry]:
+        rows = self.conn.execute(
+            """
+            SELECT * FROM finance_entries
+            WHERE entry_type = 'investment'
+            ORDER BY date DESC, id DESC
+            """
+        ).fetchall()
+        return [FinanceEntry.from_row(row) for row in rows]
+
+    def get_investment_entries_between(
+        self, start: date, end: date
+    ) -> List[FinanceEntry]:
+        rows = self.conn.execute(
+            """
+            SELECT * FROM finance_entries
+            WHERE date >= ? AND date <= ? AND entry_type = 'investment'
+            ORDER BY date DESC, id DESC
+            """,
+            (date_to_str(start), date_to_str(end)),
+        ).fetchall()
+        return [FinanceEntry.from_row(row) for row in rows]
+
+    def get_total_investment_until(self, d: date) -> int:
+        row = self.conn.execute(
+            f"""
+            SELECT COALESCE(SUM({_INVEST_NET}), 0) AS total
+            FROM finance_entries
+            WHERE entry_type = 'investment' AND date <= ?
+            """,
+            (date_to_str(d),),
+        ).fetchone()
+        return int(row["total"])
+
+    def get_investment_entries_until(self, d: date) -> List[FinanceEntry]:
+        rows = self.conn.execute(
+            """
+            SELECT * FROM finance_entries
+            WHERE entry_type = 'investment' AND date <= ?
+            ORDER BY date, id
+            """,
+            (date_to_str(d),),
+        ).fetchall()
+        return [FinanceEntry.from_row(row) for row in rows]
+
     def get_finance_daily_totals(self, d: date) -> tuple:
         row = self.conn.execute(
-            """
+            f"""
             SELECT
                 COALESCE(SUM(CASE WHEN entry_type = 'income' THEN amount END), 0) AS income,
                 COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS expense,
-                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN amount END), 0) AS investment
+                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN {_INVEST_NET} END), 0) AS investment
             FROM finance_entries WHERE date = ?
             """,
             (date_to_str(d),),
@@ -513,12 +650,13 @@ class Database:
 
     def get_finance_balance_until(self, d: date) -> int:
         row = self.conn.execute(
-            """
+            f"""
             SELECT COALESCE(
                 SUM(
                     CASE
                         WHEN entry_type = 'income' THEN amount
-                        WHEN entry_type IN ('expense', 'investment') THEN -amount
+                        WHEN entry_type = 'expense' THEN -amount
+                        WHEN entry_type = 'investment' THEN {_INVEST_BALANCE}
                         ELSE 0
                     END
                 ),
@@ -652,8 +790,9 @@ class Database:
     def get_finance_monthly_totals(self, year: int, month: int) -> dict:
         prefix = f"{year:04d}-{month:02d}"
         rows = self.conn.execute(
-            """
-            SELECT category, entry_type, SUM(amount) AS total
+            f"""
+            SELECT category, entry_type,
+                SUM(CASE WHEN entry_type = 'investment' THEN {_INVEST_NET} ELSE amount END) AS total
             FROM finance_entries
             WHERE date LIKE ?
             GROUP BY category, entry_type
@@ -688,8 +827,9 @@ class Database:
 
     def get_finance_monthly_totals_between(self, start: date, end: date) -> dict:
         rows = self.conn.execute(
-            """
-            SELECT category, entry_type, SUM(amount) AS total
+            f"""
+            SELECT category, entry_type,
+                SUM(CASE WHEN entry_type = 'investment' THEN {_INVEST_NET} ELSE amount END) AS total
             FROM finance_entries
             WHERE date >= ? AND date <= ?
             GROUP BY category, entry_type
@@ -725,12 +865,12 @@ class Database:
     def get_finance_daily_series(self, year: int, month: int) -> List[dict]:
         prefix = f"{year:04d}-{month:02d}"
         rows = self.conn.execute(
-            """
+            f"""
             SELECT
                 date,
                 COALESCE(SUM(CASE WHEN entry_type = 'income' THEN amount END), 0) AS income,
                 COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS expense,
-                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN amount END), 0) AS investment
+                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN {_INVEST_NET} END), 0) AS investment
             FROM finance_entries
             WHERE date LIKE ?
             GROUP BY date
@@ -750,12 +890,12 @@ class Database:
 
     def get_finance_daily_series_between(self, start: date, end: date) -> List[dict]:
         rows = self.conn.execute(
-            """
+            f"""
             SELECT
                 date,
                 COALESCE(SUM(CASE WHEN entry_type = 'income' THEN amount END), 0) AS income,
                 COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS expense,
-                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN amount END), 0) AS investment
+                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN {_INVEST_NET} END), 0) AS investment
             FROM finance_entries
             WHERE date >= ? AND date <= ?
             GROUP BY date
@@ -816,13 +956,277 @@ class Database:
         self.set_setting("finance_custom_categories", json.dumps(cats, ensure_ascii=False))
         return True
 
+    @staticmethod
+    def investment_month_key(jy: int, jm: int) -> str:
+        return f"{jy:04d}-{jm:02d}"
+
+    def get_investment_goal(self, jy: int, jm: int) -> int:
+        row = self.conn.execute(
+            "SELECT monthly_limit FROM investment_goals WHERE month_key = ?",
+            (self.investment_month_key(jy, jm),),
+        ).fetchone()
+        return int(row["monthly_limit"]) if row else 0
+
+    def set_investment_goal(self, jy: int, jm: int, monthly_limit: int):
+        self.conn.execute(
+            """
+            INSERT INTO investment_goals (month_key, monthly_limit) VALUES (?, ?)
+            ON CONFLICT(month_key) DO UPDATE SET monthly_limit = excluded.monthly_limit
+            """,
+            (self.investment_month_key(jy, jm), max(0, monthly_limit)),
+        )
+        self.conn.commit()
+
+    def delete_investment_goal(self, jy: int, jm: int):
+        self.conn.execute(
+            "DELETE FROM investment_goals WHERE month_key = ?",
+            (self.investment_month_key(jy, jm),),
+        )
+        self.conn.commit()
+
+    def get_investment_custom_assets(self) -> List[dict]:
+        raw = self.get_setting("investment_custom_assets", "[]")
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        if not isinstance(data, list):
+            return []
+        out = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            market = str(item.get("market") or "").strip()
+            value = str(item.get("value") or item.get("label") or "").strip()
+            if market and value:
+                out.append({
+                    "market": market,
+                    "value": value,
+                    "label": str(item.get("label") or value),
+                    "emoji": str(item.get("emoji") or "💎"),
+                })
+        return out
+
+    def add_investment_custom_asset(self, market: str, value: str, label: str = "", emoji: str = "💎") -> bool:
+        market = market.strip()
+        value = value.strip()
+        label = (label or value).strip()
+        if not market or not value:
+            return False
+        assets = self.get_investment_custom_assets()
+        if any(a["market"] == market and a["value"] == value for a in assets):
+            return False
+        assets.append({"market": market, "value": value, "label": label, "emoji": emoji or "💎"})
+        self.set_setting("investment_custom_assets", json.dumps(assets, ensure_ascii=False))
+        return True
+
+    def update_investment_custom_asset(
+        self,
+        market: str,
+        value: str,
+        label: str = "",
+        emoji: str = "",
+        new_value: str = "",
+    ) -> bool:
+        from dailyplanner.investments import asset_price_key, encode_investment_category
+
+        market = market.strip()
+        value = value.strip()
+        if not market or not value:
+            return False
+        assets = self.get_investment_custom_assets()
+        idx = next(
+            (i for i, a in enumerate(assets) if a["market"] == market and a["value"] == value),
+            None,
+        )
+        if idx is None:
+            return False
+        item = assets[idx]
+        renamed = new_value.strip() and new_value.strip() != value
+        if renamed:
+            new_val = new_value.strip()
+            if any(a["market"] == market and a["value"] == new_val for a in assets):
+                return False
+            item["value"] = new_val
+        if label:
+            item["label"] = label.strip()
+        if emoji:
+            item["emoji"] = emoji.strip()
+        assets[idx] = item
+        self.set_setting("investment_custom_assets", json.dumps(assets, ensure_ascii=False))
+
+        final_value = item["value"]
+        if renamed:
+            self._migrate_investment_asset_keys(market, value, final_value)
+            rows = self.conn.execute(
+                "SELECT id, category FROM finance_entries WHERE entry_type = 'investment'"
+            ).fetchall()
+            for row in rows:
+                cat = row["category"] or ""
+                if not cat.startswith("{"):
+                    continue
+                try:
+                    data = json.loads(cat)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                if data.get("market") == market and data.get("asset") == value:
+                    risk = str(data.get("risk") or "")
+                    new_cat = encode_investment_category(risk, market, final_value)
+                    self.conn.execute(
+                        "UPDATE finance_entries SET category = ? WHERE id = ?",
+                        (new_cat, row["id"]),
+                    )
+            self.conn.commit()
+        return True
+
+    def delete_investment_custom_asset(self, market: str, value: str) -> bool:
+        market = market.strip()
+        value = value.strip()
+        if not market or not value:
+            return False
+        assets = self.get_investment_custom_assets()
+        if not any(a["market"] == market and a["value"] == value for a in assets):
+            return False
+        if self.count_investment_entries_for_asset(market, value) > 0:
+            return False
+        assets = [a for a in assets if not (a["market"] == market and a["value"] == value)]
+        self.set_setting("investment_custom_assets", json.dumps(assets, ensure_ascii=False))
+        self._remove_investment_asset_keys(market, value)
+        return True
+
+    def count_investment_entries_for_asset(self, market: str, asset: str) -> int:
+        from dailyplanner.investments import decode_investment_category
+
+        market = market.strip()
+        asset = asset.strip()
+        count = 0
+        rows = self.conn.execute(
+            "SELECT category FROM finance_entries WHERE entry_type = 'investment'"
+        ).fetchall()
+        for row in rows:
+            meta = decode_investment_category(row["category"] or "")
+            if meta and meta.get("market") == market and meta.get("asset") == asset:
+                count += 1
+        return count
+
+    def _migrate_investment_asset_keys(self, market: str, old_asset: str, new_asset: str) -> None:
+        from dailyplanner.investments import asset_price_key
+
+        old_key = asset_price_key(market, old_asset)
+        new_key = asset_price_key(market, new_asset)
+
+        prices = self.get_investment_asset_prices()
+        if old_key in prices:
+            prices[new_key] = prices.pop(old_key)
+            self.set_setting("investment_asset_prices", json.dumps(prices, ensure_ascii=False))
+
+        targets = self.get_investment_allocation_targets()
+        if old_key in targets:
+            targets[new_key] = targets.pop(old_key)
+            self.set_setting(
+                "investment_allocation_targets",
+                json.dumps(targets, ensure_ascii=False),
+            )
+
+    def _remove_investment_asset_keys(self, market: str, asset: str) -> None:
+        from dailyplanner.investments import asset_price_key
+
+        key = asset_price_key(market, asset)
+        prices = self.get_investment_asset_prices()
+        if key in prices:
+            del prices[key]
+            self.set_setting("investment_asset_prices", json.dumps(prices, ensure_ascii=False))
+        targets = self.get_investment_allocation_targets()
+        if key in targets:
+            del targets[key]
+            self.set_setting(
+                "investment_allocation_targets",
+                json.dumps(targets, ensure_ascii=False),
+            )
+
+    def get_investment_allocation_targets(self) -> dict:
+        raw = self.get_setting("investment_allocation_targets", "{}")
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        out: dict = {}
+        for key, value in data.items():
+            try:
+                pct = int(value)
+            except (TypeError, ValueError):
+                continue
+            if pct > 0 and "|" in str(key):
+                out[str(key)] = pct
+        return out
+
+    def set_investment_allocation_target(self, market: str, asset: str, pct: int) -> bool:
+        from dailyplanner.investments import asset_price_key
+
+        market = market.strip()
+        asset = asset.strip()
+        if not market or not asset:
+            return False
+        targets = self.get_investment_allocation_targets()
+        key = asset_price_key(market, asset)
+        if pct <= 0:
+            targets.pop(key, None)
+        else:
+            targets[key] = min(100, int(pct))
+        self.set_setting(
+            "investment_allocation_targets",
+            json.dumps(targets, ensure_ascii=False),
+        )
+        return True
+
+    def delete_investment_allocation_target(self, market: str, asset: str) -> bool:
+        return self.set_investment_allocation_target(market, asset, 0)
+
+    def get_investment_prices_synced_at(self) -> str:
+        return str(self.get_setting("investment_prices_synced_at", "") or "")
+
+    def set_investment_prices_synced_at(self, iso_timestamp: str) -> None:
+        self.set_setting("investment_prices_synced_at", iso_timestamp or "")
+
+    def get_investment_asset_prices(self) -> dict:
+        raw = self.get_setting("investment_asset_prices", "{}")
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        out: dict = {}
+        for key, value in data.items():
+            try:
+                price = int(value)
+            except (TypeError, ValueError):
+                continue
+            if price > 0 and "|" in str(key):
+                out[str(key)] = price
+        return out
+
+    def set_investment_asset_price(self, market: str, asset: str, price: int) -> bool:
+        from dailyplanner.investments import asset_price_key
+
+        market = market.strip()
+        asset = asset.strip()
+        if not market or not asset or price <= 0:
+            return False
+        prices = self.get_investment_asset_prices()
+        prices[asset_price_key(market, asset)] = price
+        self.set_setting("investment_asset_prices", json.dumps(prices, ensure_ascii=False))
+        return True
+
     def get_finance_summary_for_range(self, start: date, end: date) -> dict:
         row = self.conn.execute(
-            """
+            f"""
             SELECT
                 COALESCE(SUM(CASE WHEN entry_type = 'income' THEN amount END), 0) AS total_income,
                 COALESCE(SUM(CASE WHEN entry_type = 'expense' THEN amount END), 0) AS total_expense,
-                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN amount END), 0) AS total_investment
+                COALESCE(SUM(CASE WHEN entry_type = 'investment' THEN {_INVEST_NET} END), 0) AS total_investment
             FROM finance_entries
             WHERE date >= ? AND date <= ?
             """,
@@ -910,6 +1314,7 @@ class Database:
             "projects": _count("projects"),
             "project_tasks": _count("project_tasks"),
             "budget_limits": _count("budget_limits"),
+            "investment_goals": _count("investment_goals"),
             "important_dates": _count("important_dates"),
             "installments": _count("installments"),
             "installment_payments": _count("installment_payments"),
@@ -929,6 +1334,7 @@ class Database:
             "SELECT * FROM project_tasks ORDER BY project_id, sort_order"
         ).fetchall()
         budgets = self.conn.execute("SELECT * FROM budget_limits").fetchall()
+        inv_goals = self.conn.execute("SELECT * FROM investment_goals").fetchall()
         important_dates = self.conn.execute(
             "SELECT * FROM important_dates ORDER BY date"
         ).fetchall()
@@ -961,6 +1367,7 @@ class Database:
             "projects": [dict(r) for r in projects],
             "project_tasks": [dict(r) for r in proj_tasks],
             "budget_limits": [dict(r) for r in budgets],
+            "investment_goals": [dict(r) for r in inv_goals],
             "important_dates": [dict(r) for r in important_dates],
             "installments": [dict(r) for r in installments],
             "installment_payments": [dict(r) for r in inst_payments],
@@ -1005,6 +1412,9 @@ class Database:
                 if int(f.get("amount")) <= 0:
                     return False, "ورودی‌های مالی خراب هستند"
             except (TypeError, ValueError):
+                return False, "ورودی‌های مالی خراب هستند"
+            direction = f.get("investment_direction")
+            if direction is not None and direction not in ("buy", "sell"):
                 return False, "ورودی‌های مالی خراب هستند"
 
         for key in ("wellness", "notes", "recurring"):
@@ -1085,6 +1495,14 @@ class Database:
                     if not isinstance(b, dict) or not isinstance(b.get("category"), str):
                         return False, "بودجه‌ها خراب هستند"
 
+            investment_goals = data.get("investment_goals")
+            if investment_goals is not None:
+                if not isinstance(investment_goals, list):
+                    return False, "اهداف سرمایه‌گذاری خراب هستند"
+                for g in investment_goals:
+                    if not isinstance(g, dict) or not isinstance(g.get("month_key"), str):
+                        return False, "اهداف سرمایه‌گذاری خراب هستند"
+
         for t in tasks:
             try:
                 date.fromisoformat(t["date"])
@@ -1110,6 +1528,7 @@ class Database:
             self.conn.execute("DELETE FROM projects")
             self.conn.execute("DELETE FROM project_tasks")
             self.conn.execute("DELETE FROM budget_limits")
+            self.conn.execute("DELETE FROM investment_goals")
             self.conn.execute("DELETE FROM important_dates")
             self.conn.execute("DELETE FROM installment_payments")
             self.conn.execute("DELETE FROM installments")
@@ -1191,9 +1610,14 @@ class Database:
                 )
 
             for f in data.get("finance", []):
+                qty = f.get("quantity")
+                unit_price = f.get("unit_price")
+                current_unit_price = f.get("current_unit_price")
                 self.conn.execute(
-                    "INSERT INTO finance_entries (id, date, entry_type, title, amount, category)"
-                    " VALUES (?,?,?,?,?,?)",
+                    "INSERT INTO finance_entries"
+                    " (id, date, entry_type, title, amount, category, investment_direction,"
+                    " quantity, unit_price, current_unit_price)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
                     (
                         f["id"],
                         f["date"],
@@ -1201,6 +1625,10 @@ class Database:
                         f["title"],
                         int(f["amount"]),
                         f.get("category", "عمومی"),
+                        f.get("investment_direction", "buy"),
+                        float(qty) if qty is not None else None,
+                        int(unit_price) if unit_price is not None else None,
+                        int(current_unit_price) if current_unit_price is not None else None,
                     ),
                 )
 
@@ -1227,6 +1655,11 @@ class Database:
                     self.conn.execute(
                         "INSERT INTO budget_limits (category, monthly_limit) VALUES (?,?)",
                         (b["category"], int(b.get("monthly_limit", 0))),
+                    )
+                for g in data.get("investment_goals", []):
+                    self.conn.execute(
+                        "INSERT INTO investment_goals (month_key, monthly_limit) VALUES (?,?)",
+                        (g["month_key"], int(g.get("monthly_limit", 0))),
                     )
 
             for d in data.get("important_dates", []):

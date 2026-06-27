@@ -145,6 +145,7 @@ textarea:focus-visible, select:focus-visible {{
 .fin-page,
 .analytics-page,
 .proj-page,
+.inv-page,
 .track-page {{
     display: flex;
     flex-direction: column;
@@ -166,11 +167,13 @@ textarea:focus-visible, select:focus-visible {{
 .fin-page {{ background-color: rgb(6, 6, 12); }}
 .analytics-page {{ background-color: rgb(6, 6, 12); }}
 .proj-page {{ background-color: rgb(6, 6, 12); }}
+.inv-page {{ background-color: rgb(6, 6, 12); }}
 .track-page {{ background-color: rgb(6, 6, 12); }}
 [data-theme="light"] .home-page,
 [data-theme="light"] .fin-page,
 [data-theme="light"] .analytics-page,
 [data-theme="light"] .proj-page,
+[data-theme="light"] .inv-page,
 [data-theme="light"] .track-page {{
     background-color: #FAFAFC;
 }}
@@ -276,6 +279,7 @@ textarea:focus-visible, select:focus-visible {{
 .fin-body,
 .analytics-body,
 .proj-body,
+.inv-body,
 .track-body {{
     position: relative;
     z-index: 1;
@@ -538,6 +542,11 @@ textarea:focus-visible, select:focus-visible {{
     background: rgba(77, 217, 128, 0.14);
 }}
 .nav-btn.active.nav-finance::after {{ background: #4DD980; }}
+.nav-btn.active.nav-investments {{
+    color: #FFB020;
+    background: rgba(255, 176, 32, 0.14);
+}}
+.nav-btn.active.nav-investments::after {{ background: #FFB020; }}
 .nav-btn.active.nav-home {{
     color: #38BDF8;
     background: rgba(56, 189, 248, 0.16);
@@ -617,7 +626,8 @@ textarea:focus-visible, select:focus-visible {{
         padding-top: calc(8px + max(36px, var(--safe-top)));
     }}
     .home-header,
-    .fin-header {{
+    .fin-header,
+    .inv-header {{
         padding-top: calc(10px + max(36px, var(--safe-top)));
     }}
     .analytics-period {{
@@ -686,6 +696,7 @@ textarea:focus-visible, select:focus-visible {{
 /* ── Page hero headers — transparent, no clip seam ── */
 .date-header.home-header,
 .date-header.fin-header,
+.date-header.inv-header,
 .date-header.track-header,
 .proj-header,
 .analytics-header {{
@@ -696,6 +707,7 @@ textarea:focus-visible, select:focus-visible {{
 }}
 .date-header.home-header::before,
 .date-header.fin-header::before,
+.date-header.inv-header::before,
 .date-header.track-header::before,
 .proj-header::before,
 .analytics-header::before {{
@@ -3297,6 +3309,10 @@ body.modal-open.kb-open .modal-overlay.modal-viewport-sync .modal-box {{
     font-size: 11px; color: #FFB020; display: flex; align-items: center; gap: 6px;
     justify-content: center;
 }}
+.fin-hero-invest a {{
+    color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+}}
+.fin-hero-invest a:active {{ opacity: 0.75; }}
 .fin-hero-invest-note {{ font-size: 10px; color: rgba(209, 250, 229, 0.45); }}
 
 [data-theme="light"] .fin-hero-panel {{
@@ -4661,7 +4677,7 @@ body.kb-open .proj-sheet-overlay {{
 }}
 
 /* ── Light theme extras ── */
-[data-theme="light"] .date-header:not(.home-header):not(.fin-header):not(.proj-header):not(.track-header) {{
+[data-theme="light"] .date-header:not(.home-header):not(.fin-header):not(.inv-header):not(.proj-header):not(.track-header) {{
     box-shadow: 0 2px 16px rgba(99, 102, 241, 0.08);
 }}
 [data-theme="light"] .proj-section-badge {{ color: #4338CA; background: rgba(67, 56, 202, 0.1); }}
@@ -5676,4 +5692,389 @@ body.kb-open .track-act-overlay.track-act-viewport-sync {{
 [data-theme="light"] .track-timeline::before {{
     background: linear-gradient(180deg, #14B8A6 0%, var(--divider) 40%, transparent 100%);
 }}
+
+/* ── Investments page ── */
+.inv-page {{
+    --page-glass-rgb: 255, 176, 32;
+    --page-glass-base-rgb: 42, 31, 10;
+    background-image: linear-gradient(180deg,
+        #120C04 0px,
+        #2A1F0A 64px,
+        #3D3018 128px,
+        #2A2008 208px,
+        rgba(42, 31, 10, 0.96) 248px,
+        rgba(42, 31, 10, 0.84) 288px,
+        rgba(42, 31, 10, 0.70) 328px,
+        rgba(18, 14, 10, 0.76) 372px,
+        rgba(10, 10, 14, 0.84) 430px,
+        rgba(7, 8, 12, 0.90) 560px,
+        rgba(6, 6, 12, 0.92) 760px,
+        rgba(6, 6, 12, 0.94) 1040px,
+        rgb(6, 6, 12) 100%
+    );
+    padding-bottom: 8px;
+}}
+[data-theme="light"] .inv-page {{
+    --page-body-dark-rgb: 250, 250, 252;
+    background-image: linear-gradient(180deg,
+        #FFFBEB 0px,
+        #FEF3C7 80px,
+        #FAFAFC 280px,
+        #FAFAFC 100%
+    );
+}}
+.inv-body {{
+    padding-left: 2px;
+    padding-right: 2px;
+    animation: finBodyIn 0.4s var(--ease-out) 0.06s both;
+}}
+.inv-header {{
+    background: transparent;
+    border-bottom: none;
+    padding: calc(14px + var(--safe-top)) var(--space-4) 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    overflow: visible;
+    direction: rtl;
+}}
+.inv-header-orbs {{
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+}}
+.inv-orb {{
+    position: absolute; border-radius: 50%; filter: blur(40px); opacity: 0.45;
+}}
+.inv-orb-1 {{ width: 120px; height: 120px; top: -20px; right: -10px; background: rgba(255, 176, 32, 0.35); }}
+.inv-orb-2 {{ width: 80px; height: 80px; bottom: 10px; left: 20px; background: rgba(251, 191, 36, 0.2); }}
+.inv-orb-3 {{ width: 60px; height: 60px; top: 40%; left: 45%; background: rgba(245, 158, 11, 0.15); }}
+.inv-header-brand {{ position: relative; z-index: 1; }}
+.inv-header-top {{
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}}
+.inv-brand-mark .fin-icon {{
+    width: 40px; height: 40px; border-radius: 12px;
+    background: rgba(255, 176, 32, 0.15); color: #FFB020;
+    border: 1px solid rgba(255, 176, 32, 0.25);
+}}
+.inv-header-titles {{ flex: 1; min-width: 0; }}
+.inv-header-title {{ display: block; font-size: 18px; font-weight: 800; color: #FEF3C7; }}
+.inv-header-sub {{ display: block; font-size: 11px; color: rgba(254, 243, 199, 0.55); margin-top: 2px; }}
+.inv-month-pill {{
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 600;
+    background: rgba(255, 176, 32, 0.12); color: #FCD34D;
+    border: 1px solid rgba(255, 176, 32, 0.2);
+}}
+.inv-month-dot {{
+    width: 6px; height: 6px; border-radius: 50%; background: #FFB020;
+    box-shadow: 0 0 6px rgba(255, 176, 32, 0.6);
+}}
+.inv-hero-panel {{
+    margin-top: 6px; padding: 12px;
+    background: rgba(18, 12, 4, 0.55);
+    border: 1px solid rgba(255, 176, 32, 0.14);
+    border-radius: 18px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}}
+.inv-period-filter {{
+    margin-bottom: 12px; padding: 10px 12px;
+    background: rgba(18, 12, 4, 0.45);
+    border: 1px solid rgba(255, 176, 32, 0.12);
+    border-radius: 14px;
+}}
+.inv-period-chips {{
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+}}
+.inv-period-chip {{
+    padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    font-family: 'Vazirmatn', sans-serif;
+    background: rgba(255, 176, 32, 0.08); color: rgba(254, 243, 199, 0.75);
+    border: 1px solid rgba(255, 176, 32, 0.14);
+    cursor: pointer;
+}}
+.inv-period-chip.active {{
+    background: rgba(255, 176, 32, 0.22); color: #FEF3C7;
+    border-color: rgba(255, 176, 32, 0.35);
+}}
+.inv-period-label {{
+    margin-top: 8px; font-size: 11px; color: rgba(254, 243, 199, 0.6);
+    text-align: center;
+}}
+.inv-hero-main {{ display: flex; align-items: center; gap: 14px; direction: rtl; }}
+.inv-portfolio-ring {{
+    position: relative; width: 84px; height: 84px; flex-shrink: 0;
+    border-radius: 50%;
+    background: conic-gradient(#FFB020 0%, #F59E0B 50%, rgba(255, 176, 32, 0.2) 50%);
+    display: flex; align-items: center; justify-content: center;
+}}
+.inv-ring-glow {{
+    position: absolute; inset: -6px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 176, 32, 0.25), transparent 70%);
+}}
+.inv-ring-inner {{
+    position: relative; z-index: 1;
+    width: 68px; height: 68px; border-radius: 50%;
+    background: rgba(18, 12, 4, 0.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; text-align: center;
+}}
+.inv-ring-val {{
+    font-size: 11px; font-weight: 800; color: #FFB020;
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+}}
+.inv-ring-lbl {{ font-size: 8px; color: rgba(254, 243, 199, 0.55); }}
+.inv-hero-side {{ flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }}
+.inv-hero-label {{ font-size: 11px; color: rgba(254, 243, 199, 0.65); }}
+.inv-hero-balance {{
+    font-size: 24px; font-weight: 800; letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums; line-height: 1.15;
+}}
+.inv-hero-balance.positive {{ color: #4DD980; }}
+.inv-hero-balance.negative {{ color: #FF7359; }}
+.inv-hero-unit {{ font-size: 11px; font-weight: normal; color: rgba(254, 243, 199, 0.55); margin-right: 4px; }}
+.inv-hero-stats {{ display: flex; gap: 10px; flex-wrap: wrap; }}
+.inv-hero-stat {{
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; border-radius: 10px;
+    background: rgba(255, 176, 32, 0.08);
+    border: 1px solid rgba(255, 176, 32, 0.12);
+    font-size: 11px;
+}}
+.inv-stat-lbl {{ display: block; font-size: 9px; color: rgba(254, 243, 199, 0.5); }}
+.inv-stat-val {{ display: block; font-weight: 700; color: #FEF3C7; font-variant-numeric: tabular-nums; }}
+.inv-hero-note {{
+    font-size: 10px; color: rgba(254, 243, 199, 0.45); margin-top: 2px;
+}}
+.inv-body {{ padding: 0 var(--space-4) var(--space-4); display: flex; flex-direction: column; gap: 12px; }}
+.inv-add-btn {{
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 14px; border-radius: 14px; border: none;
+    background: linear-gradient(135deg, #FFB020, #F59E0B);
+    color: #1A1204; font-size: 14px; font-weight: 700;
+    box-shadow: 0 4px 16px rgba(255, 176, 32, 0.3);
+}}
+.inv-add-btn .ico {{ width: 16px; height: 16px; flex-shrink: 0; }}
+.inv-add-btn:active {{ transform: scale(0.98); }}
+.inv-card {{ border-color: rgba(255, 176, 32, 0.12) !important; }}
+.inv-donut-hole {{ flex-direction: column; gap: 2px; }}
+.inv-donut-total {{ font-size: 10px; font-weight: 700; color: #FFB020; }}
+.inv-finance-link {{
+    text-align: center; padding: 8px 0 4px;
+}}
+.inv-finance-link a {{
+    font-size: 12px; color: rgba(254, 243, 199, 0.55);
+    text-decoration: none;
+}}
+[data-theme="light"] .inv-header-title {{ color: #78350F; }}
+[data-theme="light"] .inv-header-sub {{ color: rgba(120, 53, 15, 0.55); }}
+[data-theme="light"] .inv-hero-panel {{
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(245, 158, 11, 0.2);
+}}
+[data-theme="light"] .inv-hero-balance.positive {{ color: #059669; }}
+[data-theme="light"] .inv-stat-val {{ color: #78350F; }}
+[data-theme="light"] .inv-ring-inner {{ background: #FFFBEB; }}
+
+.inv-actions {{
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center;
+}}
+.inv-action-chip {{
+    padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,176,32,0.25);
+    background: rgba(255,176,32,0.08); color: #FCD34D; font-size: 12px; font-weight: 600; cursor: pointer;
+}}
+.inv-chart-card .fin-card-head {{ margin-bottom: 4px; }}
+.inv-chart-mode-row {{
+    display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 8px; align-items: center;
+}}
+.inv-chart-mode-chip {{
+    padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    border: 1px solid rgba(129,140,248,0.25); background: rgba(129,140,248,0.08);
+    color: rgba(199,210,254,0.85); cursor: pointer;
+}}
+.inv-chart-mode-chip.active {{
+    background: rgba(129,140,248,0.22); color: #C7D2FE; border-color: rgba(129,140,248,0.5);
+}}
+.inv-filter-row {{
+    display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 12px; align-items: center;
+}}
+.inv-filter-row-chart {{
+    padding-top: 0; padding-bottom: 10px;
+}}
+.inv-filter-chip {{
+    padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    border: 1px solid rgba(255,176,32,0.2); background: rgba(255,176,32,0.06); color: rgba(254,243,199,0.75); cursor: pointer;
+}}
+.inv-filter-chip.active {{
+    background: rgba(255,176,32,0.2); color: #FCD34D; border-color: rgba(255,176,32,0.45);
+}}
+.inv-filter-sep {{ width: 1px; height: 18px; background: rgba(255,176,32,0.15); margin: 0 2px; }}
+.inv-filter-clear {{
+    padding: 5px 10px; border-radius: 999px; font-size: 11px; border: none;
+    background: rgba(255,255,255,0.06); color: rgba(254,243,199,0.5); cursor: pointer;
+}}
+.inv-goal-wrap {{ margin-top: 10px; }}
+.inv-goal-top {{
+    display: flex; justify-content: space-between; font-size: 11px; color: rgba(254,243,199,0.65); margin-bottom: 4px;
+}}
+.inv-goal-bar {{
+    height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden;
+}}
+.inv-goal-fill {{
+    height: 100%; border-radius: 999px; background: linear-gradient(90deg, #FFB020, #F59E0B);
+    transition: width 0.4s var(--ease-out);
+}}
+.inv-goal-over .inv-goal-fill {{ background: linear-gradient(90deg, #F87171, #EF4444); }}
+.inv-chart-legend {{
+    display: flex; gap: 12px; justify-content: center; padding: 8px 0 2px; flex-wrap: wrap;
+}}
+.inv-chart-legend-item {{
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: rgba(254,243,199,0.65);
+    border: none; background: none; padding: 4px 6px; border-radius: 8px; cursor: pointer;
+    font-family: inherit; transition: background 0.2s, color 0.2s;
+}}
+.inv-chart-legend-item.active {{
+    background: rgba(255,176,32,0.12); color: #FCD34D;
+}}
+.inv-chart-dot {{ width: 8px; height: 8px; border-radius: 50%; }}
+.inv-chart-interactive {{ width: 100%; }}
+.inv-chart-wrap {{
+    position: relative; border-radius: 12px; overflow: hidden;
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,176,32,0.08);
+}}
+.inv-chart-line-group {{ transition: opacity 0.25s; }}
+.inv-chart-line-group.dimmed {{ opacity: 0.28; }}
+.inv-chart-line-group.active .inv-chart-line {{ stroke-width: 3 !important; filter: drop-shadow(0 0 4px currentColor); }}
+.inv-chart-line-hit {{ cursor: pointer; }}
+.inv-chart-marker {{ pointer-events: none; }}
+.inv-chart-tooltip {{
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
+    background: rgba(28,28,30,0.95); border: 1px solid rgba(255,176,32,0.25);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35); z-index: 2; max-width: calc(100% - 16px);
+    pointer-events: none;
+}}
+.inv-chart-tooltip[hidden] {{ display: none !important; }}
+.inv-chart-tip-dot {{ width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }}
+.inv-chart-tip-body {{ display: flex; flex-direction: column; gap: 2px; min-width: 0; }}
+.inv-chart-tip-name {{ font-size: 12px; font-weight: 700; color: #FCD34D; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+.inv-chart-tip-val {{ font-size: 14px; font-weight: 700; color: #fff; }}
+.inv-chart-tip-unit {{ font-size: 10px; font-weight: 500; color: rgba(254,243,199,0.55); margin-right: 4px; }}
+.inv-chart-tip-date {{ font-size: 10px; color: rgba(254,243,199,0.5); }}
+.fin-txn.investment.sell {{ border-right-color: #4DD980; }}
+.fin-txn.investment.sell .fin-txn-amount {{ color: #4DD980; }}
+.fin-txn.investment.sell .fin-txn-icon {{ background: rgba(77,217,128,0.12); color: #4DD980; border-color: rgba(77,217,128,0.25); }}
+.inv-tag-sell {{ background: rgba(77,217,128,0.15) !important; color: #4DD980 !important; }}
+.fin-txn-qty {{ font-size: 10px; color: rgba(254,243,199,0.45); margin-top: 2px; }}
+.inv-pnl.profit {{ color: #4DD980; }}
+.inv-pnl.loss {{ color: #FF7359; }}
+[data-theme="light"] .inv-pnl.profit {{ color: #059669; }}
+[data-theme="light"] .inv-pnl.loss {{ color: #DC2626; }}
+[data-theme="light"] .inv-action-chip {{ color: #92400E; background: rgba(245,158,11,0.12); }}
+[data-theme="light"] .inv-period-chip {{ color: rgba(120,53,15,0.75); }}
+[data-theme="light"] .inv-period-chip.active {{ color: #78350F; }}
+[data-theme="light"] .inv-period-label {{ color: rgba(120,53,15,0.6); }}
+[data-theme="light"] .inv-filter-chip {{ color: rgba(120,53,15,0.75); }}
+[data-theme="light"] .inv-chart-mode-chip {{ color: rgba(67,56,202,0.75); border-color: rgba(99,102,241,0.25); }}
+[data-theme="light"] .inv-chart-mode-chip.active {{ color: #4338CA; }}
+[data-theme="light"] .inv-chart-legend-item {{ color: rgba(120,53,15,0.65); }}
+[data-theme="light"] .inv-chart-legend-item.active {{ color: #92400E; background: rgba(245,158,11,0.15); }}
+[data-theme="light"] .inv-chart-wrap {{ background: rgba(15,46,40,0.03); border-color: rgba(15,46,40,0.06); }}
+[data-theme="light"] .inv-chart-tooltip {{ background: rgba(255,255,255,0.97); border-color: rgba(245,158,11,0.3); box-shadow: 0 4px 16px rgba(15,23,42,0.12); }}
+[data-theme="light"] .inv-chart-tip-name {{ color: #92400E; }}
+[data-theme="light"] .inv-chart-tip-val {{ color: #1C1917; }}
+[data-theme="light"] .inv-chart-tip-unit, [data-theme="light"] .inv-chart-tip-date {{ color: rgba(120,53,15,0.55); }}
+[data-theme="light"] .inv-chart-marker {{ stroke: rgba(15,23,42,0.25); }}
+
+.inv-tabs {{
+    display: flex; gap: 6px; margin-bottom: 4px;
+}}
+.inv-tab {{
+    flex: 1; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,176,32,0.15);
+    background: rgba(255,176,32,0.06); color: rgba(254,243,199,0.7);
+    font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+}}
+.inv-tab.active {{
+    background: rgba(255,176,32,0.2); color: #FCD34D; border-color: rgba(255,176,32,0.35);
+}}
+.inv-pos-list {{ display: flex; flex-direction: column; gap: 8px; }}
+.inv-pos-item {{
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,176,32,0.1);
+}}
+.inv-pos-icon {{ flex-shrink: 0; }}
+.inv-pos-body {{ flex: 1; min-width: 0; }}
+.inv-pos-title {{ font-size: 13px; font-weight: 700; color: #FEF3C7; }}
+.inv-pos-qty, .inv-pos-cost {{ font-size: 10px; color: rgba(254,243,199,0.5); margin-top: 2px; }}
+.inv-pos-pnl {{ font-size: 11px; font-weight: 600; margin-top: 2px; }}
+.inv-pos-pnl.profit {{ color: #4DD980; }}
+.inv-pos-pnl.loss {{ color: #FF7359; }}
+.inv-pos-right {{ text-align: left; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }}
+.inv-pos-val {{ font-size: 13px; font-weight: 800; color: #FFB020; font-variant-numeric: tabular-nums; }}
+.inv-pos-price-btn {{
+    padding: 3px 8px; border-radius: 8px; border: 1px solid rgba(255,176,32,0.25);
+    background: rgba(255,176,32,0.1); color: rgba(254,243,199,0.75); font-size: 10px; cursor: pointer;
+}}
+.inv-hero-stat.net, .inv-hero-stat.pnl {{ padding: 6px 8px; border-radius: 10px; background: rgba(255,176,32,0.08); border: 1px solid rgba(255,176,32,0.12); }}
+.inv-hero-stat.pnl.profit .inv-stat-val {{ color: #4DD980; }}
+.inv-hero-stat.pnl.loss .inv-stat-val {{ color: #FF7359; }}
+[data-theme="light"] .inv-tab {{ color: rgba(120,53,15,0.75); }}
+[data-theme="light"] .inv-tab.active {{ color: #78350F; }}
+[data-theme="light"] .inv-pos-title {{ color: #78350F; }}
+[data-theme="light"] .inv-pos-val {{ color: #D97706; }}
+
+.inv-alloc-list {{ display: flex; flex-direction: column; gap: 10px; }}
+.inv-alloc-list.compact {{ gap: 8px; }}
+.inv-alloc-item {{
+    padding: 10px 12px; border-radius: 12px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,176,32,0.12);
+}}
+.inv-alloc-item.over {{ border-color: rgba(255,115,89,0.35); }}
+.inv-alloc-item.under {{ border-color: rgba(77,217,128,0.35); }}
+.inv-alloc-head {{ display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }}
+.inv-alloc-name {{ flex: 1; font-size: 12px; font-weight: 700; color: #FEF3C7; }}
+.inv-alloc-pcts {{ font-size: 11px; color: rgba(254,243,199,0.65); font-variant-numeric: tabular-nums; }}
+.inv-alloc-bar {{
+    position: relative; height: 8px; border-radius: 999px;
+    background: rgba(255,176,32,0.12); overflow: visible;
+}}
+.inv-alloc-fill.actual {{
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255,176,32,0.5), rgba(255,176,32,0.85));
+}}
+.inv-alloc-marker {{
+    position: absolute; top: -3px; width: 2px; height: 14px;
+    background: #FCD34D; border-radius: 1px; transform: translateX(-50%);
+    box-shadow: 0 0 6px rgba(252,211,77,0.6);
+}}
+.inv-alloc-drift {{ font-size: 10px; color: rgba(254,243,199,0.55); margin-top: 4px; }}
+.inv-alloc-edit, .inv-alloc-add {{
+    margin-top: 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,176,32,0.25);
+    background: rgba(255,176,32,0.1); color: rgba(254,243,199,0.8); font-size: 11px; cursor: pointer; width: 100%;
+}}
+.inv-alloc-warn {{
+    padding: 8px 10px; border-radius: 10px; margin: 8px 0;
+    background: rgba(255,115,89,0.12); color: #FF7359; font-size: 11px;
+}}
+.inv-card-link {{
+    padding: 4px 8px; border-radius: 8px; border: none; background: rgba(255,176,32,0.15);
+    color: rgba(254,243,199,0.75); font-size: 10px; cursor: pointer;
+}}
+.inv-custom-list {{ display: flex; flex-direction: column; gap: 8px; }}
+.inv-custom-item {{
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 12px; border-radius: 12px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,176,32,0.1);
+}}
+.inv-custom-info {{ display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }}
+.inv-custom-name {{ font-size: 12px; font-weight: 700; color: #FEF3C7; }}
+.inv-custom-market {{ font-size: 10px; color: rgba(254,243,199,0.5); }}
+.inv-custom-actions {{ display: flex; gap: 6px; flex-shrink: 0; }}
+.inv-custom-btn {{
+    padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(255,176,32,0.25);
+    background: rgba(255,176,32,0.1); color: rgba(254,243,199,0.75); font-size: 10px; cursor: pointer;
+}}
+.inv-custom-btn.danger {{ border-color: rgba(255,115,89,0.35); color: #FF7359; }}
+[data-theme="light"] .inv-alloc-name, [data-theme="light"] .inv-custom-name {{ color: #78350F; }}
+[data-theme="light"] .inv-alloc-pcts {{ color: rgba(120,53,15,0.65); }}
 """

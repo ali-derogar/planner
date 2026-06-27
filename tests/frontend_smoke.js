@@ -99,7 +99,25 @@ const ctx = {
         _exportData: '',
         _importDraft: '',
         _categories: ['عمومی'],
-        _investCategories: ['سایر'],
+        _investCategories: ['عیار'],
+        _investTaxonomy: {
+            risks: [
+                { value: 'بدون ریسک', label: 'بدون ریسک', emoji: '🛡️' },
+                { value: 'کم ریسک', label: 'کم ریسک', emoji: '🟢' },
+            ],
+            markets: [
+                { value: 'صندوق', label: 'صندوق', emoji: '💹' },
+                { value: 'رمزارز', label: 'رمزارز', emoji: '₿' },
+            ],
+            markets_by_risk: {
+                'بدون ریسک': [{ value: 'صندوق', label: 'صندوق', emoji: '💹' }],
+                'کم ریسک': [{ value: 'صندوق', label: 'صندوق', emoji: '💹' }],
+            },
+            assets: {
+                'صندوق': [{ value: 'عیار', label: 'عیار', emoji: '✨' }],
+                'رمزارز': [{ value: 'BTC/USDT', label: 'BTC/USDT', emoji: '₿' }],
+            },
+        },
         _moodEmojis: ['😀'],
         _dateCategories: ['سایر'],
         requestAnimationFrame: (fn) => fn(),
@@ -163,6 +181,46 @@ const SECTIONS = [
         entries: [], by_category: [], daily_series: [], chart: { has_data: false },
         installments: { count: 0, items: [], total_unpaid_fmt: '0' },
     })],
+    ['investments', () => ctx.renderInvestmentsScreen({
+        filter: { mode: 'all', label: 'همه', period_stat_label: 'کل' },
+        totals: {
+            balance: 700, balance_fmt: '700',
+            period_buys: 200, period_buys_fmt: '200',
+            month_investment: 200, month_investment_fmt: '200',
+            net_invested: 500, net_invested_fmt: '500',
+            portfolio_total: 500, portfolio_total_fmt: '500',
+            estimated_value: 520, estimated_value_fmt: '520',
+            has_market_values: true,
+        },
+        positions: [{
+            asset: 'عیار', market: 'صندوق', display: '✨ عیار · 💹 صندوق',
+            asset_emoji: '✨', cost_basis_fmt: '200', estimated_value_fmt: '220',
+            has_market_price: true, current_unit_price: 110,
+        }],
+        entries: [{
+            id: 1, title: 'خرید عیار', amount: 200, amount_fmt: '200', type: 'investment',
+            category: 'عیار', date: '2026-06-22', date_label: '1',
+            category_display: '✨ عیار · 💹 صندوق · 🟢 کم ریسک',
+            investment_meta: {
+                risk: 'کم ریسک', market: 'صندوق', asset: 'عیار',
+                asset_emoji: '✨', market_emoji: '💹', risk_emoji: '🟢',
+                display: '✨ عیار · 💹 صندوق · 🟢 کم ریسک',
+            },
+        }],
+        by_category: [{ category: 'عیار', amount: 200, amount_fmt: '200', pct: 100 }],
+        portfolio_by_risk: [{ category: 'کم ریسک', amount: 520, amount_fmt: '520', pct: 100 }],
+    })],
+    ['investments-empty', () => ctx.renderInvestmentsScreen({
+        filter: { mode: 'all', label: 'همه', period_stat_label: 'کل' },
+        totals: {
+            balance: 0, balance_fmt: '0',
+            period_buys: 0, period_buys_fmt: '0',
+            month_investment: 0, month_investment_fmt: '0',
+            net_invested: 0, net_invested_fmt: '0',
+            portfolio_total: 0, portfolio_total_fmt: '0',
+        },
+        positions: [], entries: [], by_category: [],
+    })],
     ['analytics', () => ctx.renderAnalytics({
         period: 7, start_label: 'a', end_label: 'b', stats: { streak: 1, eff: 50, total_fmt: '1h', useful_fmt: '30m', not_useful_fmt: '30m', income_fmt: '0', expense_fmt: '0', investment_fmt: '0', balance_fmt: '0', avg_mood: '5', avg_sleep: '8h' },
         chart_points: [0, 50, 100], heatmap: [{ date: '2026-01-01', eff: 50, total: 3600 }], days: [],
@@ -194,6 +252,19 @@ const SECTIONS = [
     ['tracking-active', () => ctx.renderTracking({ has_data: true, session: { id: 1, is_active: true, started_label: '10:00' }, date_label: 't', intervals: [{ id: 1, session_id: 1, is_active: true, started_label: '10:00' }], day_total_secs: 0, day_total_label: '0', completed_count: 0, session_count: 1, efficiency: 50, useful_label: '1h' })],
     ['taskCard', () => ctx.taskCard({ id: 1, title: 'x', display_fmt: '0:00', estimated_fmt: '—', estimated: 0, display_sec: 0, progress: 0, is_useful: true, is_starred: true, is_running: true, is_expanded: true, remaining_fmt: '1h' })],
     ['finChart', () => ctx.financeLineChartSvg({ income: [1, 2], expense: [1, 1], balance: [0, 1], investment: [0, 0] }, 320, 130)],
+    ['invChartMultiAsset', () => {
+        var chart = ctx.buildInvestmentChart({
+            filter: { mode: 'month', start: '2026-06-01', end: '2026-06-30' },
+            all_entries: [
+                { amount: 200, date: '2026-06-10', investment_meta: { asset: 'طلا', group_key: 'طلا', asset_emoji: '🥇' } },
+                { amount: 300, date: '2026-06-15', investment_meta: { asset: 'عیار', group_key: 'عیار', asset_emoji: '✨' } },
+            ],
+        });
+        var html = ctx.investmentTrendChartSvg(chart, 320, 130);
+        if (!html.includes('inv-chart-line-hit')) throw new Error('missing chart hit areas');
+        if (!html.includes('invChartTooltip')) throw new Error('missing chart tooltip');
+        return html;
+    }],
 ];
 
 for (const [name, fn] of SECTIONS) {
@@ -212,7 +283,6 @@ for (const [name, fn] of SECTIONS) {
 const MODALS = [
     ['addFinance', () => ctx.showAddFinance('expense')],
     ['addIncome', () => ctx.showAddFinance('income')],
-    ['addInvest', () => ctx.showAddFinance('investment')],
     ['addBudget', () => ctx.showAddBudget()],
     ['addCategory', () => ctx.showAddCategory()],
     ['durationModal', () => ctx.showDurationModal('t', 'set_duration', 1, 90000)],
@@ -225,7 +295,8 @@ for (const [name, fn] of MODALS) {
 }
 
 // Jalali-date modals need full DOM; covered by Python build_state + renderApp tests.
-['showAddProject', 'showAddInstallment', 'showAddImportantDate', 'showEditImportantDateById', 'showEditInstallmentById', 'flushPendingSearch'].forEach((fnName) => {
+['showAddProject', 'showAddInstallment', 'showAddImportantDate', 'showEditImportantDateById',
+    'showEditInstallmentById', 'showInvestmentModal', 'showUpdateAssetPrice', 'flushPendingSearch'].forEach((fnName) => {
     if (typeof ctx[fnName] !== 'function') errors.push(`missing ${fnName}`);
 });
 

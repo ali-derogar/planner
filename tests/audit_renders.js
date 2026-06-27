@@ -71,7 +71,12 @@ const ctx = {
         _exportData: '',
         _importDraft: '',
         _categories: ['عمومی'],
-        _investCategories: ['سایر'],
+        _investCategories: ['عیار'],
+        _investTaxonomy: {
+            risks: [{ value: 'کم ریسک', label: 'کم ریسک', emoji: '🟢' }],
+            markets: [{ value: 'صندوق', label: 'صندوق', emoji: '💹' }],
+            assets: { 'صندوق': [{ value: 'عیار', label: 'عیار', emoji: '✨' }] },
+        },
         _moodEmojis: ['😀', '🙂'],
         _dateCategories: ['سایر'],
         _projectColors: ['#5E5CE6'],
@@ -155,6 +160,55 @@ const tests = [
         chart: { has_data: true, income: [1, 2], expense: [1, 1], balance: [0, 1], investment: [0, 0] },
         installments: { count: 1, items: [{ id: 1, title: 'loan', amount_fmt: '10', remaining_fmt: '50', is_settled: false, paid_this_month: false }], total_unpaid_fmt: '50' },
     })],
+    ['renderInvestmentsScreen', () => ctx.renderInvestmentsScreen({
+        filter: { mode: 'month', label: 'تیر ۱۴۰۴', is_current_month: true, period_stat_label: 'در بازه', start: '2026-06-01', end: '2026-06-30' },
+        totals: { balance: 700, balance_fmt: '700', month_investment: 200, month_investment_fmt: '200', portfolio_total: 500, portfolio_total_fmt: '500' },
+        all_entries: [
+            {
+                id: 1, title: 'gold', amount: 200, amount_fmt: '200', type: 'investment',
+                category: 'طلا', date: '2026-06-10', date_label: '1',
+                category_display: '🥇 طلا · 🪙 فیزیکی · 🟢 کم ریسک',
+                investment_meta: {
+                    risk: 'کم ریسک', market: 'فیزیکی', asset: 'طلا', group_key: 'طلا',
+                    asset_emoji: '🥇', market_emoji: '🪙', risk_emoji: '🟢',
+                    display: '🥇 طلا · 🪙 فیزیکی · 🟢 کم ریسک',
+                },
+            },
+            {
+                id: 2, title: 'fund', amount: 300, amount_fmt: '300', type: 'investment',
+                category: 'عیار', date: '2026-06-15', date_label: '2',
+                category_display: '✨ عیار · 💹 صندوق · 🟢 کم ریسک',
+                investment_meta: {
+                    risk: 'کم ریسک', market: 'صندوق', asset: 'عیار', group_key: 'عیار',
+                    asset_emoji: '✨', market_emoji: '💹', risk_emoji: '🟢',
+                    display: '✨ عیار · 💹 صندوق · 🟢 کم ریسک',
+                },
+            },
+        ],
+        entries: [
+            {
+                id: 1, title: 'gold', amount: 200, amount_fmt: '200', type: 'investment',
+                category: 'طلا', date: '2026-06-10', date_label: '1',
+                category_display: '🥇 طلا · 🪙 فیزیکی · 🟢 کم ریسک',
+                investment_meta: {
+                    risk: 'کم ریسک', market: 'فیزیکی', asset: 'طلا', group_key: 'طلا',
+                    asset_emoji: '🥇', market_emoji: '🪙', risk_emoji: '🟢',
+                    display: '🥇 طلا · 🪙 فیزیکی · 🟢 کم ریسک',
+                },
+            },
+            {
+                id: 2, title: 'fund', amount: 300, amount_fmt: '300', type: 'investment',
+                category: 'عیار', date: '2026-06-15', date_label: '2',
+                category_display: '✨ عیار · 💹 صندوق · 🟢 کم ریسک',
+                investment_meta: {
+                    risk: 'کم ریسک', market: 'صندوق', asset: 'عیار', group_key: 'عیار',
+                    asset_emoji: '✨', market_emoji: '💹', risk_emoji: '🟢',
+                    display: '✨ عیار · 💹 صندوق · 🟢 کم ریسک',
+                },
+            },
+        ],
+        by_category: [{ category: 'طلا', amount: 200, amount_fmt: '200', pct: 40 }, { category: 'عیار', amount: 300, amount_fmt: '300', pct: 60 }],
+    })],
     ['renderProjects', () => ctx.renderProjects({
         list: [
             { id: 1, title: 'P', color: '#5E5CE6', progress: 50, done: 1, total: 2, is_done: false, deadline_label: '', deadline_overdue: false },
@@ -199,6 +253,7 @@ const tests = [
 const headerBody = [
     ['renderHome', 'home-body', 'home-header'],
     ['renderFinanceScreen', 'fin-body', 'fin-header'],
+    ['renderInvestmentsScreen', 'inv-body', 'inv-header'],
     ['renderAnalytics', 'analytics-body', 'analytics-header'],
     ['renderProjects', 'proj-body', 'proj-header'],
     ['renderTracking-active', 'track-actions', 'track-header'],
