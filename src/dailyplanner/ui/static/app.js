@@ -2670,6 +2670,51 @@ function filterInvestEntries(entries) {
     });
 }
 
+function hasActiveInvestFilter() {
+    var f = window._investFilter || {};
+    return !!(f.risk || f.market || f.asset);
+}
+
+function filterInvestPositions(positions) {
+    var f = window._investFilter || {};
+    return (positions || []).filter(function(p) {
+        if (f.risk && p.risk !== f.risk) return false;
+        if (f.market && p.market !== f.market) return false;
+        if (f.asset && p.asset !== f.asset) return false;
+        return true;
+    });
+}
+
+function fmtTomanAmount(n) {
+    var abs = Math.abs(Math.round(n || 0));
+    return pd(abs.toLocaleString('en-US'));
+}
+
+function buildPositionBreakdown(positions, field) {
+    var totals = {};
+    (positions || []).forEach(function(p) {
+        var key = p[field] || 'سایر';
+        var val = p.has_market_price ? (p.estimated_value || 0) : (p.cost_basis || 0);
+        totals[key] = (totals[key] || 0) + val;
+    });
+    var total = Object.keys(totals).reduce(function(s, k) { return s + totals[k]; }, 0);
+    return Object.keys(totals).map(function(k) {
+        var amt = totals[k];
+        return {
+            category: k,
+            amount: amt,
+            amount_fmt: fmtTomanAmount(amt),
+            pct: total > 0 ? Math.round(amt / total * 100) : 0,
+        };
+    }).filter(function(c) { return c.amount > 0; });
+}
+
+function computeFilteredPeriodBuys(allEntries, periodFilter) {
+    var period = filterInvestEntriesByPeriod(allEntries || [], periodFilter || {});
+    return filterInvestEntries(period).filter(function(e) { return !e.is_sell; })
+        .reduce(function(s, e) { return s + (e.amount || 0); }, 0);
+}
+
 function renderInvestFilterChips(scope) {
     var tax = window._investTaxonomy || { risks: [], markets: [], assets: {} };
     var f = window._investFilter || {};
@@ -2694,7 +2739,7 @@ function renderInvestFilterChips(scope) {
             assetSet[val] = a.emoji || '💎';
         });
     }
-    (window._investEntries || []).forEach(function(e) {
+    (window._investAllEntries || window._investEntries || []).forEach(function(e) {
         var m = e.investment_meta || {};
         if (f.market && m.market !== f.market) return;
         if (f.risk && m.risk !== f.risk) return;
@@ -3039,6 +3084,8 @@ function renderRebalanceSection(rebalance, compact) {
         html += '<span class="inv-rebalance-sum need">نیاز نقد: ' + esc(rebalance.net_cash_needed_fmt) + '</span>';
     } else if (rebalance.can_rebalance) {
         html += '<span class="inv-rebalance-sum ok">✓ با موجودی فعلی قابل اجراست</span>';
+    } else if (rebalance.sell_capped) {
+        html += '<span class="inv-rebalance-sum need">فروش به‌دلیل محدودیت موجودی کمتر از هدف است</span>';
     }
     html += '</div></div>';
     return html;
@@ -3771,17 +3818,44 @@ function renderInvestmentsScreen(d) {
         estimated_value: 0, estimated_value_fmt: '۰', has_market_values: false,
     };
     var tab = window._investTab || 'summary';
-    var netFmt = t.net_invested_fmt || t.portfolio_total_fmt || '۰';
-    var ringVal = t.has_market_values ? (t.estimated_value_fmt || netFmt) : netFmt;
-    var ringLbl = t.has_market_values ? 'ارزش تخمینی' : 'سرمایه خالص';
     var periodFmt = t.period_buys_fmt || t.period_investment_fmt || t.month_investment_fmt || '۰';
     var balCls = t.balance >= 0 ? 'positive' : 'negative';
     var byCat = d.by_category || [];
     var portfolioByCat = d.portfolio_by_category || [];
     var portfolioByRisk = d.portfolio_by_risk || [];
     var positions = d.positions || [];
+    if (hasActiveInvestFilter()) {
+        positions = filterInvestPositions(positions);
+    }
     var chart = buildInvestmentChart(d);
     var chartTitle = (f.mode === 'all' || !f.start) ? 'روند کل پرتفوی' : 'روند دوره';
+    if (hasActiveInvestFilter()) {
+        chartTitle += ' (فیلتر دارایی)';
+    }
+
+    var netFmt = t.net_invested_fmt || t.portfolio_total_fmt || '۰';
+    var ringVal = t.has_market_values ? (t.estimated_value_fmt || netFmt) : netFmt;
+    var ringLbl = t.has_market_values ? 'ارزش تخمینی' : 'سرمایه خالص';
+    if (hasActiveInvestFilter() && positions.length) {
+        var filteredEst = positions.reduce(function(s, p) { return s + (p.estimated_value || 0); }, 0);
+        var filteredCost = positions.reduce(function(s, p) { return s + (p.cost_basis || 0); }, 0);
+        var filteredHasMarket = positions.some(function(p) { return p.has_market_price; });
+        ringVal = fmtTomanAmount(filteredHasMarket ? filteredEst : filteredCost);
+        ringLbl = filteredHasMarket ? 'ارزش تخمینی (فیلتر)' : 'سرمایه خالص (فیلتر)';
+        netFmt = fmtTomanAmount(filteredCost);
+        var filteredPnL = positions.filter(function(p) { return p.has_market_price; })
+            .reduce(function(s, p) { return s + (p.unrealized_pnl || 0); }, 0);
+        if (positions.some(function(p) { return p.has_market_price; })) {
+            t = Object.assign({}, t, {
+                unrealized_pnl_fmt: fmtTomanAmount(Math.abs(filteredPnL)),
+                unrealized_pnl_positive: filteredPnL >= 0,
+                pnl_partial: positions.filter(function(p) { return p.has_market_price; }).length < positions.length,
+            });
+        }
+        periodFmt = fmtTomanAmount(computeFilteredPeriodBuys(window._investAllEntries || entries, f));
+        portfolioByRisk = buildPositionBreakdown(positions, 'risk');
+        portfolioByCat = buildPositionBreakdown(positions, 'asset');
+    }
 
     var html = '<div class="inv-page">' +
         '<div class="date-header inv-header">' +

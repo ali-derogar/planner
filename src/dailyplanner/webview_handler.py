@@ -10,8 +10,10 @@ import toga
 from dailyplanner.database import Database
 from dailyplanner.finance_sms import normalize_digits, resolve_amount, _strip_group_separators
 from dailyplanner.investments import (
+    _credit_excluded_entry_to_availability,
     _entry_is_sell,
     canonical_investment_category,
+    compute_positions,
     decode_investment_category,
     encode_investment_category,
     is_valid_risk_market,
@@ -100,7 +102,13 @@ def _investment_entry_date(
             return end
         return start
     if invest_filter_mode == "range" and invest_filter_end:
-        return min(invest_filter_end, today)
+        if invest_filter_start and invest_filter_start <= today <= invest_filter_end:
+            return today
+        if invest_filter_end < today:
+            return invest_filter_end
+        if invest_filter_start and today < invest_filter_start:
+            return invest_filter_start
+        return today
     return current_date if current_date else today
 
 
@@ -188,19 +196,62 @@ def _resolve_investment_entry(
                     pass
     title = str(p.get("title", "")).strip() or asset
     category = encode_investment_category(risk, market, asset)
+    if exclude_id is not None and db is not None:
+        old_entry = db.get_finance_entry_by_id(exclude_id)
+        if old_entry and old_entry.entry_type == "investment":
+            old_dir = getattr(old_entry, "investment_direction", "buy") or "buy"
+            if old_dir != direction:
+                return (
+                    "",
+                    "",
+                    direction,
+                    0,
+                    None,
+                    None,
+                    None,
+                    "نوع تراکنش (خرید/فروش) را نمی‌توان تغییر داد",
+                )
     if direction == "sell" and db is not None:
         sell_as_of = as_of or _parse_finance_entry_date(p, datetime.date.today())
         entries = db.get_investment_entries_until(sell_as_of)
+        if quantity and quantity > 0:
+            filtered = [
+                e for e in entries
+                if exclude_id is None or getattr(e, "id", None) != exclude_id
+            ]
+            positions = compute_positions(filtered)
+            target = canonical_investment_category(category)
+            pos = next((p for p in positions if p["category"] == target), None)
+            available_cost = int(pos["cost_basis"]) if pos else 0
+            available_qty = pos["quantity"] if pos else None
+            if (
+                exclude_id is not None
+                and db.get_finance_entry_by_id(exclude_id)
+                and _entry_is_sell(db.get_finance_entry_by_id(exclude_id))
+            ):
+                excluded = db.get_finance_entry_by_id(exclude_id)
+                available_cost, available_qty = _credit_excluded_entry_to_availability(
+                    excluded, target, available_cost, available_qty
+                )
+            if available_qty and available_qty > 0 and available_cost > 0:
+                amount = max(1, round(quantity * available_cost / available_qty))
         sell_err = validate_investment_sell(category, amount, quantity, entries, exclude_id)
         if sell_err:
             return "", "", direction, 0, None, None, None, sell_err
     elif direction != "sell" and db is not None and exclude_id is not None:
         buy_as_of = as_of or _parse_finance_entry_date(p, datetime.date.today())
-        entries = db.get_investment_entries_until(buy_as_of)
+        entries = db.get_all_investment_entries()
         old_entry = db.get_finance_entry_by_id(exclude_id)
         old_category = getattr(old_entry, "category", "") if old_entry else category
         buy_err = validate_investment_buy_edit(
-            category, amount, quantity, entries, exclude_id, old_category
+            category,
+            amount,
+            quantity,
+            entries,
+            exclude_id,
+            old_category,
+            unit_price,
+            buy_as_of,
         )
         if buy_err:
             return "", "", direction, 0, None, None, None, buy_err

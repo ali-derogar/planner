@@ -55,8 +55,8 @@ def test_finance_investment_not_expense(db):
     assert monthly["total_investment"] == 200000
     assert monthly["total_expense"] == 100000
     assert monthly["by_category"]["غذا"]["expense"] == 100000
-    assert monthly["by_category"]["سهام"]["investment"] == 200000
-    assert "expense" not in monthly["by_category"].get("سهام", {}) or monthly["by_category"]["سهام"]["expense"] == 0
+    assert monthly["by_category"]["بورس|سهام عمومی"]["investment"] == 200000
+    assert "expense" not in monthly["by_category"].get("بورس|سهام عمومی", {}) or monthly["by_category"]["بورس|سهام عمومی"]["expense"] == 0
 
     entries = db.get_investment_entries_between(d.replace(day=1), d)
     assert len(entries) == 1
@@ -975,8 +975,9 @@ def test_buy_without_current_price_keeps_stored_price(db):
     assert db.get_investment_asset_prices()["فیزیکی|طلا"] == 2500000
 
 
-def test_edit_buy_to_sell_validation_credits_excluded_entry(db):
-    from dailyplanner.investments import encode_investment_category, validate_investment_sell
+def test_edit_buy_to_sell_rejected_on_edit(db):
+    from dailyplanner.investments import encode_investment_category
+    from dailyplanner.webview_handler import _resolve_investment_entry
 
     d = datetime.date.today()
     cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
@@ -984,8 +985,146 @@ def test_edit_buy_to_sell_validation_credits_excluded_entry(db):
         d, "investment", "gold", 200000, cat,
         quantity=1.0, unit_price=200000,
     )
+    title, category, direction, amount, qty, unit_price, current, err = _resolve_investment_entry(
+        {
+            "invest_risk": "کم ریسک",
+            "invest_market": "فیزیکی",
+            "invest_asset": "طلا",
+            "invest_direction": "sell",
+            "amount": "100000",
+        },
+        db=db,
+        exclude_id=entry.id,
+    )
+    assert err == "نوع تراکنش (خرید/فروش) را نمی‌توان تغییر داد"
     entries = db.get_investment_entries_until(d)
-    assert validate_investment_sell(cat, 100000, None, entries, exclude_id=entry.id) is None
+    positions_before = __import__(
+        "dailyplanner.investments", fromlist=["compute_positions"]
+    ).compute_positions(entries)
+    assert len(positions_before) == 1
+    assert positions_before[0]["cost_basis"] == 200000
+
+
+def test_edit_buy_requires_quantity_when_sells_used_qty(db):
+    from dailyplanner.investments import encode_investment_category, validate_investment_buy_edit
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    buy = db.add_finance_entry(
+        d, "investment", "buy", 300000, cat,
+        quantity=3.0, unit_price=100000,
+    )
+    db.add_finance_entry(
+        d, "investment", "sell", 150000, cat,
+        investment_direction="sell", quantity=1.5,
+    )
+    entries = db.get_investment_entries_until(d)
+    err = validate_investment_buy_edit(
+        cat, 250000, None, entries, exclude_id=buy.id, old_category=cat
+    )
+    assert err is not None
+    assert validate_investment_buy_edit(
+        cat, 250000, 2.0, entries, exclude_id=buy.id, old_category=cat, unit_price=125000
+    ) is None
+
+
+def test_rebalance_not_executable_when_sell_capped(db):
+    from dailyplanner.investments import (
+        compute_positions,
+        compute_rebalance_suggestions,
+        encode_investment_category,
+        merge_asset_prices,
+    )
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "gold", 200000, cat,
+        quantity=1.0, unit_price=200000, current_unit_price=200000,
+    )
+    db.set_investment_asset_price("فیزیکی", "طلا", 400000)
+    entries = db.get_investment_entries_until(d)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    rebalance = compute_rebalance_suggestions(positions, {"فیزیکی|طلا": 10, "صندوق|عیار": 90})
+    assert rebalance["sell_capped"] is True
+    assert rebalance["can_rebalance"] is False
+
+
+def test_finance_monthly_merges_legacy_investment_categories(db):
+    from dailyplanner.investments import encode_investment_category
+
+    d = datetime.date.today()
+    json_cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(d, "investment", "legacy", 100000, "طلا")
+    db.add_finance_entry(d, "investment", "json", 200000, json_cat)
+    monthly = db.get_finance_monthly_totals_between(d.replace(day=1), d)
+    assert monthly["by_category"]["فیزیکی|طلا"]["investment"] == 300000
+
+
+def test_sell_quantity_amount_must_match_avg_cost(db):
+    from dailyplanner.investments import encode_investment_category, validate_investment_sell
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "buy", 400000, cat,
+        quantity=4.0, unit_price=100000,
+    )
+    entries = db.get_investment_entries_until(d)
+    assert validate_investment_sell(cat, 50000, 2.0, entries) is not None
+    assert validate_investment_sell(cat, 200000, 2.0, entries) is None
+
+
+def test_edit_buy_rejects_future_sell_break(db):
+    from dailyplanner.investments import encode_investment_category, validate_investment_buy_edit
+
+    buy_date = datetime.date.today() - datetime.timedelta(days=20)
+    sell_date = datetime.date.today() - datetime.timedelta(days=5)
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    buy = db.add_finance_entry(
+        buy_date, "investment", "buy", 300000, cat,
+        quantity=3.0, unit_price=100000,
+    )
+    db.add_finance_entry(
+        sell_date, "investment", "sell", 150000, cat,
+        investment_direction="sell", quantity=1.5, unit_price=100000,
+    )
+    entries = db.get_all_investment_entries()
+    err = validate_investment_buy_edit(
+        cat, 100000, 1.0, entries, exclude_id=buy.id, old_category=cat,
+        unit_price=100000, entry_date=buy_date,
+    )
+    assert err is not None
+
+
+def test_edit_buy_rejects_date_after_sell(db):
+    from dailyplanner.investments import encode_investment_category, validate_investment_buy_edit
+
+    buy_date = datetime.date.today() - datetime.timedelta(days=20)
+    sell_date = datetime.date.today() - datetime.timedelta(days=5)
+    new_buy_date = datetime.date.today() - datetime.timedelta(days=3)
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    buy = db.add_finance_entry(
+        buy_date, "investment", "buy", 300000, cat,
+        quantity=3.0, unit_price=100000,
+    )
+    db.add_finance_entry(
+        sell_date, "investment", "sell", 150000, cat,
+        investment_direction="sell", quantity=1.5,
+    )
+    entries = db.get_all_investment_entries()
+    err = validate_investment_buy_edit(
+        cat, 300000, 3.0, entries, exclude_id=buy.id, old_category=cat,
+        unit_price=100000, entry_date=new_buy_date,
+    )
+    assert err is not None
+    assert "تاریخ خرید" in err
+
+
+def test_custom_asset_rename_rejects_builtin(db):
+    assert db.add_investment_custom_asset("بورس", "نمادمن", "نمادمن")
+    assert not db.update_investment_custom_asset("بورس", "نمادمن", new_value="فملی")
 
 
 def test_amount_and_quantity_without_unit_price(db):

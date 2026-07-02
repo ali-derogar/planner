@@ -164,6 +164,18 @@ INVESTMENT_RISK_MARKETS: Dict[str, List[str]] = {
     "پر ریسک": ["بورس", "رمزارز"],
 }
 
+_MARKET_DEFAULT_RISK: Dict[str, str] = {
+    "سپرده بانکی": "بدون ریسک",
+    "اوراق بدهی": "بدون ریسک",
+    "فیزیکی": "کم ریسک",
+    "صندوق": "کم ریسک",
+    "بورس": "ریسک متوسط",
+    "املاک": "ریسک متوسط",
+    "خودرو": "ریسک متوسط",
+    "بورس کالا": "ریسک متوسط",
+    "رمزارز": "پر ریسک",
+}
+
 _LEGACY_CATEGORY_MAP = {
     "سهام": ("ریسک متوسط", "بورس", "سهام عمومی"),
     "طلا": ("کم ریسک", "فیزیکی", "طلا"),
@@ -193,10 +205,12 @@ def normalize_investment_meta(
     catalog = assets_map or INVESTMENT_ASSETS
     if market and asset:
         if not risk:
-            for r, mkts in INVESTMENT_RISK_MARKETS.items():
-                if market in mkts:
-                    risk = r
-                    break
+            risk = _MARKET_DEFAULT_RISK.get(market, "")
+            if not risk:
+                for r, mkts in INVESTMENT_RISK_MARKETS.items():
+                    if market in mkts:
+                        risk = r
+                        break
         return {"risk": risk, "market": market, "asset": asset}
     if asset and not market:
         markets = [
@@ -595,19 +609,12 @@ def _credit_excluded_entry_to_availability(
     if canonical_investment_category(getattr(excluded_entry, "category", "") or "") != target:
         return available_cost, available_qty
     amount = int(getattr(excluded_entry, "amount", 0) or 0)
-    if _entry_is_sell(excluded_entry):
-        available_cost += amount
-        exc_qty = getattr(excluded_entry, "quantity", None)
-        if exc_qty and exc_qty > 0:
-            available_qty = (available_qty or 0) + float(exc_qty)
+    if not _entry_is_sell(excluded_entry):
         return available_cost, available_qty
     available_cost += amount
     exc_qty = getattr(excluded_entry, "quantity", None)
-    exc_unit = getattr(excluded_entry, "unit_price", None)
     if exc_qty and exc_qty > 0:
         available_qty = (available_qty or 0) + float(exc_qty)
-    elif amount > 0 and exc_unit and exc_unit > 0:
-        available_qty = (available_qty or 0) + amount / exc_unit
     return available_cost, available_qty
 
 
@@ -635,6 +642,8 @@ def validate_investment_buy_edit(
     entries,
     exclude_id: Optional[int] = None,
     old_category: Optional[str] = None,
+    unit_price: Optional[int] = None,
+    entry_date=None,
 ) -> Optional[str]:
     """Ensure editing a buy doesn't break existing sells."""
     if exclude_id is None:
@@ -656,9 +665,88 @@ def validate_investment_buy_edit(
     sold_cost, sold_qty = _sells_total_for_category(filtered, target)
     if sold_cost > 0 and amount < sold_cost:
         return f"مبلغ خرید باید حداقل {sold_cost:,} تومان باشد (جمع فروش‌ها)"
-    if sold_qty and sold_qty > 0 and quantity and quantity > 0:
-        if quantity + 1e-9 < sold_qty:
+    if sold_qty and sold_qty > 0:
+        effective_qty = quantity
+        if (not effective_qty or effective_qty <= 0) and amount > 0 and unit_price and unit_price > 0:
+            effective_qty = amount / unit_price
+        if not effective_qty or effective_qty <= 0:
+            return f"تعداد الزامی است (حداقل {_fmt_qty(sold_qty)} واحد)"
+        if effective_qty + 1e-9 < sold_qty:
             return f"تعداد باید حداقل {_fmt_qty(sold_qty)} باشد"
+    if entry_date is not None:
+        from dailyplanner.models import str_to_date
+
+        for entry in filtered:
+            if not _entry_is_sell(entry):
+                continue
+            if canonical_investment_category(getattr(entry, "category", "") or "") != target:
+                continue
+            try:
+                sell_date = str_to_date(entry.date)
+            except (ValueError, TypeError):
+                continue
+            if entry_date > sell_date:
+                return "تاریخ خرید نمی‌تواند بعد از فروش‌های این دارایی باشد"
+        replay_err = _validate_buy_edit_ledger(
+            category, amount, quantity, unit_price, filtered, target, entry_date
+        )
+        if replay_err:
+            return replay_err
+    return None
+
+
+def _validate_buy_edit_ledger(
+    category: str,
+    amount: int,
+    quantity: Optional[float],
+    unit_price: Optional[int],
+    entries,
+    target: str,
+    entry_date,
+) -> Optional[str]:
+    """Replay ledger with the proposed buy and ensure each sell still fits."""
+    from dailyplanner.models import str_to_date
+
+    class _ProposedBuy:
+        id = -1
+
+        def __init__(self):
+            self.date = entry_date.isoformat() if hasattr(entry_date, "isoformat") else str(entry_date)
+            self.category = category
+            self.amount = amount
+            self.investment_direction = "buy"
+            self.quantity = quantity
+            self.unit_price = unit_price
+
+    rows = sorted(
+        list(entries or []) + [_ProposedBuy()],
+        key=lambda e: (getattr(e, "date", ""), getattr(e, "id", 0) or 0),
+    )
+
+    def _entry_date(entry) -> str:
+        return getattr(entry, "date", "") or ""
+
+    for row in rows:
+        if not _entry_is_sell(row):
+            continue
+        if canonical_investment_category(getattr(row, "category", "") or "") != target:
+            continue
+        try:
+            as_of = str_to_date(_entry_date(row))
+        except (ValueError, TypeError):
+            continue
+        subset = [
+            e for e in rows
+            if _entry_date(e) and str_to_date(_entry_date(e)) <= as_of
+        ]
+        sell_err = validate_investment_sell(
+            row.category,
+            int(getattr(row, "amount", 0) or 0),
+            getattr(row, "quantity", None),
+            subset,
+        )
+        if sell_err:
+            return "ویرایش باعث می‌شود فروش‌های ثبت‌شده از موجودی بیشتر باشند"
     return None
 
 
@@ -699,6 +787,12 @@ def validate_investment_sell(
             return "برای فروش با تعداد، ابتدا خرید با تعداد ثبت کنید"
         if quantity > available_qty + 1e-9:
             return f"حداکثر {_fmt_qty(available_qty)} واحد قابل فروش است"
+        avg_cost = available_cost / available_qty
+        expected_amount = max(1, round(quantity * avg_cost))
+        if amount > expected_amount:
+            return f"حداکثر {expected_amount:,} تومان برای {_fmt_qty(quantity)} واحد"
+        if abs(amount - expected_amount) > max(100, round(expected_amount * 0.005)):
+            return f"مبلغ باید {expected_amount:,} تومان باشد (بر اساس میانگین بهای تمام‌شده)"
 
     if amount > available_cost:
         return f"حداکثر {available_cost:,} تومان قابل برداشت است"
@@ -865,6 +959,7 @@ def compute_rebalance_suggestions(
     items: List[Dict[str, Any]] = []
     total_buy = 0
     total_sell = 0
+    sell_capped = False
 
     for row in comparison:
         target_pct = int(row.get("target_pct") or 0)
@@ -892,7 +987,10 @@ def compute_rebalance_suggestions(
                 lookup_key = asset_price_key(market, asset) if market and asset else asset
             pos = pos_lookup.get(lookup_key)
             if pos:
-                amount = min(amount, int(pos.get("cost_basis") or 0))
+                cap = int(pos.get("cost_basis") or 0)
+                if amount > cap:
+                    sell_capped = True
+                amount = min(amount, cap)
             total_sell += amount
         else:
             action = "hold"
@@ -923,7 +1021,8 @@ def compute_rebalance_suggestions(
         "total_sell": total_sell,
         "net_cash_needed": net_cash_needed,
         "available_cash": cash,
-        "can_rebalance": has_suggestions and net_cash_needed == 0,
+        "can_rebalance": has_suggestions and net_cash_needed == 0 and not sell_capped,
         "has_suggestions": has_suggestions,
         "targets_valid": True,
+        "sell_capped": sell_capped,
     }

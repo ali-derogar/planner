@@ -22,6 +22,7 @@ from dailyplanner.models import (
 )
 from dailyplanner.services.timer import TimerService
 from dailyplanner.investments import (
+    asset_price_key,
     compute_allocation_comparison,
     allocation_targets_total,
     compute_rebalance_suggestions,
@@ -796,7 +797,9 @@ def build_state(
         by_asset: Dict[str, int] = {}
         for entry in entries:
             meta = normalize_investment_meta(decode_investment_category(entry.category or ""))
-            key = meta.get("asset") or investment_group_key(entry.category or "")
+            market = meta.get("market") or ""
+            asset = meta.get("asset") or investment_group_key(entry.category or "")
+            key = asset_price_key(market, asset) if market and asset else asset
             by_asset[key] = by_asset.get(key, 0) + entry.signed_amount
         by_category_list = _category_breakdown_list(by_asset, period_investment)
 

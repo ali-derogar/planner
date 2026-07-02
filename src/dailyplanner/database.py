@@ -17,6 +17,38 @@ _INVEST_BALANCE = (
 )
 
 
+def _finance_category_group_key(category: str, entry_type: str) -> str:
+    cat = category or "عمومی"
+    if entry_type != "investment":
+        return cat
+    from dailyplanner.investments import (
+        asset_price_key,
+        decode_investment_category,
+        investment_group_key,
+        normalize_investment_meta,
+    )
+
+    meta = normalize_investment_meta(decode_investment_category(cat))
+    market = meta.get("market") or ""
+    asset = meta.get("asset") or investment_group_key(cat)
+    if market and asset:
+        return asset_price_key(market, asset)
+    return asset or investment_group_key(cat)
+
+
+def _merge_finance_by_category(by_category: dict) -> dict:
+    merged: dict = {}
+    for cat, amounts in (by_category or {}).items():
+        key = cat
+        if amounts.get("investment"):
+            key = _finance_category_group_key(cat, "investment")
+        if key not in merged:
+            merged[key] = {"income": 0, "expense": 0, "investment": 0}
+        for field in ("income", "expense", "investment"):
+            merged[key][field] += int(amounts.get(field) or 0)
+    return merged
+
+
 DEFAULT_SETTINGS = {"theme": "dark"}
 
 
@@ -842,6 +874,7 @@ class Database:
             else:
                 by_category[cat]["expense"] += amount
                 total_expense += amount
+        by_category = _merge_finance_by_category(by_category)
         return {
             "total_income": total_income,
             "total_expense": total_expense,
@@ -879,6 +912,7 @@ class Database:
             else:
                 by_category[cat]["expense"] += amount
                 total_expense += amount
+        by_category = _merge_finance_by_category(by_category)
         return {
             "total_income": total_income,
             "total_expense": total_expense,
@@ -1086,6 +1120,10 @@ class Database:
         if renamed:
             new_val = new_value.strip()
             if any(a["market"] == market and a["value"] == new_val for a in assets):
+                return False
+            from dailyplanner.investments import is_builtin_asset
+
+            if is_builtin_asset(market, new_val):
                 return False
             item["value"] = new_val
         if label:
