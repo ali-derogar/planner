@@ -5913,6 +5913,16 @@ body.kb-open .track-act-overlay.track-act-viewport-sync {{
     padding: 5px 10px; border-radius: 999px; font-size: 11px; border: none;
     background: rgba(255,255,255,0.06); color: rgba(254,243,199,0.5); cursor: pointer;
 }}
+.inv-market-hint {{
+    font-size: 10px; line-height: 1.5; color: rgba(254,243,199,0.45); margin-top: 4px;
+}}
+.inv-asset-select-wrap {{
+    display: flex; flex-direction: column; gap: 6px; width: 100%;
+}}
+.inv-asset-search {{
+    font-size: 12px; padding: 8px 10px;
+}}
+[data-theme="light"] .inv-market-hint {{ color: rgba(120,53,15,0.55); }}
 .inv-goal-wrap {{ margin-top: 10px; }}
 .inv-goal-top {{
     display: flex; justify-content: space-between; font-size: 11px; color: rgba(254,243,199,0.65); margin-bottom: 4px;
@@ -6056,6 +6066,29 @@ body.kb-open .track-act-overlay.track-act-viewport-sync {{
     padding: 8px 10px; border-radius: 10px; margin: 8px 0;
     background: rgba(255,115,89,0.12); color: #FF7359; font-size: 11px;
 }}
+.inv-rebalance {{ margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,176,32,0.12); }}
+.inv-rebalance.compact {{ margin-top: 10px; padding-top: 10px; }}
+.inv-rebalance-head {{ font-size: 12px; font-weight: 700; color: #FCD34D; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }}
+.inv-rebalance-head.compact {{ font-size: 11px; margin-bottom: 6px; }}
+.inv-rebalance-list {{ display: flex; flex-direction: column; gap: 6px; }}
+.inv-rebalance-item {{
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,176,32,0.1);
+}}
+.inv-rebalance-item.buy {{ border-color: rgba(77,217,128,0.3); }}
+.inv-rebalance-item.sell {{ border-color: rgba(255,115,89,0.3); }}
+.inv-rebalance-asset {{ flex: 1; font-size: 11px; font-weight: 600; color: #FEF3C7; }}
+.inv-rebalance-action {{ font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }}
+.inv-rebalance-item.buy .inv-rebalance-action {{ color: #4DD980; background: rgba(77,217,128,0.12); }}
+.inv-rebalance-item.sell .inv-rebalance-action {{ color: #FF7359; background: rgba(255,115,89,0.12); }}
+.inv-rebalance-amt {{ font-size: 11px; font-weight: 700; color: #FCD34D; font-variant-numeric: tabular-nums; }}
+.inv-rebalance-summary {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }}
+.inv-rebalance-sum {{ font-size: 10px; padding: 4px 8px; border-radius: 8px; }}
+.inv-rebalance-sum.buy {{ color: #4DD980; background: rgba(77,217,128,0.1); }}
+.inv-rebalance-sum.sell {{ color: #FF7359; background: rgba(255,115,89,0.1); }}
+.inv-rebalance-sum.need {{ color: #FFB020; background: rgba(255,176,32,0.12); }}
+.inv-rebalance-sum.ok {{ color: #4DD980; background: rgba(77,217,128,0.1); }}
+.inv-rebalance-ok {{ font-size: 11px; color: #4DD980; padding: 8px 0 0; }}
 .inv-card-link {{
     padding: 4px 8px; border-radius: 8px; border: none; background: rgba(255,176,32,0.15);
     color: rgba(254,243,199,0.75); font-size: 10px; cursor: pointer;

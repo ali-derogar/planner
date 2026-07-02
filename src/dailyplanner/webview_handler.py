@@ -10,12 +10,15 @@ import toga
 from dailyplanner.database import Database
 from dailyplanner.finance_sms import normalize_digits, resolve_amount, _strip_group_separators
 from dailyplanner.investments import (
+    _entry_is_sell,
+    canonical_investment_category,
     decode_investment_category,
     encode_investment_category,
     is_valid_risk_market,
+    normalize_investment_meta,
+    validate_investment_buy_edit,
     validate_investment_sell,
 )
-from dailyplanner.investment_prices import price_source_for_asset, sync_prices_for_assets
 from dailyplanner.models import format_duration, str_to_date
 from dailyplanner.services.recurring import RecurringService
 from dailyplanner.services.timer import TimerService
@@ -116,11 +119,18 @@ def _resolve_investment_amount(p: dict) -> tuple:
     """Return (amount, quantity, unit_price, error_message)."""
     qty_raw = str(p.get("quantity", "") or "").strip().replace(",", "")
     price_raw = str(p.get("unit_price", "") or "").strip().replace(",", "")
+    qty: Optional[float] = None
+    if qty_raw:
+        try:
+            parsed_qty = float(qty_raw)
+            if parsed_qty > 0:
+                qty = parsed_qty
+        except (TypeError, ValueError):
+            pass
     if qty_raw and price_raw:
         try:
-            qty = float(qty_raw)
             unit_price = int(float(price_raw))
-            if qty <= 0 or unit_price <= 0:
+            if not qty or qty <= 0 or unit_price <= 0:
                 return 0, None, None, "تعداد و قیمت واحد باید مثبت باشند"
             return round(qty * unit_price), qty, unit_price, ""
         except (TypeError, ValueError):
@@ -128,10 +138,27 @@ def _resolve_investment_amount(p: dict) -> tuple:
     amount = resolve_amount(p.get("amount"), p.get("sms"))
     if amount <= 0:
         return 0, None, None, ""
+    if qty and qty > 0:
+        return amount, qty, max(1, round(amount / qty)), ""
     return amount, None, None, ""
 
 
-def _resolve_investment_entry(p: dict, db: Optional[Database] = None, exclude_id: Optional[int] = None) -> tuple:
+def _parse_finance_entry_date(p: dict, fallback: datetime.date) -> datetime.date:
+    date_raw = str(p.get("date", "") or "").strip()
+    if date_raw:
+        try:
+            return str_to_date(date_raw)
+        except ValueError:
+            pass
+    return fallback
+
+
+def _resolve_investment_entry(
+    p: dict,
+    db: Optional[Database] = None,
+    exclude_id: Optional[int] = None,
+    as_of: Optional[datetime.date] = None,
+) -> tuple:
     """Return (title, category, direction, amount, quantity, unit_price, current_unit_price, error_message)."""
     risk = str(p.get("invest_risk", "")).strip()
     market = str(p.get("invest_market", "")).strip()
@@ -151,74 +178,56 @@ def _resolve_investment_entry(p: dict, db: Optional[Database] = None, exclude_id
     current_unit_price = None
     if direction != "sell":
         current_unit_price = _parse_optional_positive_int(p.get("current_unit_price"))
+        if not current_unit_price and unit_price and unit_price > 0:
+            pnl_raw = str(p.get("pnl_percent", "") or "").strip().replace(",", "")
+            if pnl_raw:
+                try:
+                    pnl = float(pnl_raw)
+                    current_unit_price = max(1, round(unit_price * (1 + pnl / 100)))
+                except (TypeError, ValueError):
+                    pass
     title = str(p.get("title", "")).strip() or asset
     category = encode_investment_category(risk, market, asset)
     if direction == "sell" and db is not None:
-        as_of = datetime.date.today()
-        entries = db.get_investment_entries_until(as_of)
+        sell_as_of = as_of or _parse_finance_entry_date(p, datetime.date.today())
+        entries = db.get_investment_entries_until(sell_as_of)
         sell_err = validate_investment_sell(category, amount, quantity, entries, exclude_id)
         if sell_err:
             return "", "", direction, 0, None, None, None, sell_err
+    elif direction != "sell" and db is not None and exclude_id is not None:
+        buy_as_of = as_of or _parse_finance_entry_date(p, datetime.date.today())
+        entries = db.get_investment_entries_until(buy_as_of)
+        old_entry = db.get_finance_entry_by_id(exclude_id)
+        old_category = getattr(old_entry, "category", "") if old_entry else category
+        buy_err = validate_investment_buy_edit(
+            category, amount, quantity, entries, exclude_id, old_category
+        )
+        if buy_err:
+            return "", "", direction, 0, None, None, None, buy_err
     return title, category, direction, amount, quantity, unit_price, current_unit_price, ""
 
 
+def _current_price_field_cleared(p: dict) -> bool:
+    if "current_unit_price" not in p:
+        return False
+    return not str(p.get("current_unit_price", "") or "").strip().replace(",", "")
+
+
 def _sync_investment_asset_price(
-    db: Database, market: str, asset: str, current_unit_price: Optional[int]
+    db: Database,
+    market: str,
+    asset: str,
+    current_unit_price: Optional[int],
+    *,
+    clear_when_empty: bool = False,
+    field_cleared: bool = False,
 ) -> None:
-    if current_unit_price and current_unit_price > 0 and market and asset:
+    if not market or not asset:
+        return
+    if current_unit_price and current_unit_price > 0:
         db.set_investment_asset_price(market, asset, current_unit_price)
-
-
-def _investment_price_sync_assets(db: Database) -> list:
-    """Collect market+asset pairs worth syncing from open positions."""
-    from dailyplanner.investments import compute_positions, merge_asset_prices
-
-    as_of = datetime.date.today()
-    entries = db.get_investment_entries_until(as_of)
-    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
-    positions = compute_positions(entries, prices)
-    assets = []
-    seen = set()
-    for pos in positions:
-        market = str(pos.get("market") or "").strip()
-        asset = str(pos.get("asset") or "").strip()
-        if not market or not asset:
-            continue
-        key = (market, asset)
-        if key in seen or not price_source_for_asset(market, asset):
-            continue
-        seen.add(key)
-        assets.append(key)
-    return assets
-
-
-def _fetch_investment_prices(assets: list) -> tuple:
-    """Fetch API prices (no DB). Returns ({market|asset: price}, error_message)."""
-    if not assets:
-        return {}, ""
-    prices, errors = sync_prices_for_assets(assets)
-    if not prices and errors:
-        return {}, errors[0]
-    return prices, ""
-
-
-def _apply_investment_price_sync(db: Database, prices: dict) -> int:
-    """Persist fetched prices; returns updated count."""
-    for key, price in prices.items():
-        market, asset = key.split("|", 1)
-        db.set_investment_asset_price(market, asset, price)
-    if prices:
-        db.set_investment_prices_synced_at(
-            datetime.datetime.now().isoformat(timespec="seconds")
-        )
-    return len(prices)
-
-
-def _run_investment_price_sync(db: Database) -> tuple:
-    """Sync API prices in one thread (tests). Returns (updated_count, error_message)."""
-    assets = _investment_price_sync_assets(db)
-    prices, err = _fetch_investment_prices(assets)
-    return _apply_investment_price_sync(db, prices), err
+    elif clear_when_empty and field_cleared:
+        db.delete_investment_asset_price(market, asset)
 
 
 class WebViewHandler:
@@ -453,40 +462,10 @@ class WebViewHandler:
     async def _on_navigate(self, p):
         screen = p.get("screen", "home")
         self.current_screen = screen
-        if screen == "investments":
-            await self._maybe_auto_sync_investment_prices()
         await self.push_state()
         if screen == "settings":
             await asyncio.sleep(0.15)
             await self._sync_export_preview()
-
-    async def _sync_investment_prices_from_api(self) -> tuple:
-        """Fetch API prices off-thread, persist on the main thread."""
-        assets = _investment_price_sync_assets(self.db)
-        if not assets:
-            return 0, ""
-        loop = asyncio.get_event_loop()
-        prices, err = await loop.run_in_executor(None, _fetch_investment_prices, assets)
-        count = _apply_investment_price_sync(self.db, prices)
-        return count, err
-
-    async def _maybe_auto_sync_investment_prices(self) -> None:
-        """Refresh stale API prices when opening the investments screen."""
-        synced_at = self.db.get_investment_prices_synced_at()
-        stale = True
-        if synced_at:
-            try:
-                last = datetime.datetime.fromisoformat(synced_at)
-                stale = (datetime.datetime.now() - last).total_seconds() > 1800
-            except ValueError:
-                stale = True
-        if not stale:
-            return
-        count, err = await self._sync_investment_prices_from_api()
-        if count:
-            self.toast(f"قیمت {count} دارایی از API به‌روز شد")
-        elif err:
-            self.toast("خطا در دریافت قیمت از API", "error")
 
     async def _inject_export_preview(self, payload: str) -> None:
         b64 = base64.b64encode(payload.encode("utf-8")).decode("ascii")
@@ -715,8 +694,17 @@ class WebViewHandler:
         unit_price = None
         current_unit_price = None
         if entry_type == "investment":
+            entry_date = _investment_entry_date(
+                p,
+                self.current_date,
+                self.invest_filter_mode,
+                self.invest_filter_year,
+                self.invest_filter_month,
+                self.invest_filter_start,
+                self.invest_filter_end,
+            )
             title, category, invest_direction, amount, quantity, unit_price, current_unit_price, err = (
-                _resolve_investment_entry(p, db=self.db)
+                _resolve_investment_entry(p, db=self.db, as_of=entry_date)
             )
             if err:
                 self.toast(err, "error")
@@ -732,17 +720,6 @@ class WebViewHandler:
             if not title:
                 await self.push_state()
                 return
-        if entry_type == "investment":
-            entry_date = _investment_entry_date(
-                p,
-                self.current_date,
-                self.invest_filter_mode,
-                self.invest_filter_year,
-                self.invest_filter_month,
-                self.invest_filter_start,
-                self.invest_filter_end,
-            )
-        else:
             entry_date = _finance_entry_date(
                 self.current_screen,
                 self.current_date,
@@ -761,7 +738,7 @@ class WebViewHandler:
             current_unit_price=current_unit_price if entry_type == "investment" else None,
         )
         if entry_type == "investment":
-            meta = decode_investment_category(category) or {}
+            meta = normalize_investment_meta(decode_investment_category(category))
             if invest_direction != "sell":
                 _sync_investment_asset_price(
                     self.db,
@@ -791,8 +768,15 @@ class WebViewHandler:
         unit_price = entry.unit_price
         current_unit_price = entry.current_unit_price
         if entry.entry_type == "investment":
+            try:
+                fallback_date = str_to_date(entry.date)
+            except ValueError:
+                fallback_date = datetime.date.today()
+            entry_date = _parse_finance_entry_date(p, fallback_date)
             title, category, invest_direction, amount, quantity, unit_price, current_unit_price, err = (
-                _resolve_investment_entry(p, db=self.db, exclude_id=entry_id)
+                _resolve_investment_entry(
+                    p, db=self.db, exclude_id=entry_id, as_of=entry_date
+                )
             )
             if err:
                 self.toast(err, "error")
@@ -808,6 +792,11 @@ class WebViewHandler:
             if not title:
                 await self.push_state()
                 return
+            try:
+                fallback_date = str_to_date(entry.date)
+            except ValueError:
+                fallback_date = datetime.date.today()
+            entry_date = _parse_finance_entry_date(p, fallback_date)
         self.db.update_finance_entry(
             entry_id,
             title,
@@ -818,14 +807,17 @@ class WebViewHandler:
             quantity=quantity if entry.entry_type == "investment" else None,
             unit_price=unit_price if entry.entry_type == "investment" else None,
             current_unit_price=current_unit_price if entry.entry_type == "investment" else None,
+            entry_date=entry_date,
         )
         if entry.entry_type == "investment" and invest_direction != "sell":
-            meta = decode_investment_category(category) or {}
+            meta = normalize_investment_meta(decode_investment_category(category))
             _sync_investment_asset_price(
                 self.db,
                 meta.get("market") or "",
                 meta.get("asset") or "",
                 current_unit_price,
+                clear_when_empty=True,
+                field_cleared=_current_price_field_cleared(p),
             )
         self.toast("ویرایش شد")
         await self.push_state()
@@ -835,6 +827,19 @@ class WebViewHandler:
         if entry_id is None:
             await self.push_state()
             return
+        entry = self.db.get_finance_entry_by_id(entry_id)
+        if entry and entry.entry_type == "investment":
+            if not _entry_is_sell(entry):
+                cat = canonical_investment_category(entry.category or "")
+                for other in self.db.get_all_investment_entries():
+                    if other.id == entry_id:
+                        continue
+                    if _entry_is_sell(other) and canonical_investment_category(
+                        other.category or ""
+                    ) == cat:
+                        self.toast("ابتدا فروش‌های این دارایی را حذف کنید", "error")
+                        await self.push_state()
+                        return
         confirmed = await self.app.main_window.dialog(
             toga.ConfirmDialog("حذف ورود مالی", "آیا مطمئن هستید؟")
         )
@@ -935,12 +940,13 @@ class WebViewHandler:
         await self.push_state()
 
     async def _on_set_investment_goal(self, p):
+        if self.invest_filter_mode != "month":
+            self.toast("هدف ماهانه فقط در حالت فیلتر ماه قابل تنظیم است", "error")
+            await self.push_state()
+            return
         amount = resolve_amount(p.get("amount"), p.get("sms"))
         if amount >= 0:
-            if self.invest_filter_mode == "month":
-                jy, jm = self.invest_filter_year, self.invest_filter_month
-            else:
-                jy, jm = current_jalali_ym()
+            jy, jm = self.invest_filter_year, self.invest_filter_month
             self.db.set_investment_goal(jy, jm, amount)
             self.toast("هدف ماهانه ذخیره شد")
         await self.push_state()
@@ -949,10 +955,11 @@ class WebViewHandler:
         market = p.get("market", "").strip()
         name = p.get("name", "").strip()
         emoji = str(p.get("emoji", "") or "").strip() or "💎"
+        unit = str(p.get("unit", "") or "").strip()
         if not market or not name:
             await self.push_state()
             return
-        if self.db.add_investment_custom_asset(market, name, name, emoji):
+        if self.db.add_investment_custom_asset(market, name, name, emoji, unit=unit):
             self.toast("دارایی افزوده شد")
         else:
             self.toast("این دارایی قبلاً وجود دارد", "error")
@@ -973,19 +980,9 @@ class WebViewHandler:
             self.toast("خطا در ذخیره قیمت", "error")
         await self.push_state()
 
-    async def _on_sync_investment_prices(self, p):
-        count, err = await self._sync_investment_prices_from_api()
-        if count:
-            self.toast(f"قیمت {count} دارایی از API به‌روز شد")
-        elif err:
-            self.toast("خطا در دریافت قیمت از API", "error")
-        else:
-            self.toast("دارایی قابل همگام‌سازی یافت نشد", "error")
-        await self.push_state()
-
     async def _on_set_investment_allocation_target(self, p):
-        market = str(p.get("market", "") or "").strip()
-        asset = str(p.get("asset", "") or "").strip()
+        market = str(p.get("market", "") or p.get("alloc_market", "") or "").strip()
+        asset = str(p.get("asset", "") or p.get("alloc_asset", "") or "").strip()
         if not market and p.get("asset_key"):
             parts = str(p.get("asset_key", "")).split("|", 1)
             market = parts[0].strip()
@@ -1157,10 +1154,21 @@ class WebViewHandler:
             self.expanded_tasks = set()
             self.current_project_id = None
             self.finance_year, self.finance_month = current_jalali_ym()
+            self.invest_filter_mode = "all"
+            self.invest_filter_start = None
+            self.invest_filter_end = None
+            cur_jy, cur_jm = current_jalali_ym()
+            self.invest_filter_year = cur_jy
+            self.invest_filter_month = cur_jm
             self.timer_service = TimerService()
             self._restore_active_timer()
             try:
-                await self.app.webview.evaluate_javascript("window._importDraft='';")
+                await self.app.webview.evaluate_javascript(
+                    "window._importDraft='';"
+                    "window._investFilter={risk:'',market:'',asset:''};"
+                    "window._investChartMode='both';"
+                    "window._investTab='summary';"
+                )
             except Exception:
                 pass
             self.toast("داده‌ها با موفقیت بازگردانی شدند")

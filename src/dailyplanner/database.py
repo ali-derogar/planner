@@ -555,27 +555,51 @@ class Database:
         quantity: Optional[float] = None,
         unit_price: Optional[int] = None,
         current_unit_price: Optional[int] = None,
+        entry_date: Optional[date] = None,
     ):
-        self.conn.execute(
-            """
-            UPDATE finance_entries
-            SET title = ?, amount = ?, entry_type = ?, category = ?,
-                investment_direction = ?, quantity = ?, unit_price = ?,
-                current_unit_price = ?
-            WHERE id = ?
-            """,
-            (
-                title.strip(),
-                amount,
-                entry_type,
-                category or "عمومی",
-                investment_direction or "buy",
-                quantity,
-                unit_price,
-                current_unit_price,
-                entry_id,
-            ),
-        )
+        if entry_date is not None:
+            self.conn.execute(
+                """
+                UPDATE finance_entries
+                SET date = ?, title = ?, amount = ?, entry_type = ?, category = ?,
+                    investment_direction = ?, quantity = ?, unit_price = ?,
+                    current_unit_price = ?
+                WHERE id = ?
+                """,
+                (
+                    date_to_str(entry_date),
+                    title.strip(),
+                    amount,
+                    entry_type,
+                    category or "عمومی",
+                    investment_direction or "buy",
+                    quantity,
+                    unit_price,
+                    current_unit_price,
+                    entry_id,
+                ),
+            )
+        else:
+            self.conn.execute(
+                """
+                UPDATE finance_entries
+                SET title = ?, amount = ?, entry_type = ?, category = ?,
+                    investment_direction = ?, quantity = ?, unit_price = ?,
+                    current_unit_price = ?
+                WHERE id = ?
+                """,
+                (
+                    title.strip(),
+                    amount,
+                    entry_type,
+                    category or "عمومی",
+                    investment_direction or "buy",
+                    quantity,
+                    unit_price,
+                    current_unit_price,
+                    entry_id,
+                ),
+            )
         self.conn.commit()
 
     def get_finance_entry_by_id(self, entry_id: int) -> Optional[FinanceEntry]:
@@ -1004,10 +1028,13 @@ class Database:
                     "value": value,
                     "label": str(item.get("label") or value),
                     "emoji": str(item.get("emoji") or "💎"),
+                    "unit": str(item.get("unit") or "واحد"),
                 })
         return out
 
-    def add_investment_custom_asset(self, market: str, value: str, label: str = "", emoji: str = "💎") -> bool:
+    def add_investment_custom_asset(
+        self, market: str, value: str, label: str = "", emoji: str = "💎", unit: str = ""
+    ) -> bool:
         market = market.strip()
         value = value.strip()
         label = (label or value).strip()
@@ -1016,7 +1043,20 @@ class Database:
         assets = self.get_investment_custom_assets()
         if any(a["market"] == market and a["value"] == value for a in assets):
             return False
-        assets.append({"market": market, "value": value, "label": label, "emoji": emoji or "💎"})
+        from dailyplanner.investments import is_builtin_asset
+
+        if is_builtin_asset(market, value):
+            return False
+        from dailyplanner.investments import asset_unit
+
+        default_unit = unit.strip() or asset_unit(market, value)
+        assets.append({
+            "market": market,
+            "value": value,
+            "label": label,
+            "emoji": emoji or "💎",
+            "unit": default_unit,
+        })
         self.set_setting("investment_custom_assets", json.dumps(assets, ensure_ascii=False))
         return True
 
@@ -1061,16 +1101,33 @@ class Database:
             rows = self.conn.execute(
                 "SELECT id, category FROM finance_entries WHERE entry_type = 'investment'"
             ).fetchall()
+            from dailyplanner.investments import (
+                INVESTMENT_RISK_MARKETS,
+                decode_investment_category,
+                encode_investment_category,
+                normalize_investment_meta,
+            )
+
             for row in rows:
                 cat = row["category"] or ""
-                if not cat.startswith("{"):
-                    continue
-                try:
-                    data = json.loads(cat)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-                if data.get("market") == market and data.get("asset") == value:
-                    risk = str(data.get("risk") or "")
+                meta = normalize_investment_meta(decode_investment_category(cat))
+                if meta.get("market") == market and meta.get("asset") == value:
+                    risk = str(meta.get("risk") or "")
+                    new_cat = encode_investment_category(risk, market, final_value)
+                    self.conn.execute(
+                        "UPDATE finance_entries SET category = ? WHERE id = ?",
+                        (new_cat, row["id"]),
+                    )
+                elif (
+                    not meta.get("market")
+                    and meta.get("asset") == value
+                    and cat.strip() == value
+                ):
+                    risk = ""
+                    for r, mkts in INVESTMENT_RISK_MARKETS.items():
+                        if market in mkts:
+                            risk = r
+                            break
                     new_cat = encode_investment_category(risk, market, final_value)
                     self.conn.execute(
                         "UPDATE finance_entries SET category = ? WHERE id = ?",
@@ -1095,18 +1152,36 @@ class Database:
         return True
 
     def count_investment_entries_for_asset(self, market: str, asset: str) -> int:
-        from dailyplanner.investments import decode_investment_category
+        from dailyplanner.investments import (
+            canonical_investment_category,
+            decode_investment_category,
+            encode_investment_category,
+            normalize_investment_meta,
+        )
 
         market = market.strip()
         asset = asset.strip()
+        meta = normalize_investment_meta({"market": market, "asset": asset})
+        risk = meta.get("risk") or ""
+        target = canonical_investment_category(
+            encode_investment_category(risk, market, asset)
+        )
         count = 0
         rows = self.conn.execute(
             "SELECT category FROM finance_entries WHERE entry_type = 'investment'"
         ).fetchall()
         for row in rows:
-            meta = decode_investment_category(row["category"] or "")
-            if meta and meta.get("market") == market and meta.get("asset") == asset:
+            cat = row["category"] or ""
+            if canonical_investment_category(cat) == target:
                 count += 1
+            else:
+                plain = normalize_investment_meta(decode_investment_category(cat))
+                if (
+                    not plain.get("market")
+                    and plain.get("asset") == asset
+                    and cat.strip() == asset
+                ):
+                    count += 1
         return count
 
     def _migrate_investment_asset_keys(self, market: str, old_asset: str, new_asset: str) -> None:
@@ -1184,12 +1259,6 @@ class Database:
     def delete_investment_allocation_target(self, market: str, asset: str) -> bool:
         return self.set_investment_allocation_target(market, asset, 0)
 
-    def get_investment_prices_synced_at(self) -> str:
-        return str(self.get_setting("investment_prices_synced_at", "") or "")
-
-    def set_investment_prices_synced_at(self, iso_timestamp: str) -> None:
-        self.set_setting("investment_prices_synced_at", iso_timestamp or "")
-
     def get_investment_asset_prices(self) -> dict:
         raw = self.get_setting("investment_asset_prices", "{}")
         try:
@@ -1217,6 +1286,21 @@ class Database:
             return False
         prices = self.get_investment_asset_prices()
         prices[asset_price_key(market, asset)] = price
+        self.set_setting("investment_asset_prices", json.dumps(prices, ensure_ascii=False))
+        return True
+
+    def delete_investment_asset_price(self, market: str, asset: str) -> bool:
+        from dailyplanner.investments import asset_price_key
+
+        market = market.strip()
+        asset = asset.strip()
+        if not market or not asset:
+            return False
+        prices = self.get_investment_asset_prices()
+        key = asset_price_key(market, asset)
+        if key not in prices:
+            return False
+        del prices[key]
         self.set_setting("investment_asset_prices", json.dumps(prices, ensure_ascii=False))
         return True
 

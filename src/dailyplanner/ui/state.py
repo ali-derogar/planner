@@ -24,6 +24,7 @@ from dailyplanner.services.timer import TimerService
 from dailyplanner.investments import (
     compute_allocation_comparison,
     allocation_targets_total,
+    compute_rebalance_suggestions,
     compute_positions,
     decode_investment_category,
     get_investment_taxonomy,
@@ -32,6 +33,7 @@ from dailyplanner.investments import (
     investment_pnl_percent,
     merge_asset_prices,
     merge_custom_assets,
+    normalize_investment_meta,
     period_buy_total,
     portfolio_breakdown,
     positions_value_breakdown,
@@ -171,7 +173,7 @@ def _format_quantity(qty: float) -> str:
     return to_persian_digits(text)
 
 
-def _finance_dict(entry: FinanceEntry) -> dict:
+def _finance_dict(entry: FinanceEntry, assets_map=None) -> dict:
     d = {
         "id": entry.id,
         "title": entry.title,
@@ -181,8 +183,8 @@ def _finance_dict(entry: FinanceEntry) -> dict:
         "category": entry.category or "عمومی",
     }
     if entry.is_investment:
-        meta = decode_investment_category(entry.category or "")
-        inv = investment_meta_dict(meta)
+        meta = normalize_investment_meta(decode_investment_category(entry.category or ""), assets_map)
+        inv = investment_meta_dict(meta, assets_map)
         d["investment_meta"] = inv
         d["investment_direction"] = entry.investment_direction or "buy"
         d["is_sell"] = entry.is_investment_sell
@@ -210,8 +212,8 @@ def _finance_dict(entry: FinanceEntry) -> dict:
     return d
 
 
-def _finance_dict_with_date(entry: FinanceEntry) -> dict:
-    d = _finance_dict(entry)
+def _finance_dict_with_date(entry: FinanceEntry, assets_map=None) -> dict:
+    d = _finance_dict(entry, assets_map)
     d["date"] = entry.date
     d["date_label"] = _safe_jalali_label(entry.date)
     return d
@@ -718,7 +720,7 @@ def build_state(
                 "balance": chart_balance,
                 "has_data": income > 0 or expense > 0 or investment > 0,
             },
-            "entries": [_finance_dict_with_date(e) for e in entries],
+            "entries": [_finance_dict_with_date(e, _investment_taxonomy_for_db(db).get("assets")) for e in entries],
             "finance_categories": categories,
             "investment_categories": _investment_categories_for_db(db),
             "investment_taxonomy": _investment_taxonomy_for_db(db),
@@ -793,23 +795,27 @@ def build_state(
 
         by_asset: Dict[str, int] = {}
         for entry in entries:
-            key = investment_group_key(entry.category or "")
+            meta = normalize_investment_meta(decode_investment_category(entry.category or ""))
+            key = meta.get("asset") or investment_group_key(entry.category or "")
             by_asset[key] = by_asset.get(key, 0) + entry.signed_amount
         by_category_list = _category_breakdown_list(by_asset, period_investment)
 
         portfolio_entries = db.get_investment_entries_until(as_of)
+        inv_taxonomy = _investment_taxonomy_for_db(db)
+        inv_assets = inv_taxonomy.get("assets")
         asset_prices = merge_asset_prices(
             db.get_investment_asset_prices(), portfolio_entries
         )
-        positions_raw = compute_positions(portfolio_entries, asset_prices)
+        positions_raw = compute_positions(portfolio_entries, asset_prices, inv_assets)
         positions = [_position_dict(p) for p in positions_raw]
         estimated_total = sum(p["estimated_value"] for p in positions)
         has_market_values = any(p["has_market_price"] for p in positions)
+        priced_positions = [p for p in positions_raw if p.get("has_market_price")]
         total_unrealized_pnl = None
-        if has_market_values:
-            total_unrealized_pnl = sum(
-                p.get("unrealized_pnl") or 0 for p in positions_raw
-            )
+        pnl_partial = False
+        if priced_positions:
+            total_unrealized_pnl = sum(p.get("unrealized_pnl") or 0 for p in priced_positions)
+            pnl_partial = len(priced_positions) < len(positions_raw)
 
         breakdown = portfolio_breakdown(portfolio_entries)
         value_breakdown = positions_value_breakdown(positions_raw)
@@ -850,11 +856,11 @@ def build_state(
                 chart_day += datetime.timedelta(days=1)
             has_chart = any(chart_investment)
 
-        inv_taxonomy = _investment_taxonomy_for_db(db)
         cur_jy, cur_jm = current_jalali_ym(today)
         period_stat_label = "در بازه" if bounded else "کل"
         all_entries = [
-            _finance_dict_with_date(e) for e in db.get_investment_entries_until(as_of)
+            _finance_dict_with_date(e, inv_assets)
+            for e in db.get_investment_entries_until(as_of)
         ]
         custom_assets = db.get_investment_custom_assets()
         allocation_targets_raw = db.get_investment_allocation_targets()
@@ -873,7 +879,23 @@ def build_state(
                 "under_target": item.get("target_pct", 0) > 0 and item.get("drift", 0) < -1,
             })
         targets_total = allocation_targets_total(allocation_targets_raw)
-        prices_synced_at = db.get_investment_prices_synced_at()
+        rebalance_raw = compute_rebalance_suggestions(
+            positions_raw, allocation_targets_raw, available_cash=balance
+        )
+        rebalance_list = []
+        for item in rebalance_raw.get("items") or []:
+            action = item.get("action") or "hold"
+            amount = int(item.get("amount") or 0)
+            rebalance_list.append({
+                **item,
+                "target_value_fmt": format_money(int(item.get("target_value") or 0)),
+                "amount_fmt": format_money(amount) if amount > 0 else "",
+                "action_label": (
+                    "خرید" if action == "buy"
+                    else "فروش" if action == "sell"
+                    else "متعادل"
+                ),
+            })
 
         state["investments"] = {
             "filter": {
@@ -911,6 +933,7 @@ def build_state(
                 "unrealized_pnl_positive": (
                     total_unrealized_pnl is not None and total_unrealized_pnl >= 0
                 ),
+                "pnl_partial": pnl_partial,
             },
             "positions": positions,
             "goal": goal,
@@ -920,7 +943,7 @@ def build_state(
             "by_category": by_category_list,
             "portfolio_by_category": portfolio_by_category,
             "portfolio_by_risk": portfolio_by_risk,
-            "entries": [_finance_dict_with_date(e) for e in entries],
+            "entries": [_finance_dict_with_date(e, inv_assets) for e in entries],
             "all_entries": all_entries,
             "chart": {
                 "labels": chart_labels,
@@ -934,7 +957,15 @@ def build_state(
             "allocation": allocation_list,
             "allocation_targets_total": targets_total,
             "allocation_targets_valid": targets_total <= 100,
-            "prices_synced_at": prices_synced_at,
+            "rebalance": {
+                **rebalance_raw,
+                "items": rebalance_list,
+                "total_buy_fmt": format_money(rebalance_raw.get("total_buy") or 0),
+                "total_sell_fmt": format_money(rebalance_raw.get("total_sell") or 0),
+                "net_cash_needed_fmt": format_money(rebalance_raw.get("net_cash_needed") or 0),
+                "available_cash_fmt": format_money(rebalance_raw.get("available_cash") or 0),
+                "portfolio_value_fmt": format_money(rebalance_raw.get("portfolio_value") or 0),
+            },
         }
 
     elif screen == "settings":

@@ -675,17 +675,26 @@ def test_investment_taxonomy_encode_decode():
 
     tax = get_investment_taxonomy()
     assert len(tax["risks"]) == 4
-    assert len(tax["markets"]) == 8
+    assert len(tax["markets"]) == 9
+    assert tax["asset_count"] >= 80
+    assert "market_hints" in tax
+    assert "units" in tax
     assert "رمزارز" in tax["assets"]
-    assert any(x["label"] == "BTC/USDT" for x in tax["assets"]["رمزارز"])
+    assert any(x["label"].startswith("BTC/USDT") for x in tax["assets"]["رمزارز"])
+    assert tax["units"].get("فیزیکی|طلا") == "گرم"
 
     low_markets = [m["value"] for m in markets_for_risk("کم ریسک")]
-    assert low_markets == ["فیزیکی", "صندوق"]
+    assert "فیزیکی" in low_markets
+    assert "صندوق" in low_markets
     assert "رمزارز" not in low_markets
     high_markets = [m["value"] for m in tax["markets_by_risk"]["پر ریسک"]]
     assert high_markets == ["بورس", "رمزارز"]
     assert is_valid_risk_market("کم ریسک", "صندوق")
     assert not is_valid_risk_market("کم ریسک", "رمزارز")
+
+    from dailyplanner.investments import asset_unit, find_asset
+    assert asset_unit("بورس", "فملی") == "سهم"
+    assert find_asset("بورس", "فملی")["label"].startswith("فملی")
 
 
 def test_investment_sell_restores_balance(db):
@@ -752,13 +761,13 @@ def test_investment_goal_and_custom_asset(db):
     db.set_investment_goal(1404, 1, 5000000)
     assert db.get_investment_goal(1404, 1) == 5000000
 
-    assert db.add_investment_custom_asset("بورس", "فملی", "فملی", "🏭")
-    assert not db.add_investment_custom_asset("بورس", "فملی", "فملی")
+    assert db.add_investment_custom_asset("بورس", "خودم", "خودم", "🏭")
+    assert not db.add_investment_custom_asset("بورس", "خودم", "خودم")
     custom = db.get_investment_custom_assets()
-    assert custom[0]["value"] == "فملی"
+    assert custom[0]["value"] == "خودم"
 
     tax = merge_custom_assets(get_investment_taxonomy(), custom)
-    assert any(a["value"] == "فملی" for a in tax["assets"]["بورس"])
+    assert any(a["value"] == "خودم" for a in tax["assets"]["بورس"])
 
 
 def test_migrate_legacy_investment_goals_schema(db):
@@ -845,6 +854,227 @@ def test_investment_asset_price_setting(db):
     assert db.set_investment_asset_price("فیزیکی", "طلا", 2000000)
     prices = db.get_investment_asset_prices()
     assert prices["فیزیکی|طلا"] == 2000000
+    assert db.delete_investment_asset_price("فیزیکی", "طلا")
+    assert "فیزیکی|طلا" not in db.get_investment_asset_prices()
+
+
+def test_investment_edit_date_persisted(db):
+    from dailyplanner.investments import encode_investment_category
+    from dailyplanner.models import date_to_str
+
+    old_date = datetime.date.today() - datetime.timedelta(days=10)
+    new_date = datetime.date.today() - datetime.timedelta(days=3)
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    entry = db.add_finance_entry(old_date, "investment", "gold", 100000, cat)
+    db.update_finance_entry(
+        entry.id, "gold", 100000, "investment", cat, entry_date=new_date
+    )
+    updated = db.get_finance_entry_by_id(entry.id)
+    assert updated.date == date_to_str(new_date)
+
+
+def test_investment_quantity_inferred_from_amount_and_unit_price(db):
+    from dailyplanner.investments import (
+        compute_positions,
+        encode_investment_category,
+        merge_asset_prices,
+    )
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "gold", 300000, cat, unit_price=150000,
+    )
+    db.set_investment_asset_price("فیزیکی", "طلا", 180000)
+    entries = db.get_investment_entries_until(d)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    assert len(positions) == 1
+    assert positions[0]["quantity"] == 2.0
+    assert positions[0]["estimated_value"] == 360000
+    assert positions[0]["has_market_price"]
+
+
+def test_allocation_comparison_uses_market_asset_key(db):
+    from dailyplanner.investments import (
+        compute_allocation_comparison,
+        compute_positions,
+        encode_investment_category,
+        merge_asset_prices,
+    )
+
+    d = datetime.date.today()
+    cat1 = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    cat2 = encode_investment_category("کم ریسک", "صندوق", "عیار")
+    db.add_finance_entry(
+        d, "investment", "gold", 200000, cat1,
+        quantity=1.0, unit_price=200000, current_unit_price=200000,
+    )
+    db.add_finance_entry(
+        d, "investment", "fund", 300000, cat2,
+        quantity=1.0, unit_price=300000, current_unit_price=300000,
+    )
+    entries = db.get_investment_entries_until(d)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    targets = {"فیزیکی|طلا": 40, "صندوق|عیار": 60}
+    items = compute_allocation_comparison(positions, targets)
+    by_key = {i["key"]: i for i in items}
+    assert by_key["فیزیکی|طلا"]["actual_value"] == 200000
+    assert by_key["صندوق|عیار"]["actual_value"] == 300000
+
+
+def test_legacy_and_json_categories_merge_in_positions(db):
+    from dailyplanner.investments import (
+        compute_positions,
+        encode_investment_category,
+        validate_investment_sell,
+    )
+
+    d = datetime.date.today()
+    json_cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(d, "investment", "legacy", 100000, "طلا")
+    db.add_finance_entry(
+        d, "investment", "json", 200000, json_cat,
+        quantity=1.0, unit_price=200000,
+    )
+    entries = db.get_investment_entries_until(d)
+    positions = compute_positions(entries)
+    assert len(positions) == 1
+    assert positions[0]["cost_basis"] == 300000
+    assert validate_investment_sell(json_cat, 50000, None, entries) is None
+
+
+def test_amount_only_sell_reduces_quantity(db):
+    from dailyplanner.investments import compute_positions, encode_investment_category
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "buy", 300000, cat,
+        quantity=2.0, unit_price=150000,
+    )
+    db.add_finance_entry(
+        d, "investment", "sell", 150000, cat,
+        investment_direction="sell",
+    )
+    db.set_investment_asset_price("فیزیکی", "طلا", 180000)
+    entries = db.get_investment_entries_until(d)
+    positions = compute_positions(entries, db.get_investment_asset_prices())
+    assert len(positions) == 1
+    assert positions[0]["quantity"] == 1.0
+    assert positions[0]["cost_basis"] == 150000
+    assert positions[0]["estimated_value"] == 180000
+
+
+def test_buy_without_current_price_keeps_stored_price(db):
+    from dailyplanner.webview_handler import _sync_investment_asset_price
+
+    db.set_investment_asset_price("فیزیکی", "طلا", 2500000)
+    _sync_investment_asset_price(db, "فیزیکی", "طلا", None)
+    assert db.get_investment_asset_prices()["فیزیکی|طلا"] == 2500000
+
+
+def test_edit_buy_to_sell_validation_credits_excluded_entry(db):
+    from dailyplanner.investments import encode_investment_category, validate_investment_sell
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    entry = db.add_finance_entry(
+        d, "investment", "gold", 200000, cat,
+        quantity=1.0, unit_price=200000,
+    )
+    entries = db.get_investment_entries_until(d)
+    assert validate_investment_sell(cat, 100000, None, entries, exclude_id=entry.id) is None
+
+
+def test_amount_and_quantity_without_unit_price(db):
+    from dailyplanner.webview_handler import _resolve_investment_amount
+
+    amount, qty, unit_price, err = _resolve_investment_amount({
+        "amount": "300000",
+        "quantity": "2",
+    })
+    assert err == ""
+    assert amount == 300000
+    assert qty == 2.0
+    assert unit_price == 150000
+
+
+def test_rebalance_sell_capped_at_cost_basis(db):
+    from dailyplanner.investments import (
+        compute_positions,
+        compute_rebalance_suggestions,
+        encode_investment_category,
+        merge_asset_prices,
+    )
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "gold", 200000, cat,
+        quantity=1.0, unit_price=200000, current_unit_price=200000,
+    )
+    db.set_investment_asset_price("فیزیکی", "طلا", 400000)
+    entries = db.get_investment_entries_until(d)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    targets = {"فیزیکی|طلا": 10, "صندوق|عیار": 90}
+    rebalance = compute_rebalance_suggestions(positions, targets)
+    gold_sell = next(
+        (i for i in rebalance["items"] if i.get("asset") == "طلا" and i.get("action") == "sell"),
+        None,
+    )
+    assert gold_sell is not None
+    assert gold_sell["amount"] <= 200000
+
+
+def test_edit_sell_validation_credits_excluded_sell(db):
+    from dailyplanner.investments import encode_investment_category, validate_investment_sell
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    db.add_finance_entry(
+        d, "investment", "buy", 300000, cat,
+        quantity=3.0, unit_price=100000,
+    )
+    sell1 = db.add_finance_entry(
+        d, "investment", "sell1", 100000, cat,
+        investment_direction="sell", quantity=1.0,
+    )
+    db.add_finance_entry(
+        d, "investment", "sell2", 100000, cat,
+        investment_direction="sell", quantity=1.0,
+    )
+    entries = db.get_investment_entries_until(d)
+    assert validate_investment_sell(cat, 250000, 2.5, entries, exclude_id=sell1.id) is None
+
+
+def test_edit_buy_cannot_go_below_sells(db):
+    from dailyplanner.investments import encode_investment_category, validate_investment_buy_edit
+
+    d = datetime.date.today()
+    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    buy = db.add_finance_entry(
+        d, "investment", "buy", 300000, cat,
+        quantity=3.0, unit_price=100000,
+    )
+    db.add_finance_entry(
+        d, "investment", "sell", 150000, cat,
+        investment_direction="sell", quantity=1.5,
+    )
+    entries = db.get_investment_entries_until(d)
+    err = validate_investment_buy_edit(
+        cat, 100000, 1.0, entries, exclude_id=buy.id, old_category=cat
+    )
+    assert err is not None
+    assert validate_investment_buy_edit(
+        cat, 200000, 2.0, entries, exclude_id=buy.id, old_category=cat
+    ) is None
+
+
+def test_custom_asset_rejects_builtin_duplicate(db):
+    assert not db.add_investment_custom_asset("فیزیکی", "طلا", "طلا")
 
 
 def test_investments_state_has_positions(db):
@@ -1013,17 +1243,100 @@ def test_investment_allocation_targets(db):
     assert any(a["asset"] == "طلا" and a["target_pct"] == 30 for a in inv["allocation"])
 
 
+def test_investment_rebalance_suggestions(db):
+    from dailyplanner.investments import (
+        compute_rebalance_suggestions,
+        encode_investment_category,
+        compute_positions,
+        merge_asset_prices,
+    )
+    from dailyplanner.ui.state import build_state
+    from dailyplanner.services.timer import TimerService
+
+    d = datetime.date.today()
+    cat_gold = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    cat_fund = encode_investment_category("کم ریسک", "صندوق", "عیار")
+    db.add_finance_entry(
+        d, "investment", "gold", 700000, cat_gold,
+        quantity=1.0, unit_price=700000, current_unit_price=700000,
+    )
+    db.add_finance_entry(
+        d, "investment", "fund", 300000, cat_fund,
+        quantity=1.0, unit_price=300000, current_unit_price=300000,
+    )
+    db.set_investment_asset_price("فیزیکی", "طلا", 700000)
+    db.set_investment_asset_price("صندوق", "عیار", 300000)
+    db.set_investment_allocation_target("فیزیکی", "طلا", 30)
+    db.set_investment_allocation_target("صندوق", "عیار", 70)
+
+    entries = db.get_investment_entries_until(d)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    rebalance = compute_rebalance_suggestions(positions, db.get_investment_allocation_targets())
+
+    assert rebalance["has_suggestions"] is True
+    assert rebalance["total_buy"] == 400000
+    assert rebalance["total_sell"] == 400000
+    assert rebalance["net_cash_needed"] == 0
+
+    gold_item = next(i for i in rebalance["items"] if i["asset"] == "طلا")
+    fund_item = next(i for i in rebalance["items"] if i["asset"] == "عیار")
+    assert gold_item["action"] == "sell"
+    assert gold_item["amount"] == 400000
+    assert fund_item["action"] == "buy"
+    assert fund_item["amount"] == 400000
+
+    state = build_state(
+        db=db, timer=TimerService(), screen="investments",
+        current_date=d, expanded_tasks=set(), analytics_period=7,
+    )
+    inv = state["investments"]
+    assert inv["rebalance"]["has_suggestions"] is True
+    assert inv["rebalance"]["total_buy_fmt"]
+
+
+def test_investment_rebalance_balanced_no_suggestions(db):
+    from dailyplanner.investments import (
+        compute_rebalance_suggestions,
+        encode_investment_category,
+        compute_positions,
+        merge_asset_prices,
+    )
+
+    d = datetime.date.today()
+    cat_gold = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
+    cat_fund = encode_investment_category("کم ریسک", "صندوق", "عیار")
+    db.add_finance_entry(
+        d, "investment", "gold", 300000, cat_gold,
+        quantity=1.0, unit_price=300000, current_unit_price=300000,
+    )
+    db.add_finance_entry(
+        d, "investment", "fund", 700000, cat_fund,
+        quantity=1.0, unit_price=700000, current_unit_price=700000,
+    )
+    db.set_investment_allocation_target("فیزیکی", "طلا", 30)
+    db.set_investment_allocation_target("صندوق", "عیار", 70)
+
+    entries = db.get_investment_entries_until(d)
+    prices = merge_asset_prices(db.get_investment_asset_prices(), entries)
+    positions = compute_positions(entries, prices)
+    rebalance = compute_rebalance_suggestions(positions, db.get_investment_allocation_targets())
+
+    assert rebalance["has_suggestions"] is False
+    assert all(i["action"] == "hold" for i in rebalance["items"])
+
+
 def test_investment_custom_asset_edit_delete(db):
     from dailyplanner.investments import is_builtin_asset
 
-    assert db.add_investment_custom_asset("بورس", "فملی", "فملی", "🏭")
-    assert db.update_investment_custom_asset("بورس", "فملی", label="فولاد مبارکه", emoji="🔩")
+    assert db.add_investment_custom_asset("بورس", "نمادمن", "نمادمن", "🏭")
+    assert db.update_investment_custom_asset("بورس", "نمادمن", label="نماد سفارشی", emoji="🔩")
     custom = db.get_investment_custom_assets()
-    assert custom[0]["label"] == "فولاد مبارکه"
+    assert custom[0]["label"] == "نماد سفارشی"
     assert custom[0]["emoji"] == "🔩"
     assert is_builtin_asset("بورس", "فولاد") is True
-    assert is_builtin_asset("بورس", "فملی") is False
-    assert db.delete_investment_custom_asset("بورس", "فملی")
+    assert is_builtin_asset("بورس", "نمادمن") is False
+    assert db.delete_investment_custom_asset("بورس", "نمادمن")
     assert not db.get_investment_custom_assets()
 
 
@@ -1031,37 +1344,12 @@ def test_investment_custom_asset_delete_blocked_with_entries(db):
     from dailyplanner.investments import encode_investment_category
 
     d = datetime.date.today()
-    cat = encode_investment_category("ریسک متوسط", "بورس", "فملی")
-    db.add_investment_custom_asset("بورس", "فملی", "فملی")
+    cat = encode_investment_category("ریسک متوسط", "بورس", "نمادمن")
+    db.add_investment_custom_asset("بورس", "نمادمن", "نمادمن")
     db.add_finance_entry(d, "investment", "buy", 100000, cat)
-    assert db.count_investment_entries_for_asset("بورس", "فملی") == 1
-    assert not db.delete_investment_custom_asset("بورس", "فملی")
+    assert db.count_investment_entries_for_asset("بورس", "نمادمن") == 1
+    assert not db.delete_investment_custom_asset("بورس", "نمادمن")
     assert db.get_investment_custom_assets()
-
-
-def test_investment_price_sync_mocked(db, monkeypatch):
-    from dailyplanner.investment_prices import sync_prices_for_assets
-    from dailyplanner.investments import encode_investment_category
-    from dailyplanner.webview_handler import _run_investment_price_sync
-
-    d = datetime.date.today()
-    cat = encode_investment_category("کم ریسک", "فیزیکی", "طلا")
-    db.add_finance_entry(
-        d, "investment", "gold", 200000, cat,
-        quantity=1.0, unit_price=200000,
-    )
-
-    def fake_sync(assets):
-        return {"فیزیکی|طلا": 2500000}, []
-
-    monkeypatch.setattr(
-        "dailyplanner.webview_handler.sync_prices_for_assets", fake_sync
-    )
-    count, err = _run_investment_price_sync(db)
-    assert count == 1
-    assert err == ""
-    assert db.get_investment_asset_prices()["فیزیکی|طلا"] == 2500000
-    assert db.get_investment_prices_synced_at()
 
 
 def test_validate_backup_rejects_bad_important_dates():
